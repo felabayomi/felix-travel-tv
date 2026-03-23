@@ -6,7 +6,7 @@ import { ProgressBar } from '@/components/ProgressBar';
 import { AmbientMusicPlayer } from '@/components/AmbientMusicPlayer';
 import { Loader2, Globe } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
 
 export function ShowcasePage() {
   const { data: slides = [], isLoading, isError } = useGetSlides();
@@ -30,6 +30,22 @@ export function ShowcasePage() {
   const requestJumpToNext = useCallback(() => {
     jumpWhenCountRef.current = slides.length + 1;
   }, [slides.length]);
+
+  // Preload the next 2 slides' images so transitions are instant,
+  // even on the first pass through the deck.
+  const nextImageUrls = useMemo(() => {
+    if (slides.length <= 1) return [];
+    return [1, 2]
+      .map(offset => slides[(currentIndex + offset) % slides.length]?.imageUrl)
+      .filter((url): url is string => Boolean(url));
+  }, [currentIndex, slides]);
+
+  useEffect(() => {
+    nextImageUrls.forEach(url => {
+      const img = new Image();
+      img.src = url;
+    });
+  }, [nextImageUrls]);
 
   if (isLoading) {
     return (
