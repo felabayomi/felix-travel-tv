@@ -91,6 +91,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateSlide
+      tags: [slides]
+      summary: Edit slide content
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSlideInput"
+      responses:
+        "200":
+          description: Slide updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slide"
+        "404":
+          description: Slide not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /slides/{id}/reorder:
     patch:
       operationId: reorderSlide
@@ -173,6 +202,17 @@ components:
           description: The URL of the travel product to showcase
       required:
         - url
+    UpdateSlideInput:
+      type: object
+      properties:
+        title:
+          type: string
+        tagline:
+          type: string
+        summary:
+          type: string
+        category:
+          type: string
     ReorderSlideInput:
       type: object
       properties:

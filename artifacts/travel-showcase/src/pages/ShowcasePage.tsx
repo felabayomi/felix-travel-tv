@@ -9,9 +9,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 export function ShowcasePage() {
   const { data: slides = [], isLoading, isError } = useGetSlides();
-  const intervalMs = 12000; // 12 seconds per slide
+  const intervalMs = 12000;
   
-  const { currentIndex, isPaused } = useSlideshow(slides, intervalMs);
+  const { currentIndex, isPaused, goTo } = useSlideshow(slides, intervalMs);
 
   if (isLoading) {
     return (
@@ -39,7 +39,6 @@ export function ShowcasePage() {
     <main className="relative w-screen h-screen overflow-hidden bg-background">
       
       {isEmpty ? (
-        // Empty State
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-background to-background flex flex-col items-center justify-center text-center p-8">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -56,7 +55,6 @@ export function ShowcasePage() {
           </motion.div>
         </div>
       ) : (
-        // Showcase Slides
         <AnimatePresence initial={false}>
           {slides.map((slide, index) => (
             <SlideDisplay 
@@ -68,29 +66,21 @@ export function ShowcasePage() {
         </AnimatePresence>
       )}
 
-      {/* HUD Elements */}
       {!isEmpty && (
         <>
-          {/* Progress Bar */}
           <ProgressBar 
             duration={intervalMs} 
             slideKey={slides[currentIndex]?.id || 'init'} 
             isPaused={isPaused}
           />
-          
-          {/* Slide Counter HUD */}
           <div className="absolute top-8 right-8 z-30 font-mono text-sm tracking-widest text-white/40">
             {String(currentIndex + 1).padStart(2, '0')} / {String(slides.length).padStart(2, '0')}
           </div>
         </>
       )}
 
-      {/* Ambient Music Toggle */}
       <AmbientMusicPlayer />
-
-      {/* Always available Admin Overlay */}
-      <AdminPanel />
-
+      <AdminPanel goTo={goTo} slideCount={slides.length} />
     </main>
   );
 }

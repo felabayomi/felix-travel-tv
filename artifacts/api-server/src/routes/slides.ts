@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, slidesTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { CreateSlideBody, ReorderSlideBody, ReorderSlideParams, DeleteSlideParams } from "@workspace/api-zod";
+import { CreateSlideBody, ReorderSlideBody, ReorderSlideParams, DeleteSlideParams, UpdateSlideParams, UpdateSlideBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -206,6 +206,49 @@ router.delete("/:id", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to delete slide");
     res.status(500).json({ error: "Failed to delete slide" });
+  }
+});
+
+// PATCH /api/slides/:id — edit slide content
+router.patch("/:id", async (req, res) => {
+  try {
+    const paramsParsed = UpdateSlideParams.safeParse({ id: Number(req.params.id) });
+    const bodyParsed = UpdateSlideBody.safeParse(req.body);
+    if (!paramsParsed.success || !bodyParsed.success) {
+      res.status(400).json({ error: "Invalid input" });
+      return;
+    }
+    const updates: Record<string, string> = {};
+    const { title, tagline, summary, category } = bodyParsed.data;
+    if (title !== undefined) updates.title = title;
+    if (tagline !== undefined) updates.tagline = tagline;
+    if (summary !== undefined) updates.summary = summary;
+    if (category !== undefined) updates.category = category;
+
+    const [updated] = await db
+      .update(slidesTable)
+      .set(updates)
+      .where(eq(slidesTable.id, paramsParsed.data.id))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Slide not found" });
+      return;
+    }
+    res.json({
+      id: updated.id,
+      url: updated.url,
+      title: updated.title,
+      tagline: updated.tagline,
+      summary: updated.summary,
+      imageUrl: updated.imageUrl,
+      imagePrompt: updated.imagePrompt,
+      displayOrder: updated.displayOrder,
+      category: updated.category,
+      createdAt: updated.createdAt,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to update slide");
+    res.status(500).json({ error: "Failed to update slide" });
   }
 });
 

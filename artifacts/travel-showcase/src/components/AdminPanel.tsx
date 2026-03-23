@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { 
   X, Plus, Trash2, ArrowUp, ArrowDown, ExternalLink, 
-  Settings2, Loader2, Image as ImageIcon 
+  Settings2, Loader2, Image as ImageIcon, Eye, Pencil, Check, XCircle
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
@@ -11,15 +11,30 @@ import {
   useCreateSlide, 
   useDeleteSlide, 
   useReorderSlide,
+  useUpdateSlide,
   getGetSlidesQueryKey
 } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 import type { Slide } from '@workspace/api-client-react/src/generated/api.schemas';
 
-export function AdminPanel() {
+interface AdminPanelProps {
+  goTo: (index: number) => void;
+  slideCount: number;
+}
+
+interface EditState {
+  title: string;
+  tagline: string;
+  summary: string;
+  category: string;
+}
+
+export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const [error, setError] = useState('');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editState, setEditState] = useState<EditState>({ title: '', tagline: '', summary: '', category: '' });
   
   const queryClient = useQueryClient();
   const invalidateSlides = () => queryClient.invalidateQueries({ queryKey: getGetSlidesQueryKey() });
@@ -31,7 +46,12 @@ export function AdminPanel() {
       onSuccess: () => {
         setNewUrl('');
         setError('');
-        invalidateSlides();
+        invalidateSlides().then(() => {
+          // Jump to the newly added slide (it goes to the end)
+          const newIndex = slideCount; // current count = index of new slide
+          setIsOpen(false);
+          setTimeout(() => goTo(newIndex), 200);
+        });
       },
       onError: (err: any) => {
         setError(err?.data?.error || 'Failed to process URL');
@@ -45,6 +65,18 @@ export function AdminPanel() {
 
   const reorderMutation = useReorderSlide({
     mutation: { onSuccess: invalidateSlides }
+  });
+
+  const updateMutation = useUpdateSlide({
+    mutation: {
+      onSuccess: () => {
+        invalidateSlides();
+        setEditingId(null);
+      },
+      onError: () => {
+        setError('Failed to save changes');
+      }
+    }
   });
 
   const handleAddUrl = (e: React.FormEvent) => {
@@ -64,9 +96,32 @@ export function AdminPanel() {
     }
   };
 
+  const startEdit = (slide: Slide) => {
+    setEditingId(slide.id);
+    setEditState({
+      title: slide.title,
+      tagline: slide.tagline,
+      summary: slide.summary ?? '',
+      category: slide.category,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setError('');
+  };
+
+  const saveEdit = (id: number) => {
+    updateMutation.mutate({ id, data: editState });
+  };
+
+  const handleView = (index: number) => {
+    setIsOpen(false);
+    setTimeout(() => goTo(index), 200);
+  };
+
   return (
     <>
-      {/* Subtle trigger button */}
       <button 
         onClick={() => setIsOpen(true)}
         className={cn(
@@ -79,7 +134,6 @@ export function AdminPanel() {
         <Settings2 className="w-5 h-5 group-hover:rotate-90 transition-transform duration-700" />
       </button>
 
-      {/* Admin Drawer */}
       <AnimatePresence>
         {isOpen && (
           <>
@@ -111,13 +165,14 @@ export function AdminPanel() {
                 </button>
               </div>
 
+              {/* Add URL form */}
               <div className="p-6 border-b border-border bg-black/20">
                 <form onSubmit={handleAddUrl} className="space-y-3">
                   <label className="text-sm font-medium text-muted-foreground">Add New Product URL</label>
                   <div className="flex gap-2">
                     <input
                       type="url"
-                      placeholder="https://example.com/tour"
+                      placeholder="https://example.com/product"
                       value={newUrl}
                       onChange={(e) => setNewUrl(e.target.value)}
                       disabled={createMutation.isPending}
@@ -135,14 +190,17 @@ export function AdminPanel() {
                   {error && <p className="text-xs text-destructive">{error}</p>}
                   {createMutation.isPending && (
                     <p className="text-xs text-primary animate-pulse flex items-center gap-2">
-                      <Loader2 className="w-3 h-3 animate-spin" /> Analyzing page & generating visuals...
+                      <Loader2 className="w-3 h-3 animate-spin" /> Analyzing page &amp; generating visuals...
                     </p>
                   )}
                 </form>
               </div>
 
+              {/* Slides list */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">Active Slides ({slides.length})</h3>
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                  Active Slides ({slides.length})
+                </h3>
                 
                 {isLoadingSlides ? (
                   <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
@@ -153,62 +211,138 @@ export function AdminPanel() {
                 ) : (
                   <div className="space-y-3">
                     {slides.map((slide, index) => (
-                      <div key={slide.id} className="group flex bg-background border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-colors">
+                      <div key={slide.id} className="group bg-background border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-colors">
                         
-                        {/* Thumbnail */}
-                        <div className="w-24 h-24 shrink-0 bg-secondary flex items-center justify-center relative overflow-hidden">
-                          {slide.imageUrl ? (
-                            <img src={slide.imageUrl} alt={slide.title} className="w-full h-full object-cover" />
-                          ) : (
-                            <ImageIcon className="w-6 h-6 text-muted-foreground/30" />
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                          <span className="absolute bottom-1 left-2 text-[10px] font-bold text-white uppercase tracking-wider">{slide.category}</span>
-                        </div>
+                        {/* Normal view */}
+                        {editingId !== slide.id ? (
+                          <div className="flex">
+                            {/* Thumbnail */}
+                            <div className="w-24 h-24 shrink-0 bg-secondary flex items-center justify-center relative overflow-hidden">
+                              {slide.imageUrl ? (
+                                <img src={slide.imageUrl} alt={slide.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <ImageIcon className="w-6 h-6 text-muted-foreground/30" />
+                              )}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                              <span className="absolute bottom-1 left-2 text-[10px] font-bold text-white uppercase tracking-wider">{slide.category}</span>
+                            </div>
 
-                        {/* Content */}
-                        <div className="p-3 flex-1 min-w-0 flex flex-col justify-between">
-                          <div>
-                            <h4 className="font-display font-bold text-sm truncate text-foreground">{slide.title}</h4>
-                            <p className="text-xs text-muted-foreground truncate">{slide.tagline}</p>
-                          </div>
-                          
-                          <div className="flex items-center justify-between mt-2">
-                            <span className="text-[10px] text-muted-foreground/50">{format(new Date(slide.createdAt), 'MMM d, yyyy')}</span>
-                            <div className="flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                              <a href={slide.url} target="_blank" rel="noreferrer" className="p-1.5 rounded bg-secondary hover:text-primary transition-colors">
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                              <div className="flex flex-col gap-0.5 ml-1">
-                                <button 
-                                  onClick={() => handleReorder(slide, 'up', index)}
-                                  disabled={index === 0 || reorderMutation.isPending}
-                                  className="p-0.5 bg-secondary rounded hover:text-primary disabled:opacity-30 transition-colors"
-                                >
-                                  <ArrowUp className="w-3 h-3" />
-                                </button>
-                                <button 
-                                  onClick={() => handleReorder(slide, 'down', index)}
-                                  disabled={index === slides.length - 1 || reorderMutation.isPending}
-                                  className="p-0.5 bg-secondary rounded hover:text-primary disabled:opacity-30 transition-colors"
-                                >
-                                  <ArrowDown className="w-3 h-3" />
-                                </button>
+                            {/* Content */}
+                            <div className="p-3 flex-1 min-w-0 flex flex-col justify-between">
+                              <div>
+                                <h4 className="font-display font-bold text-sm truncate text-foreground">{slide.title}</h4>
+                                <p className="text-xs text-muted-foreground truncate">{slide.tagline}</p>
                               </div>
-                              <button 
-                                onClick={() => {
-                                  if(confirm('Delete this slide?')) {
-                                    deleteMutation.mutate({ id: slide.id });
-                                  }
-                                }}
-                                disabled={deleteMutation.isPending}
-                                className="p-1.5 ml-1 rounded bg-secondary hover:bg-destructive/20 hover:text-destructive transition-colors"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
+                              
+                              <div className="flex items-center justify-between mt-2">
+                                <span className="text-[10px] text-muted-foreground/50">{format(new Date(slide.createdAt), 'MMM d, yyyy')}</span>
+                                <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                                  {/* View on screen */}
+                                  <button
+                                    onClick={() => handleView(index)}
+                                    title="View this slide"
+                                    className="p-1.5 rounded bg-secondary hover:text-primary transition-colors"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                  </button>
+                                  {/* Edit */}
+                                  <button
+                                    onClick={() => startEdit(slide)}
+                                    title="Edit this slide"
+                                    className="p-1.5 rounded bg-secondary hover:text-primary transition-colors"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                  {/* External link */}
+                                  <a href={slide.url} target="_blank" rel="noreferrer" className="p-1.5 rounded bg-secondary hover:text-primary transition-colors">
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                  {/* Reorder */}
+                                  <div className="flex flex-col gap-0.5 ml-1">
+                                    <button 
+                                      onClick={() => handleReorder(slide, 'up', index)}
+                                      disabled={index === 0 || reorderMutation.isPending}
+                                      className="p-0.5 bg-secondary rounded hover:text-primary disabled:opacity-30 transition-colors"
+                                    >
+                                      <ArrowUp className="w-3 h-3" />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleReorder(slide, 'down', index)}
+                                      disabled={index === slides.length - 1 || reorderMutation.isPending}
+                                      className="p-0.5 bg-secondary rounded hover:text-primary disabled:opacity-30 transition-colors"
+                                    >
+                                      <ArrowDown className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  {/* Delete */}
+                                  <button 
+                                    onClick={() => {
+                                      if(confirm('Delete this slide?')) {
+                                        deleteMutation.mutate({ id: slide.id });
+                                      }
+                                    }}
+                                    disabled={deleteMutation.isPending}
+                                    className="p-1.5 ml-1 rounded bg-secondary hover:bg-destructive/20 hover:text-destructive transition-colors"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        ) : (
+                          /* Edit mode */
+                          <div className="p-4 space-y-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-primary uppercase tracking-wider">Editing Slide</span>
+                              <button onClick={cancelEdit} className="p-1 rounded hover:bg-white/10 transition-colors">
+                                <XCircle className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                              </button>
+                            </div>
+                            <div className="space-y-2">
+                              <div>
+                                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Title</label>
+                                <input
+                                  value={editState.title}
+                                  onChange={e => setEditState(s => ({ ...s, title: e.target.value }))}
+                                  className="w-full bg-black/30 border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-primary transition-all mt-0.5"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Tagline</label>
+                                <input
+                                  value={editState.tagline}
+                                  onChange={e => setEditState(s => ({ ...s, tagline: e.target.value }))}
+                                  className="w-full bg-black/30 border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-primary transition-all mt-0.5"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Summary</label>
+                                <textarea
+                                  value={editState.summary}
+                                  onChange={e => setEditState(s => ({ ...s, summary: e.target.value }))}
+                                  rows={3}
+                                  className="w-full bg-black/30 border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-primary transition-all mt-0.5 resize-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Category</label>
+                                <input
+                                  value={editState.category}
+                                  onChange={e => setEditState(s => ({ ...s, category: e.target.value }))}
+                                  className="w-full bg-black/30 border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-primary transition-all mt-0.5"
+                                />
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => saveEdit(slide.id)}
+                              disabled={updateMutation.isPending}
+                              className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-2 rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-all"
+                            >
+                              {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-4 h-4" /> Save Changes</>}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

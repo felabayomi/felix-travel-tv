@@ -11,3 +11,4 @@ export * from "./errorResponse";
 export * from "./healthStatus";
 export * from "./reorderSlideInput";
 export * from "./slide";
+export * from "./updateSlideInput";

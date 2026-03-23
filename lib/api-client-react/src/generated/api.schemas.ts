@@ -30,6 +30,13 @@ export interface CreateSlideInput {
   url: string;
 }
 
+export interface UpdateSlideInput {
+  title?: string;
+  tagline?: string;
+  summary?: string;
+  category?: string;
+}
+
 export interface ReorderSlideInput {
   displayOrder: number;
 }

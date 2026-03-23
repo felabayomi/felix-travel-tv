@@ -22,6 +22,7 @@ import type {
   HealthStatus,
   ReorderSlideInput,
   Slide,
+  UpdateSlideInput,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -344,6 +345,93 @@ export const useDeleteSlide = <
   TContext
 > => {
   return useMutation(getDeleteSlideMutationOptions(options));
+};
+
+/**
+ * @summary Edit slide content
+ */
+export const getUpdateSlideUrl = (id: number) => {
+  return `/api/slides/${id}`;
+};
+
+export const updateSlide = async (
+  id: number,
+  updateSlideInput: UpdateSlideInput,
+  options?: RequestInit,
+): Promise<Slide> => {
+  return customFetch<Slide>(getUpdateSlideUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSlideInput),
+  });
+};
+
+export const getUpdateSlideMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSlide>>,
+    TError,
+    { id: number; data: BodyType<UpdateSlideInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSlide>>,
+  TError,
+  { id: number; data: BodyType<UpdateSlideInput> },
+  TContext
+> => {
+  const mutationKey = ["updateSlide"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSlide>>,
+    { id: number; data: BodyType<UpdateSlideInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSlide(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSlideMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSlide>>
+>;
+export type UpdateSlideMutationBody = BodyType<UpdateSlideInput>;
+export type UpdateSlideMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Edit slide content
+ */
+export const useUpdateSlide = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSlide>>,
+    TError,
+    { id: number; data: BodyType<UpdateSlideInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSlide>>,
+  TError,
+  { id: number; data: BodyType<UpdateSlideInput> },
+  TContext
+> => {
+  return useMutation(getUpdateSlideMutationOptions(options));
 };
 
 /**

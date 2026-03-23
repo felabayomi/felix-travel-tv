@@ -49,6 +49,33 @@ export const DeleteSlideParams = zod.object({
 });
 
 /**
+ * @summary Edit slide content
+ */
+export const UpdateSlideParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSlideBody = zod.object({
+  title: zod.string().optional(),
+  tagline: zod.string().optional(),
+  summary: zod.string().optional(),
+  category: zod.string().optional(),
+});
+
+export const UpdateSlideResponse = zod.object({
+  id: zod.number(),
+  url: zod.string(),
+  title: zod.string(),
+  tagline: zod.string(),
+  summary: zod.string(),
+  imageUrl: zod.string().nullable(),
+  imagePrompt: zod.string().nullable(),
+  displayOrder: zod.number(),
+  category: zod.string().nullable(),
+  createdAt: zod.date(),
+});
+
+/**
  * @summary Update slide display order
  */
 export const ReorderSlideParams = zod.object({
