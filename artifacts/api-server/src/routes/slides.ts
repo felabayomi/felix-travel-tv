@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, slidesTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { CreateSlideBody, ReorderSlideBody, ReorderSlideParams, DeleteSlideParams, UpdateSlideParams, UpdateSlideBody } from "@workspace/api-zod";
+import { CreateSlideBody, ReorderSlideBody, ReorderSlideParams, DeleteSlideParams, UpdateSlideParams, UpdateSlideBody, RegenerateSlideParams, RegenerateSlideBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -249,6 +249,85 @@ router.patch("/:id", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to update slide");
     res.status(500).json({ error: "Failed to update slide" });
+  }
+});
+
+// POST /api/slides/:id/regenerate — regenerate text content from a hint
+router.post("/:id/regenerate", async (req, res) => {
+  try {
+    const paramsParsed = RegenerateSlideParams.safeParse({ id: Number(req.params.id) });
+    const bodyParsed = RegenerateSlideBody.safeParse(req.body);
+    if (!paramsParsed.success || !bodyParsed.success) {
+      res.status(400).json({ error: "Invalid input" });
+      return;
+    }
+
+    const existing = await db.select().from(slidesTable).where(eq(slidesTable.id, paramsParsed.data.id));
+    if (existing.length === 0) {
+      res.status(404).json({ error: "Slide not found" });
+      return;
+    }
+
+    const slide = existing[0];
+    const { hint } = bodyParsed.data;
+
+    const prompt = `You are generating showcase content for a product or service.
+
+URL: ${slide.url}
+User's description: "${hint}"
+
+Use the user's description as the primary source of truth. Ignore any previous assumptions about the product.
+
+Respond with a JSON object ONLY (no markdown) with these exact fields:
+{
+  "title": "Short product/service name (max 6 words)",
+  "tagline": "Compelling one-line tagline that captures the essence (max 12 words)",
+  "summary": "2-3 sentence description of what this product/service does and why it is valuable or exciting",
+  "category": "A single relevant category word (e.g. Finance, Technology, Education, Health, Productivity, Travel, etc.)"
+}`;
+
+    const aiResponse = await openai.chat.completions.create({
+      model: "gpt-5.2",
+      max_completion_tokens: 1024,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const raw = aiResponse.choices[0]?.message?.content ?? "{}";
+    let generated: { title: string; tagline: string; summary: string; category: string };
+    try {
+      const parsed = JSON.parse(raw);
+      generated = {
+        title: parsed.title || slide.title,
+        tagline: parsed.tagline || slide.tagline,
+        summary: parsed.summary || slide.summary || "",
+        category: parsed.category || slide.category,
+      };
+    } catch {
+      res.status(500).json({ error: "AI returned unexpected content" });
+      return;
+    }
+
+    const [updated] = await db
+      .update(slidesTable)
+      .set(generated)
+      .where(eq(slidesTable.id, paramsParsed.data.id))
+      .returning();
+
+    res.json({
+      id: updated.id,
+      url: updated.url,
+      title: updated.title,
+      tagline: updated.tagline,
+      summary: updated.summary,
+      imageUrl: updated.imageUrl,
+      imagePrompt: updated.imagePrompt,
+      displayOrder: updated.displayOrder,
+      category: updated.category,
+      createdAt: updated.createdAt,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to regenerate slide");
+    res.status(500).json({ error: "Failed to regenerate slide" });
   }
 });
 

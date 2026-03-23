@@ -30,6 +30,11 @@ export interface CreateSlideInput {
   url: string;
 }
 
+export interface RegenerateSlideInput {
+  /** A brief description of what this product actually does */
+  hint: string;
+}
+
 export interface UpdateSlideInput {
   title?: string;
   tagline?: string;

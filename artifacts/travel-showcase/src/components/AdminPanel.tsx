@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { 
   X, Plus, Trash2, ArrowUp, ArrowDown, ExternalLink, 
-  Settings2, Loader2, Image as ImageIcon, Eye, Pencil, Check, XCircle
+  Settings2, Loader2, Image as ImageIcon, Eye, Pencil, Sparkles, XCircle
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
@@ -11,7 +11,7 @@ import {
   useCreateSlide, 
   useDeleteSlide, 
   useReorderSlide,
-  useUpdateSlide,
+  useRegenerateSlide,
   getGetSlidesQueryKey
 } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
@@ -22,19 +22,13 @@ interface AdminPanelProps {
   slideCount: number;
 }
 
-interface EditState {
-  title: string;
-  tagline: string;
-  summary: string;
-  category: string;
-}
-
 export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [newUrl, setNewUrl] = useState('');
-  const [error, setError] = useState('');
+  const [addError, setAddError] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editState, setEditState] = useState<EditState>({ title: '', tagline: '', summary: '', category: '' });
+  const [hint, setHint] = useState('');
+  const [editError, setEditError] = useState('');
   
   const queryClient = useQueryClient();
   const invalidateSlides = () => queryClient.invalidateQueries({ queryKey: getGetSlidesQueryKey() });
@@ -45,16 +39,14 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
     mutation: {
       onSuccess: () => {
         setNewUrl('');
-        setError('');
+        setAddError('');
         invalidateSlides().then(() => {
-          // Jump to the newly added slide (it goes to the end)
-          const newIndex = slideCount; // current count = index of new slide
           setIsOpen(false);
-          setTimeout(() => goTo(newIndex), 200);
+          setTimeout(() => goTo(slideCount), 200);
         });
       },
       onError: (err: any) => {
-        setError(err?.data?.error || 'Failed to process URL');
+        setAddError(err?.data?.error || 'Failed to process URL');
       }
     }
   });
@@ -67,14 +59,16 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
     mutation: { onSuccess: invalidateSlides }
   });
 
-  const updateMutation = useUpdateSlide({
+  const regenerateMutation = useRegenerateSlide({
     mutation: {
       onSuccess: () => {
         invalidateSlides();
         setEditingId(null);
+        setHint('');
+        setEditError('');
       },
       onError: () => {
-        setError('Failed to save changes');
+        setEditError('Regeneration failed — please try again.');
       }
     }
   });
@@ -82,37 +76,33 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
   const handleAddUrl = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUrl) return;
-    setError('');
+    setAddError('');
     createMutation.mutate({ data: { url: newUrl } });
   };
 
   const handleReorder = (slide: Slide, direction: 'up' | 'down', index: number) => {
     if (direction === 'up' && index > 0) {
-      const targetOrder = slides[index - 1].displayOrder - 1;
-      reorderMutation.mutate({ id: slide.id, data: { displayOrder: targetOrder } });
+      reorderMutation.mutate({ id: slide.id, data: { displayOrder: slides[index - 1].displayOrder - 1 } });
     } else if (direction === 'down' && index < slides.length - 1) {
-      const targetOrder = slides[index + 1].displayOrder + 1;
-      reorderMutation.mutate({ id: slide.id, data: { displayOrder: targetOrder } });
+      reorderMutation.mutate({ id: slide.id, data: { displayOrder: slides[index + 1].displayOrder + 1 } });
     }
   };
 
   const startEdit = (slide: Slide) => {
     setEditingId(slide.id);
-    setEditState({
-      title: slide.title,
-      tagline: slide.tagline,
-      summary: slide.summary ?? '',
-      category: slide.category,
-    });
+    setHint('');
+    setEditError('');
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setError('');
+    setHint('');
+    setEditError('');
   };
 
-  const saveEdit = (id: number) => {
-    updateMutation.mutate({ id, data: editState });
+  const handleRegenerate = (id: number) => {
+    if (!hint.trim()) return;
+    regenerateMutation.mutate({ id, data: { hint: hint.trim() } });
   };
 
   const handleView = (index: number) => {
@@ -152,6 +142,7 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-card border-l border-border z-50 flex flex-col shadow-2xl"
             >
+              {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-border">
                 <div>
                   <h2 className="text-xl font-display font-bold text-foreground">Showcase Control</h2>
@@ -184,10 +175,12 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
                       disabled={createMutation.isPending || !newUrl}
                       className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium flex items-center justify-center min-w-[100px] hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20"
                     >
-                      {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <span className="flex items-center gap-2"><Plus className="w-4 h-4" /> Add</span>}
+                      {createMutation.isPending
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <span className="flex items-center gap-2"><Plus className="w-4 h-4" /> Add</span>}
                     </button>
                   </div>
-                  {error && <p className="text-xs text-destructive">{error}</p>}
+                  {addError && <p className="text-xs text-destructive">{addError}</p>}
                   {createMutation.isPending && (
                     <p className="text-xs text-primary animate-pulse flex items-center gap-2">
                       <Loader2 className="w-3 h-3 animate-spin" /> Analyzing page &amp; generating visuals...
@@ -203,7 +196,9 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
                 </h3>
                 
                 {isLoadingSlides ? (
-                  <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+                  <div className="flex justify-center p-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
                 ) : slides.length === 0 ? (
                   <div className="text-center p-8 border border-dashed border-border rounded-xl">
                     <p className="text-sm text-muted-foreground">No products added yet.</p>
@@ -211,9 +206,9 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
                 ) : (
                   <div className="space-y-3">
                     {slides.map((slide, index) => (
-                      <div key={slide.id} className="group bg-background border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-colors">
-                        
-                        {/* Normal view */}
+                      <div key={slide.id} className="group bg-background border border-border rounded-xl overflow-hidden hover:border-primary/40 transition-colors">
+
+                        {/* Normal card view */}
                         {editingId !== slide.id ? (
                           <div className="flex">
                             {/* Thumbnail */}
@@ -224,10 +219,12 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
                                 <ImageIcon className="w-6 h-6 text-muted-foreground/30" />
                               )}
                               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                              <span className="absolute bottom-1 left-2 text-[10px] font-bold text-white uppercase tracking-wider">{slide.category}</span>
+                              <span className="absolute bottom-1 left-2 text-[10px] font-bold text-white uppercase tracking-wider">
+                                {slide.category}
+                              </span>
                             </div>
 
-                            {/* Content */}
+                            {/* Info + actions */}
                             <div className="p-3 flex-1 min-w-0 flex flex-col justify-between">
                               <div>
                                 <h4 className="font-display font-bold text-sm truncate text-foreground">{slide.title}</h4>
@@ -235,29 +232,28 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
                               </div>
                               
                               <div className="flex items-center justify-between mt-2">
-                                <span className="text-[10px] text-muted-foreground/50">{format(new Date(slide.createdAt), 'MMM d, yyyy')}</span>
+                                <span className="text-[10px] text-muted-foreground/50">
+                                  {format(new Date(slide.createdAt), 'MMM d, yyyy')}
+                                </span>
                                 <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                                  {/* View on screen */}
                                   <button
                                     onClick={() => handleView(index)}
-                                    title="View this slide"
+                                    title="Jump to this slide"
                                     className="p-1.5 rounded bg-secondary hover:text-primary transition-colors"
                                   >
                                     <Eye className="w-3 h-3" />
                                   </button>
-                                  {/* Edit */}
                                   <button
                                     onClick={() => startEdit(slide)}
-                                    title="Edit this slide"
+                                    title="Fix with AI"
                                     className="p-1.5 rounded bg-secondary hover:text-primary transition-colors"
                                   >
                                     <Pencil className="w-3 h-3" />
                                   </button>
-                                  {/* External link */}
-                                  <a href={slide.url} target="_blank" rel="noreferrer" className="p-1.5 rounded bg-secondary hover:text-primary transition-colors">
+                                  <a href={slide.url} target="_blank" rel="noreferrer"
+                                    className="p-1.5 rounded bg-secondary hover:text-primary transition-colors">
                                     <ExternalLink className="w-3 h-3" />
                                   </a>
-                                  {/* Reorder */}
                                   <div className="flex flex-col gap-0.5 ml-1">
                                     <button 
                                       onClick={() => handleReorder(slide, 'up', index)}
@@ -274,10 +270,9 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
                                       <ArrowDown className="w-3 h-3" />
                                     </button>
                                   </div>
-                                  {/* Delete */}
                                   <button 
                                     onClick={() => {
-                                      if(confirm('Delete this slide?')) {
+                                      if (confirm('Delete this slide?')) {
                                         deleteMutation.mutate({ id: slide.id });
                                       }
                                     }}
@@ -291,55 +286,47 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
                             </div>
                           </div>
                         ) : (
-                          /* Edit mode */
+                          /* Regenerate panel */
                           <div className="p-4 space-y-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium text-primary uppercase tracking-wider">Editing Slide</span>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-primary">
+                                <Sparkles className="w-4 h-4" />
+                                <span className="text-xs font-semibold uppercase tracking-wider">Fix with AI</span>
+                              </div>
                               <button onClick={cancelEdit} className="p-1 rounded hover:bg-white/10 transition-colors">
-                                <XCircle className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                                <XCircle className="w-4 h-4 text-muted-foreground hover:text-foreground" />
                               </button>
                             </div>
-                            <div className="space-y-2">
-                              <div>
-                                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Title</label>
-                                <input
-                                  value={editState.title}
-                                  onChange={e => setEditState(s => ({ ...s, title: e.target.value }))}
-                                  className="w-full bg-black/30 border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-primary transition-all mt-0.5"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Tagline</label>
-                                <input
-                                  value={editState.tagline}
-                                  onChange={e => setEditState(s => ({ ...s, tagline: e.target.value }))}
-                                  className="w-full bg-black/30 border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-primary transition-all mt-0.5"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Summary</label>
-                                <textarea
-                                  value={editState.summary}
-                                  onChange={e => setEditState(s => ({ ...s, summary: e.target.value }))}
-                                  rows={3}
-                                  className="w-full bg-black/30 border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-primary transition-all mt-0.5 resize-none"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Category</label>
-                                <input
-                                  value={editState.category}
-                                  onChange={e => setEditState(s => ({ ...s, category: e.target.value }))}
-                                  className="w-full bg-black/30 border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-primary transition-all mt-0.5"
-                                />
-                              </div>
-                            </div>
+
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              Describe what <span className="text-foreground font-medium">{slide.title}</span> actually does in one sentence and AI will rewrite everything.
+                            </p>
+
+                            <textarea
+                              value={hint}
+                              onChange={e => setHint(e.target.value)}
+                              placeholder="e.g. It's a meditation app that helps you fall asleep faster using guided breathing"
+                              rows={3}
+                              disabled={regenerateMutation.isPending}
+                              className="w-full bg-black/30 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none placeholder:text-muted-foreground/40"
+                            />
+
+                            {editError && <p className="text-xs text-destructive">{editError}</p>}
+
+                            {regenerateMutation.isPending && (
+                              <p className="text-xs text-primary animate-pulse flex items-center gap-2">
+                                <Loader2 className="w-3 h-3 animate-spin" /> Regenerating content...
+                              </p>
+                            )}
+
                             <button
-                              onClick={() => saveEdit(slide.id)}
-                              disabled={updateMutation.isPending}
-                              className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-2 rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-all"
+                              onClick={() => handleRegenerate(slide.id)}
+                              disabled={!hint.trim() || regenerateMutation.isPending}
+                              className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-2 rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20"
                             >
-                              {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-4 h-4" /> Save Changes</>}
+                              {regenerateMutation.isPending
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : <><Sparkles className="w-4 h-4" /> Regenerate</>}
                             </button>
                           </div>
                         )}

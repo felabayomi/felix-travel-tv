@@ -76,6 +76,32 @@ export const UpdateSlideResponse = zod.object({
 });
 
 /**
+ * @summary Regenerate slide content using AI with a hint
+ */
+export const RegenerateSlideParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RegenerateSlideBody = zod.object({
+  hint: zod
+    .string()
+    .describe("A brief description of what this product actually does"),
+});
+
+export const RegenerateSlideResponse = zod.object({
+  id: zod.number(),
+  url: zod.string(),
+  title: zod.string(),
+  tagline: zod.string(),
+  summary: zod.string(),
+  imageUrl: zod.string().nullable(),
+  imagePrompt: zod.string().nullable(),
+  displayOrder: zod.number(),
+  category: zod.string().nullable(),
+  createdAt: zod.date(),
+});
+
+/**
  * @summary Update slide display order
  */
 export const ReorderSlideParams = zod.object({

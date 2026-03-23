@@ -120,6 +120,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /slides/{id}/regenerate:
+    post:
+      operationId: regenerateSlide
+      tags: [slides]
+      summary: Regenerate slide content using AI with a hint
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegenerateSlideInput"
+      responses:
+        "200":
+          description: Slide regenerated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slide"
+        "404":
+          description: Slide not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /slides/{id}/reorder:
     patch:
       operationId: reorderSlide
@@ -202,6 +232,13 @@ components:
           description: The URL of the travel product to showcase
       required:
         - url
+    RegenerateSlideInput:
+      type: object
+      required: [hint]
+      properties:
+        hint:
+          type: string
+          description: A brief description of what this product actually does
     UpdateSlideInput:
       type: object
       properties:

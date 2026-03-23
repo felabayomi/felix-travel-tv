@@ -9,6 +9,7 @@
 export * from "./createSlideInput";
 export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./regenerateSlideInput";
 export * from "./reorderSlideInput";
 export * from "./slide";
 export * from "./updateSlideInput";

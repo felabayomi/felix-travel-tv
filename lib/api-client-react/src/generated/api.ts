@@ -20,6 +20,7 @@ import type {
   CreateSlideInput,
   ErrorResponse,
   HealthStatus,
+  RegenerateSlideInput,
   ReorderSlideInput,
   Slide,
   UpdateSlideInput,
@@ -432,6 +433,93 @@ export const useUpdateSlide = <
   TContext
 > => {
   return useMutation(getUpdateSlideMutationOptions(options));
+};
+
+/**
+ * @summary Regenerate slide content using AI with a hint
+ */
+export const getRegenerateSlideUrl = (id: number) => {
+  return `/api/slides/${id}/regenerate`;
+};
+
+export const regenerateSlide = async (
+  id: number,
+  regenerateSlideInput: RegenerateSlideInput,
+  options?: RequestInit,
+): Promise<Slide> => {
+  return customFetch<Slide>(getRegenerateSlideUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(regenerateSlideInput),
+  });
+};
+
+export const getRegenerateSlideMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateSlide>>,
+    TError,
+    { id: number; data: BodyType<RegenerateSlideInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof regenerateSlide>>,
+  TError,
+  { id: number; data: BodyType<RegenerateSlideInput> },
+  TContext
+> => {
+  const mutationKey = ["regenerateSlide"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof regenerateSlide>>,
+    { id: number; data: BodyType<RegenerateSlideInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return regenerateSlide(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegenerateSlideMutationResult = NonNullable<
+  Awaited<ReturnType<typeof regenerateSlide>>
+>;
+export type RegenerateSlideMutationBody = BodyType<RegenerateSlideInput>;
+export type RegenerateSlideMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Regenerate slide content using AI with a hint
+ */
+export const useRegenerateSlide = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateSlide>>,
+    TError,
+    { id: number; data: BodyType<RegenerateSlideInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof regenerateSlide>>,
+  TError,
+  { id: number; data: BodyType<RegenerateSlideInput> },
+  TContext
+> => {
+  return useMutation(getRegenerateSlideMutationOptions(options));
 };
 
 /**
