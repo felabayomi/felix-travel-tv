@@ -5,18 +5,27 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  CreateSlideInput,
+  ErrorResponse,
+  HealthStatus,
+  ReorderSlideInput,
+  Slide,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +108,327 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Returns all travel product slides in display order
+ * @summary Get all slides
+ */
+export const getGetSlidesUrl = () => {
+  return `/api/slides`;
+};
+
+export const getSlides = async (options?: RequestInit): Promise<Slide[]> => {
+  return customFetch<Slide[]>(getGetSlidesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSlidesQueryKey = () => {
+  return [`/api/slides`] as const;
+};
+
+export const getGetSlidesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSlides>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getSlides>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSlidesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSlides>>> = ({
+    signal,
+  }) => getSlides({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSlides>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSlidesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSlides>>
+>;
+export type GetSlidesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get all slides
+ */
+
+export function useGetSlides<
+  TData = Awaited<ReturnType<typeof getSlides>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getSlides>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSlidesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Fetches the URL, generates a summary with AI, and creates a slide
+ * @summary Create a slide from a URL
+ */
+export const getCreateSlideUrl = () => {
+  return `/api/slides`;
+};
+
+export const createSlide = async (
+  createSlideInput: CreateSlideInput,
+  options?: RequestInit,
+): Promise<Slide> => {
+  return customFetch<Slide>(getCreateSlideUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSlideInput),
+  });
+};
+
+export const getCreateSlideMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSlide>>,
+    TError,
+    { data: BodyType<CreateSlideInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSlide>>,
+  TError,
+  { data: BodyType<CreateSlideInput> },
+  TContext
+> => {
+  const mutationKey = ["createSlide"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSlide>>,
+    { data: BodyType<CreateSlideInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSlide(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSlideMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSlide>>
+>;
+export type CreateSlideMutationBody = BodyType<CreateSlideInput>;
+export type CreateSlideMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create a slide from a URL
+ */
+export const useCreateSlide = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSlide>>,
+    TError,
+    { data: BodyType<CreateSlideInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSlide>>,
+  TError,
+  { data: BodyType<CreateSlideInput> },
+  TContext
+> => {
+  return useMutation(getCreateSlideMutationOptions(options));
+};
+
+/**
+ * @summary Delete a slide
+ */
+export const getDeleteSlideUrl = (id: number) => {
+  return `/api/slides/${id}`;
+};
+
+export const deleteSlide = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteSlideUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSlideMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSlide>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSlide>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSlide"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSlide>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSlide(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSlideMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSlide>>
+>;
+
+export type DeleteSlideMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete a slide
+ */
+export const useDeleteSlide = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSlide>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSlide>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteSlideMutationOptions(options));
+};
+
+/**
+ * @summary Update slide display order
+ */
+export const getReorderSlideUrl = (id: number) => {
+  return `/api/slides/${id}/reorder`;
+};
+
+export const reorderSlide = async (
+  id: number,
+  reorderSlideInput: ReorderSlideInput,
+  options?: RequestInit,
+): Promise<Slide> => {
+  return customFetch<Slide>(getReorderSlideUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reorderSlideInput),
+  });
+};
+
+export const getReorderSlideMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderSlide>>,
+    TError,
+    { id: number; data: BodyType<ReorderSlideInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderSlide>>,
+  TError,
+  { id: number; data: BodyType<ReorderSlideInput> },
+  TContext
+> => {
+  const mutationKey = ["reorderSlide"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderSlide>>,
+    { id: number; data: BodyType<ReorderSlideInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return reorderSlide(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderSlideMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderSlide>>
+>;
+export type ReorderSlideMutationBody = BodyType<ReorderSlideInput>;
+export type ReorderSlideMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update slide display order
+ */
+export const useReorderSlide = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderSlide>>,
+    TError,
+    { id: number; data: BodyType<ReorderSlideInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderSlide>>,
+  TError,
+  { id: number; data: BodyType<ReorderSlideInput> },
+  TContext
+> => {
+  return useMutation(getReorderSlideMutationOptions(options));
+};

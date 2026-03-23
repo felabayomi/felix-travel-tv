@@ -1,0 +1,12 @@
+packages:
+  "framer-motion": "For cinematic cross-fade transitions and staggered text animations"
+  "lucide-react": "For UI icons in the admin panel and showcase"
+  "clsx": "Utility for constructing className strings"
+  "tailwind-merge": "Utility for merging tailwind classes safely"
+  "date-fns": "For formatting creation dates in the admin panel"
+
+images: []
+
+notes:
+  - "The UI relies on framer-motion for the full-screen cinematic transitions."
+  - "Admin panel is accessible via a hidden/subtle trigger in the bottom right corner to avoid disrupting the unattended kiosk experience."

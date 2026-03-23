@@ -6,4 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./createSlideInput";
+export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./reorderSlideInput";
+export * from "./slide";

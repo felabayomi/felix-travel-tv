@@ -14,3 +14,60 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Returns all travel product slides in display order
+ * @summary Get all slides
+ */
+export const GetSlidesResponseItem = zod.object({
+  id: zod.number(),
+  url: zod.string(),
+  title: zod.string(),
+  tagline: zod.string(),
+  summary: zod.string(),
+  imageUrl: zod.string().nullable(),
+  imagePrompt: zod.string().nullable(),
+  displayOrder: zod.number(),
+  category: zod.string().nullable(),
+  createdAt: zod.date(),
+});
+export const GetSlidesResponse = zod.array(GetSlidesResponseItem);
+
+/**
+ * Fetches the URL, generates a summary with AI, and creates a slide
+ * @summary Create a slide from a URL
+ */
+export const CreateSlideBody = zod.object({
+  url: zod.string().describe("The URL of the travel product to showcase"),
+});
+
+/**
+ * @summary Delete a slide
+ */
+export const DeleteSlideParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Update slide display order
+ */
+export const ReorderSlideParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ReorderSlideBody = zod.object({
+  displayOrder: zod.number(),
+});
+
+export const ReorderSlideResponse = zod.object({
+  id: zod.number(),
+  url: zod.string(),
+  title: zod.string(),
+  tagline: zod.string(),
+  summary: zod.string(),
+  imageUrl: zod.string().nullable(),
+  imagePrompt: zod.string().nullable(),
+  displayOrder: zod.number(),
+  category: zod.string().nullable(),
+  createdAt: zod.date(),
+});

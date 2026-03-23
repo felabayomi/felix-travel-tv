@@ -48,6 +48,26 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
+## Artifacts
+
+### `artifacts/travel-showcase` (`@workspace/travel-showcase`)
+
+Full-screen auto-play travel product showcase. Users paste URLs → backend fetches page content → AI (GPT-5.2) generates summary/tagline/category/image prompt → AI generates a full hero image → slide is saved and added to the looping showcase.
+
+- Admin panel (gear icon, bottom right): add/delete/reorder slides
+- Auto-play carousel loops all slides every 12 seconds with cinematic cross-fade transitions  
+- Images are AI-generated and stored as base64 in the database
+- If no image is available, category-specific gradient backgrounds are shown
+- Depends on: `@workspace/api-client-react`, `@workspace/integrations-openai-ai-react`
+
+### `lib/integrations-openai-ai-server` (`@workspace/integrations-openai-ai-server`)
+
+OpenAI integration server package. Provides the OpenAI client, image generation, audio utilities, and batch processing.
+
+### `lib/integrations-openai-ai-react` (`@workspace/integrations-openai-ai-react`)
+
+OpenAI integration React package. Provides voice chat hooks.
+
 ## Packages
 
 ### `artifacts/api-server` (`@workspace/api-server`)

@@ -8,3 +8,32 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface Slide {
+  id: number;
+  url: string;
+  title: string;
+  tagline: string;
+  summary: string;
+  /** @nullable */
+  imageUrl: string | null;
+  /** @nullable */
+  imagePrompt: string | null;
+  displayOrder: number;
+  /** @nullable */
+  category: string | null;
+  createdAt: string;
+}
+
+export interface CreateSlideInput {
+  /** The URL of the travel product to showcase */
+  url: string;
+}
+
+export interface ReorderSlideInput {
+  displayOrder: number;
+}
+
+export interface ErrorResponse {
+  error: string;
+}

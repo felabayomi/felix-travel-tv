@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: slides
+    description: Travel showcase slides management
 paths:
   /healthz:
     get:
@@ -24,6 +26,101 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /slides:
+    get:
+      operationId: getSlides
+      tags: [slides]
+      summary: Get all slides
+      description: Returns all travel product slides in display order
+      responses:
+        "200":
+          description: List of slides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Slide"
+    post:
+      operationId: createSlide
+      tags: [slides]
+      summary: Create a slide from a URL
+      description: Fetches the URL, generates a summary with AI, and creates a slide
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSlideInput"
+      responses:
+        "201":
+          description: Slide created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slide"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Could not process URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /slides/{id}:
+    delete:
+      operationId: deleteSlide
+      tags: [slides]
+      summary: Delete a slide
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Slide deleted
+        "404":
+          description: Slide not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /slides/{id}/reorder:
+    patch:
+      operationId: reorderSlide
+      tags: [slides]
+      summary: Update slide display order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderSlideInput"
+      responses:
+        "200":
+          description: Slide reordered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Slide"
+        "404":
+          description: Slide not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +130,60 @@ components:
           type: string
       required:
         - status
-
+    Slide:
+      type: object
+      properties:
+        id:
+          type: integer
+        url:
+          type: string
+        title:
+          type: string
+        tagline:
+          type: string
+        summary:
+          type: string
+        imageUrl:
+          type: ["string", "null"]
+        imagePrompt:
+          type: ["string", "null"]
+        displayOrder:
+          type: integer
+        category:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - url
+        - title
+        - tagline
+        - summary
+        - imageUrl
+        - imagePrompt
+        - displayOrder
+        - category
+        - createdAt
+    CreateSlideInput:
+      type: object
+      properties:
+        url:
+          type: string
+          description: The URL of the travel product to showcase
+      required:
+        - url
+    ReorderSlideInput:
+      type: object
+      properties:
+        displayOrder:
+          type: integer
+      required:
+        - displayOrder
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
