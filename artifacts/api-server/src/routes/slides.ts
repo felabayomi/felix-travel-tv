@@ -283,7 +283,8 @@ Respond with a JSON object ONLY (no markdown) with these exact fields:
   "title": "Short product/service name (max 6 words)",
   "tagline": "Compelling one-line tagline that captures the essence (max 12 words)",
   "summary": "2-3 sentence description of what this product/service does and why it is valuable or exciting",
-  "category": "A single relevant category word (e.g. Finance, Technology, Education, Health, Productivity, Travel, etc.)"
+  "category": "A single relevant category word (e.g. Finance, Technology, Education, Health, Productivity, Travel, etc.)",
+  "imagePrompt": "A vivid, detailed prompt for generating a striking hero image that represents this product. Be specific about subject, lighting, mood, and atmosphere — cinematic quality."
 }`;
 
     const aiResponse = await openai.chat.completions.create({
@@ -293,7 +294,7 @@ Respond with a JSON object ONLY (no markdown) with these exact fields:
     });
 
     const raw = aiResponse.choices[0]?.message?.content ?? "{}";
-    let generated: { title: string; tagline: string; summary: string; category: string };
+    let generated: { title: string; tagline: string; summary: string; category: string; imagePrompt: string };
     try {
       const parsed = JSON.parse(raw);
       generated = {
@@ -301,15 +302,24 @@ Respond with a JSON object ONLY (no markdown) with these exact fields:
         tagline: parsed.tagline || slide.tagline,
         summary: parsed.summary || slide.summary || "",
         category: parsed.category || slide.category,
+        imagePrompt: parsed.imagePrompt || slide.imagePrompt || "",
       };
     } catch {
       res.status(500).json({ error: "AI returned unexpected content" });
       return;
     }
 
+    // Regenerate image in parallel with the response being prepared
+    let newImageUrl: string | null = slide.imageUrl;
+    try {
+      newImageUrl = await generateImage(generated.imagePrompt);
+    } catch (err) {
+      req.log.warn({ err }, "Image regeneration failed, keeping existing image");
+    }
+
     const [updated] = await db
       .update(slidesTable)
-      .set(generated)
+      .set({ ...generated, imageUrl: newImageUrl })
       .where(eq(slidesTable.id, paramsParsed.data.id))
       .returning();
 
