@@ -6,6 +6,27 @@ import { CreateSlideBody, ReorderSlideBody, ReorderSlideParams, DeleteSlideParam
 
 const router: IRouter = Router();
 
+// Returns the API path for a slide's image — avoids sending base64 inline
+function slideImageUrl(id: number): string {
+  return `/api/slides/${id}/image`;
+}
+
+// Shared response shape — never includes raw base64 in imageUrl
+function formatSlide(s: { id: number; url: string; title: string; tagline: string; summary: string | null; imageUrl: string | null; imagePrompt: string | null; displayOrder: number; category: string; createdAt: Date }) {
+  return {
+    id: s.id,
+    url: s.url,
+    title: s.title,
+    tagline: s.tagline,
+    summary: s.summary,
+    imageUrl: s.imageUrl ? slideImageUrl(s.id) : null,
+    imagePrompt: s.imagePrompt,
+    displayOrder: s.displayOrder,
+    category: s.category,
+    createdAt: s.createdAt,
+  };
+}
+
 async function fetchPageContent(url: string): Promise<string> {
   try {
     const response = await fetch(url, {
@@ -98,6 +119,37 @@ async function generateImage(prompt: string): Promise<string | null> {
   }
 }
 
+// GET /api/slides/:id/image — serve the actual PNG bytes (avoids 5MB+ list responses)
+router.get("/:id/image", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid ID" });
+      return;
+    }
+    const rows = await db.select({ imageUrl: slidesTable.imageUrl }).from(slidesTable).where(eq(slidesTable.id, id));
+    if (rows.length === 0 || !rows[0].imageUrl) {
+      res.status(404).end();
+      return;
+    }
+    const dataUrl = rows[0].imageUrl;
+    // Strip the data URL prefix: "data:image/png;base64,..."
+    const base64Match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!base64Match) {
+      res.status(404).end();
+      return;
+    }
+    const mimeType = base64Match[1];
+    const buffer = Buffer.from(base64Match[2], "base64");
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+    res.send(buffer);
+  } catch (err) {
+    req.log.error({ err }, "Failed to serve slide image");
+    res.status(500).end();
+  }
+});
+
 // GET /api/slides
 router.get("/", async (req, res) => {
   try {
@@ -105,18 +157,7 @@ router.get("/", async (req, res) => {
       .select()
       .from(slidesTable)
       .orderBy(asc(slidesTable.displayOrder), asc(slidesTable.createdAt));
-    res.json(slides.map(s => ({
-      id: s.id,
-      url: s.url,
-      title: s.title,
-      tagline: s.tagline,
-      summary: s.summary,
-      imageUrl: s.imageUrl,
-      imagePrompt: s.imagePrompt,
-      displayOrder: s.displayOrder,
-      category: s.category,
-      createdAt: s.createdAt,
-    })));
+    res.json(slides.map(formatSlide));
   } catch (err) {
     req.log.error({ err }, "Failed to fetch slides");
     res.status(500).json({ error: "Failed to fetch slides" });
@@ -171,18 +212,7 @@ router.post("/", async (req, res) => {
       displayOrder: maxOrder + 1,
     }).returning();
 
-    res.status(201).json({
-      id: slide.id,
-      url: slide.url,
-      title: slide.title,
-      tagline: slide.tagline,
-      summary: slide.summary,
-      imageUrl: slide.imageUrl,
-      imagePrompt: slide.imagePrompt,
-      displayOrder: slide.displayOrder,
-      category: slide.category,
-      createdAt: slide.createdAt,
-    });
+    res.status(201).json(formatSlide(slide));
   } catch (err) {
     req.log.error({ err }, "Failed to create slide");
     res.status(422).json({ error: "Failed to process URL" });
@@ -234,18 +264,7 @@ router.patch("/:id", async (req, res) => {
       res.status(404).json({ error: "Slide not found" });
       return;
     }
-    res.json({
-      id: updated.id,
-      url: updated.url,
-      title: updated.title,
-      tagline: updated.tagline,
-      summary: updated.summary,
-      imageUrl: updated.imageUrl,
-      imagePrompt: updated.imagePrompt,
-      displayOrder: updated.displayOrder,
-      category: updated.category,
-      createdAt: updated.createdAt,
-    });
+    res.json(formatSlide(updated));
   } catch (err) {
     req.log.error({ err }, "Failed to update slide");
     res.status(500).json({ error: "Failed to update slide" });
@@ -323,18 +342,7 @@ Respond with a JSON object ONLY (no markdown) with these exact fields:
       .where(eq(slidesTable.id, paramsParsed.data.id))
       .returning();
 
-    res.json({
-      id: updated.id,
-      url: updated.url,
-      title: updated.title,
-      tagline: updated.tagline,
-      summary: updated.summary,
-      imageUrl: updated.imageUrl,
-      imagePrompt: updated.imagePrompt,
-      displayOrder: updated.displayOrder,
-      category: updated.category,
-      createdAt: updated.createdAt,
-    });
+    res.json(formatSlide(updated));
   } catch (err) {
     req.log.error({ err }, "Failed to regenerate slide");
     res.status(500).json({ error: "Failed to regenerate slide" });
@@ -359,18 +367,7 @@ router.patch("/:id/reorder", async (req, res) => {
       res.status(404).json({ error: "Slide not found" });
       return;
     }
-    res.json({
-      id: updated.id,
-      url: updated.url,
-      title: updated.title,
-      tagline: updated.tagline,
-      summary: updated.summary,
-      imageUrl: updated.imageUrl,
-      imagePrompt: updated.imagePrompt,
-      displayOrder: updated.displayOrder,
-      category: updated.category,
-      createdAt: updated.createdAt,
-    });
+    res.json(formatSlide(updated));
   } catch (err) {
     req.log.error({ err }, "Failed to reorder slide");
     res.status(500).json({ error: "Failed to reorder slide" });
