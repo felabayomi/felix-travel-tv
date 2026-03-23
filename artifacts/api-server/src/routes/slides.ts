@@ -10,7 +10,7 @@ async function fetchPageContent(url: string): Promise<string> {
   try {
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; TravelShowcaseBot/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; ProductShowcaseBot/1.0)",
         "Accept": "text/html,application/xhtml+xml",
       },
       signal: AbortSignal.timeout(15000),
@@ -38,20 +38,22 @@ async function generateSlideContent(url: string, pageText: string): Promise<{
   category: string;
   imagePrompt: string;
 }> {
-  const prompt = `You are analyzing a travel product webpage. Based on the URL and page content below, extract key information.
+  const prompt = `You are analyzing a product or service webpage. Based on the URL and page content below, extract key information.
 
 URL: ${url}
 
 Page Content (truncated):
 ${pageText || "(Could not fetch page content — use the URL to infer)"}
 
+This could be ANY type of product or service: technology, finance, education, wildlife, productivity, travel, news, health, entertainment, etc.
+
 Respond with a JSON object ONLY (no markdown) with these exact fields:
 {
-  "title": "Short product name (max 6 words)",
-  "tagline": "Exciting one-line tagline that captures the essence (max 12 words)",
-  "summary": "2-3 sentence description of what this product does and why it's exciting for travelers",
-  "category": "One of: Navigation, Itinerary, Discover, News, Live, Expedition, Tours, or other relevant single word",
-  "imagePrompt": "A vivid, detailed prompt for generating a beautiful travel photo that represents this product. Describe a specific destination, scene, or atmosphere. Be specific about lighting, mood, and visual elements."
+  "title": "Short product/service name (max 6 words)",
+  "tagline": "Compelling one-line tagline that captures the essence (max 12 words)",
+  "summary": "2-3 sentence description of what this product/service does and why it is valuable or exciting",
+  "category": "A single relevant category word that fits the domain (e.g. Finance, Technology, Education, Wildlife, Productivity, Navigation, News, Health, Expedition, Discovery, or any other fitting word)",
+  "imagePrompt": "A vivid, detailed prompt for generating a striking visual image that represents this product/service. Think about the domain and audience — could be a scenic photo, a dramatic workspace, wildlife, a city skyline, futuristic tech, etc. Be specific about subject, lighting, mood, and atmosphere."
 }`;
 
   const response = await openai.chat.completions.create({
@@ -64,19 +66,19 @@ Respond with a JSON object ONLY (no markdown) with these exact fields:
   try {
     const parsed = JSON.parse(content);
     return {
-      title: parsed.title || "Travel Product",
-      tagline: parsed.tagline || "Explore the world",
-      summary: parsed.summary || "An exciting travel product.",
-      category: parsed.category || "Travel",
-      imagePrompt: parsed.imagePrompt || "Beautiful travel destination with dramatic lighting",
+      title: parsed.title || "Product",
+      tagline: parsed.tagline || "Discover something new",
+      summary: parsed.summary || "An exciting product or service.",
+      category: parsed.category || "Discovery",
+      imagePrompt: parsed.imagePrompt || "Dramatic cinematic scene with vivid lighting",
     };
   } catch {
     return {
-      title: "Travel Product",
-      tagline: "Explore the world",
-      summary: "An exciting travel product.",
-      category: "Travel",
-      imagePrompt: "Beautiful scenic travel destination at golden hour",
+      title: "Product",
+      tagline: "Discover something new",
+      summary: "An exciting product or service.",
+      category: "Discovery",
+      imagePrompt: "Dramatic cinematic scene with vivid lighting",
     };
   }
 }
@@ -85,7 +87,7 @@ async function generateImage(prompt: string): Promise<string | null> {
   try {
     const response = await openai.images.generate({
       model: "gpt-image-1",
-      prompt: `Travel photography, cinematic, high quality: ${prompt}`,
+      prompt: `Cinematic, high quality, visually striking: ${prompt}`,
       size: "1024x1024",
     });
     const b64 = response.data?.[0]?.b64_json;

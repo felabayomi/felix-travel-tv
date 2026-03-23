@@ -47,10 +47,10 @@ export function ShowcasePage() {
             className="flex flex-col items-center"
           >
             <Globe className="w-24 h-24 text-primary/30 mb-8 glow-primary" />
-            <h1 className="text-4xl md:text-6xl font-display font-bold text-white mb-4">Travel Showcase</h1>
+            <h1 className="text-4xl md:text-6xl font-display font-bold text-white mb-4">Product Showcase</h1>
             <p className="text-xl text-muted-foreground max-w-lg font-light leading-relaxed">
               The display is active but no products have been loaded. 
-              Open the admin panel in the bottom right corner to add your first destination.
+              Open the admin panel in the bottom right corner to add your first product.
             </p>
           </motion.div>
         </div>
