@@ -1,157 +1,161 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 
-// Cinematic ambient music generator using the Web Audio API.
-// All sound is synthesized — no samples, no copyright issues.
+// Cinematic ambient music — pure sine/triangle oscillators only.
+// Sounds like a soft piano/synth ambient piece. No noise, no static.
 
-// A-minor pentatonic chord frequencies (A2, C3, E3, G3, A3) for a cinematic mood
-const CHORD_SETS = [
-  [110.00, 130.81, 164.81, 196.00, 220.00], // Am
-  [98.00,  116.54, 146.83, 174.61, 196.00], // Gm
-  [123.47, 146.83, 185.00, 220.00, 246.94], // Bm
-  [110.00, 138.59, 164.81, 207.65, 220.00], // Am/C#
+// C pentatonic scale (C, D, E, G, A) across two octaves — always sounds pleasant
+const MELODY_NOTES = [
+  261.63, // C4
+  293.66, // D4
+  329.63, // E4
+  392.00, // G4
+  440.00, // A4
+  523.25, // C5
+  587.33, // D5
+  659.25, // E5
 ];
+
+// Gentle pad chords in C major / Am feel
+const PAD_CHORDS: number[][] = [
+  [130.81, 196.00, 261.63, 329.63], // C - G - C5 - E5
+  [110.00, 164.81, 220.00, 293.66], // A - E - A4 - D5
+  [98.00,  146.83, 196.00, 261.63], // G - D - G4 - C5
+  [123.47, 185.00, 246.94, 329.63], // B - F# - B4 - E5
+];
+
+function createSoftEnvelope(
+  ctx: AudioContext,
+  gainNode: GainNode,
+  attackTime: number,
+  sustainLevel: number,
+  releaseTime: number,
+  totalDuration: number,
+) {
+  const now = ctx.currentTime;
+  gainNode.gain.setValueAtTime(0.0001, now);
+  gainNode.gain.exponentialRampToValueAtTime(sustainLevel, now + attackTime);
+  gainNode.gain.setValueAtTime(sustainLevel, now + totalDuration - releaseTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, now + totalDuration);
+}
 
 export function useAmbientMusic() {
   const [isPlaying, setIsPlaying] = useState(false);
   const ctxRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
-  const activeNodesRef = useRef<AudioNode[]>([]);
-  const chordIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const schedulerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chordIndexRef = useRef(0);
+  const melodyIndexRef = useRef(0);
 
-  const createReverb = useCallback((ctx: AudioContext): ConvolverNode => {
-    const convolver = ctx.createConvolver();
-    const rate = ctx.sampleRate;
-    const length = rate * 3.5;
-    const impulse = ctx.createBuffer(2, length, rate);
-    for (let c = 0; c < 2; c++) {
-      const data = impulse.getChannelData(c);
-      for (let i = 0; i < length; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2.5);
-      }
+  // Simple delay line for a sense of space (no convolver/noise)
+  const createDelay = useCallback((ctx: AudioContext, masterGain: GainNode) => {
+    const delay = ctx.createDelay(1.0);
+    delay.delayTime.value = 0.38;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.28;
+    const delayGain = ctx.createGain();
+    delayGain.gain.value = 0.22;
+
+    delay.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(delayGain);
+    delayGain.connect(masterGain);
+
+    return delay;
+  }, []);
+
+  const playPadNote = useCallback((
+    ctx: AudioContext,
+    destination: AudioNode,
+    frequency: number,
+    startOffset: number,
+    duration: number,
+    level: number,
+  ) => {
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = frequency;
+
+    // Tiny second oscillator for warmth (+7 cents detune)
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'triangle';
+    osc2.frequency.value = frequency;
+    osc2.detune.value = 7;
+
+    const gain = ctx.createGain();
+    gain.gain.value = 0.0001;
+
+    osc.connect(gain);
+    osc2.connect(gain);
+    gain.connect(destination);
+
+    const startTime = ctx.currentTime + startOffset;
+    osc.start(startTime);
+    osc2.start(startTime);
+
+    const attackTime = 2.5;
+    const releaseTime = 3.0;
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(level, startTime + attackTime);
+    gain.gain.setValueAtTime(level, startTime + duration - releaseTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+    osc.stop(startTime + duration + 0.1);
+    osc2.stop(startTime + duration + 0.1);
+  }, []);
+
+  const playMelodyNote = useCallback((
+    ctx: AudioContext,
+    destination: AudioNode,
+    frequency: number,
+    startOffset: number,
+  ) => {
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = frequency;
+
+    const gain = ctx.createGain();
+    const duration = 4.5;
+    const startTime = ctx.currentTime + startOffset;
+
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.09, startTime + 0.06); // quick soft attack like a piano key
+    gain.gain.exponentialRampToValueAtTime(0.055, startTime + 0.8);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+    osc.connect(gain);
+    gain.connect(destination);
+
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.1);
+  }, []);
+
+  const scheduleChunk = useCallback(() => {
+    const ctx = ctxRef.current;
+    const masterGain = masterGainRef.current;
+    if (!ctx || !masterGain) return;
+
+    const delayRef = (masterGainRef as any)._delay as AudioNode | undefined;
+    const dest = delayRef ?? masterGain;
+
+    // Play 4-note pad chord — stagger each note slightly for a bloom feel
+    const chord = PAD_CHORDS[chordIndexRef.current % PAD_CHORDS.length];
+    chord.forEach((freq, i) => {
+      playPadNote(ctx, dest, freq, i * 0.3, 16, 0.055);
+    });
+    chordIndexRef.current++;
+
+    // Play 3-4 melody notes spread across the 16-second window
+    const numNotes = 3 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < numNotes; i++) {
+      const offset = 2 + i * (12 / numNotes) + Math.random() * 1.5;
+      const noteFreq = MELODY_NOTES[melodyIndexRef.current % MELODY_NOTES.length];
+      melodyIndexRef.current += Math.floor(Math.random() * 3) + 1;
+      playMelodyNote(ctx, dest, noteFreq, offset);
     }
-    convolver.buffer = impulse;
-    return convolver;
-  }, []);
 
-  const playChord = useCallback((
-    ctx: AudioContext,
-    masterGain: GainNode,
-    reverb: ConvolverNode,
-    frequencies: number[],
-  ) => {
-    const now = ctx.currentTime;
-    const chordGain = ctx.createGain();
-    chordGain.gain.setValueAtTime(0, now);
-    chordGain.gain.linearRampToValueAtTime(0.18, now + 3.5);
-    chordGain.gain.linearRampToValueAtTime(0.12, now + 8);
-    chordGain.gain.linearRampToValueAtTime(0, now + 14);
-    chordGain.connect(reverb);
-    chordGain.connect(masterGain);
-    activeNodesRef.current.push(chordGain);
-
-    frequencies.forEach((freq, i) => {
-      // Main oscillator — sine for warmth
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now);
-
-      // Slight detune per voice for richness
-      const detune = (i % 2 === 0 ? 1 : -1) * (3 + i * 1.2);
-      osc.detune.setValueAtTime(detune, now);
-
-      const oscGain = ctx.createGain();
-      oscGain.gain.setValueAtTime(1 / frequencies.length, now);
-      osc.connect(oscGain);
-      oscGain.connect(chordGain);
-      osc.start(now);
-      osc.stop(now + 16);
-      activeNodesRef.current.push(osc, oscGain);
-
-      // Second oscillator one octave up, very subtle
-      if (i < 2) {
-        const osc2 = ctx.createOscillator();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(freq * 2, now);
-        osc2.detune.setValueAtTime(-detune, now);
-        const osc2Gain = ctx.createGain();
-        osc2Gain.gain.setValueAtTime(0.08 / frequencies.length, now);
-        osc2.connect(osc2Gain);
-        osc2Gain.connect(chordGain);
-        osc2.start(now);
-        osc2.stop(now + 16);
-        activeNodesRef.current.push(osc2, osc2Gain);
-      }
-    });
-  }, []);
-
-  const playDrone = useCallback((
-    ctx: AudioContext,
-    masterGain: GainNode,
-    reverb: ConvolverNode,
-  ) => {
-    // Persistent deep bass drone on A1 (55 Hz)
-    const now = ctx.currentTime;
-    const droneGain = ctx.createGain();
-    droneGain.gain.setValueAtTime(0, now);
-    droneGain.gain.linearRampToValueAtTime(0.08, now + 5);
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(180, now);
-
-    // Slow LFO on filter cutoff for movement
-    const lfo = ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.setValueAtTime(0.08, now);
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.setValueAtTime(60, now);
-    lfo.connect(lfoGain);
-    lfoGain.connect(filter.frequency);
-    lfo.start(now);
-
-    [55, 55.3, 82.5].forEach((freq) => {
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now);
-      osc.connect(filter);
-      osc.start(now);
-      activeNodesRef.current.push(osc);
-    });
-
-    filter.connect(droneGain);
-    droneGain.connect(reverb);
-    droneGain.connect(masterGain);
-    activeNodesRef.current.push(filter, droneGain, lfo, lfoGain);
-  }, []);
-
-  const playShimmer = useCallback((
-    ctx: AudioContext,
-    masterGain: GainNode,
-  ) => {
-    // Subtle high-frequency shimmer (very quiet)
-    const now = ctx.currentTime;
-    const shimmerGain = ctx.createGain();
-    shimmerGain.gain.setValueAtTime(0.018, now);
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.setValueAtTime(3000, now);
-
-    const bufferSize = ctx.sampleRate * 2;
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.loop = true;
-    source.connect(filter);
-    filter.connect(shimmerGain);
-    shimmerGain.connect(masterGain);
-    source.start(now);
-    activeNodesRef.current.push(source, filter, shimmerGain);
-  }, []);
+    // Schedule next chunk to overlap slightly (at 14s so next chord blooms before this ends)
+    schedulerRef.current = setTimeout(scheduleChunk, 14000);
+  }, [playPadNote, playMelodyNote]);
 
   const start = useCallback(async () => {
     if (ctxRef.current) return;
@@ -160,51 +164,36 @@ export function useAmbientMusic() {
     ctxRef.current = ctx;
 
     const masterGain = ctx.createGain();
-    masterGain.gain.setValueAtTime(0, ctx.currentTime);
-    masterGain.gain.linearRampToValueAtTime(0.7, ctx.currentTime + 4);
+    masterGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    masterGain.gain.exponentialRampToValueAtTime(0.85, ctx.currentTime + 3);
     masterGain.connect(ctx.destination);
     masterGainRef.current = masterGain;
 
-    const reverb = createReverb(ctx);
-    const reverbGain = ctx.createGain();
-    reverbGain.gain.setValueAtTime(0.45, ctx.currentTime);
-    reverb.connect(reverbGain);
-    reverbGain.connect(ctx.destination);
-    activeNodesRef.current.push(reverb, reverbGain);
+    // Attach delay to the gain ref so scheduleChunk can access it
+    const delay = createDelay(ctx, masterGain);
+    (masterGainRef as any)._delay = delay;
 
-    playDrone(ctx, masterGain, reverb);
-    playShimmer(ctx, masterGain);
-    playChord(ctx, masterGain, reverb, CHORD_SETS[0]);
-
-    // Rotate through chord sets every 12 seconds
-    chordIntervalRef.current = setInterval(() => {
-      chordIndexRef.current = (chordIndexRef.current + 1) % CHORD_SETS.length;
-      if (ctxRef.current && masterGainRef.current) {
-        playChord(ctxRef.current, masterGainRef.current, reverb, CHORD_SETS[chordIndexRef.current]);
-      }
-    }, 12000);
-
+    scheduleChunk();
     setIsPlaying(true);
-  }, [createReverb, playDrone, playShimmer, playChord]);
+  }, [createDelay, scheduleChunk]);
 
   const stop = useCallback(() => {
-    if (chordIntervalRef.current) {
-      clearInterval(chordIntervalRef.current);
-      chordIntervalRef.current = null;
+    if (schedulerRef.current) {
+      clearTimeout(schedulerRef.current);
+      schedulerRef.current = null;
     }
     if (masterGainRef.current && ctxRef.current) {
-      masterGainRef.current.gain.linearRampToValueAtTime(0, ctxRef.current.currentTime + 2);
+      const now = ctxRef.current.currentTime;
+      masterGainRef.current.gain.setValueAtTime(masterGainRef.current.gain.value, now);
+      masterGainRef.current.gain.exponentialRampToValueAtTime(0.0001, now + 2.5);
     }
     setTimeout(() => {
-      activeNodesRef.current.forEach(node => {
-        try { (node as AudioScheduledSourceNode).stop?.(); } catch {}
-      });
-      activeNodesRef.current = [];
       ctxRef.current?.close();
       ctxRef.current = null;
       masterGainRef.current = null;
       chordIndexRef.current = 0;
-    }, 2200);
+      melodyIndexRef.current = 0;
+    }, 2700);
     setIsPlaying(false);
   }, []);
 
@@ -213,10 +202,9 @@ export function useAmbientMusic() {
     else start();
   }, [isPlaying, start, stop]);
 
-  // Clean up on unmount
   useEffect(() => {
     return () => {
-      if (chordIntervalRef.current) clearInterval(chordIntervalRef.current);
+      if (schedulerRef.current) clearTimeout(schedulerRef.current);
       ctxRef.current?.close();
     };
   }, []);
