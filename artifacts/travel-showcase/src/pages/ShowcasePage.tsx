@@ -6,12 +6,30 @@ import { ProgressBar } from '@/components/ProgressBar';
 import { AmbientMusicPlayer } from '@/components/AmbientMusicPlayer';
 import { Loader2, Globe } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useRef, useEffect, useCallback } from 'react';
 
 export function ShowcasePage() {
   const { data: slides = [], isLoading, isError } = useGetSlides();
   const intervalMs = 12000;
   
   const { currentIndex, isPaused, goTo } = useSlideshow(slides, intervalMs);
+
+  // Reactive jump: set this ref to the count we're waiting for,
+  // and as soon as slides.length reaches it we navigate there.
+  const jumpWhenCountRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (jumpWhenCountRef.current !== null && slides.length >= jumpWhenCountRef.current) {
+      goTo(slides.length - 1);
+      jumpWhenCountRef.current = null;
+    }
+  }, [slides.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Called by AdminPanel right before it triggers the add —
+  // tells us to jump to the last slide once data arrives.
+  const requestJumpToNext = useCallback(() => {
+    jumpWhenCountRef.current = slides.length + 1;
+  }, [slides.length]);
 
   if (isLoading) {
     return (
@@ -80,7 +98,7 @@ export function ShowcasePage() {
       )}
 
       <AmbientMusicPlayer />
-      <AdminPanel goTo={goTo} slideCount={slides.length} />
+      <AdminPanel goTo={goTo} requestJumpToNext={requestJumpToNext} />
     </main>
   );
 }

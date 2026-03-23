@@ -19,10 +19,10 @@ import type { Slide } from '@workspace/api-client-react/src/generated/api.schema
 
 interface AdminPanelProps {
   goTo: (index: number) => void;
-  slideCount: number;
+  requestJumpToNext: () => void;
 }
 
-export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
+export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const [addError, setAddError] = useState('');
@@ -40,10 +40,10 @@ export function AdminPanel({ goTo, slideCount }: AdminPanelProps) {
       onSuccess: () => {
         setNewUrl('');
         setAddError('');
-        invalidateSlides().then(() => {
-          setIsOpen(false);
-          setTimeout(() => goTo(slideCount), 200);
-        });
+        // Signal ShowcasePage to jump once the new slide arrives in the data
+        requestJumpToNext();
+        setIsOpen(false);
+        invalidateSlides();
       },
       onError: (err: any) => {
         setAddError(err?.data?.error || 'Failed to process URL');
