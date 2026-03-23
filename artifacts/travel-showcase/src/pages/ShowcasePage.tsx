@@ -3,6 +3,7 @@ import { useSlideshow } from '@/hooks/use-slideshow';
 import { SlideDisplay } from '@/components/SlideDisplay';
 import { AdminPanel } from '@/components/AdminPanel';
 import { ProgressBar } from '@/components/ProgressBar';
+import { AmbientMusicPlayer } from '@/components/AmbientMusicPlayer';
 import { Loader2, Globe } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -83,6 +84,9 @@ export function ShowcasePage() {
           </div>
         </>
       )}
+
+      {/* Ambient Music Toggle */}
+      <AmbientMusicPlayer />
 
       {/* Always available Admin Overlay */}
       <AdminPanel />
