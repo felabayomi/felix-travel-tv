@@ -36,28 +36,109 @@ function formatSnippet(s: typeof snippetsTable.$inferSelect) {
   };
 }
 
-async function fetchPageContent(url: string): Promise<string> {
-  try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; NewsReaderBot/1.0)",
-        "Accept": "text/html,application/xhtml+xml",
-      },
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const html = await response.text();
-    const text = html
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 12000);
-    return text;
-  } catch {
+interface PageData {
+  html: string;
+  metaTitle: string;
+  metaDescription: string;
+  ogTitle: string;
+  ogDescription: string;
+  ogImage: string;
+  publishedTime: string;
+  author: string;
+  jsonLd: string;
+  bodyText: string;
+}
+
+async function fetchPageData(url: string): Promise<PageData> {
+  const empty: PageData = { html: "", metaTitle: "", metaDescription: "", ogTitle: "", ogDescription: "", ogImage: "", publishedTime: "", author: "", jsonLd: "", bodyText: "" };
+
+  const userAgents = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+    "Twitterbot/1.0",
+  ];
+
+  let html = "";
+  for (const ua of userAgents) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": ua,
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache",
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(20000),
+      });
+      if (res.ok) {
+        html = await res.text();
+        if (html.length > 500) break;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  if (!html) return empty;
+
+  // Extract meta/og tags
+  function getMeta(name: string): string {
+    const patterns = [
+      new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`, "i"),
+      new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${name}["']`, "i"),
+      new RegExp(`<meta[^>]+property=["']${name}["'][^>]+content=["']([^"']+)["']`, "i"),
+      new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${name}["']`, "i"),
+    ];
+    for (const p of patterns) {
+      const m = html.match(p);
+      if (m?.[1]) return m[1].trim();
+    }
     return "";
   }
+
+  // Extract <title>
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const metaTitle = titleMatch?.[1]?.trim() ?? "";
+
+  // Extract JSON-LD structured data
+  const jsonLdMatches = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
+  const jsonLd = jsonLdMatches.map(m => m[1]).join("\n").slice(0, 3000);
+
+  // Extract body text — prefer article/main tags
+  let bodyText = "";
+  const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
+  const mainMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+
+  const rawContent = articleMatch?.[1] || mainMatch?.[1] || bodyMatch?.[1] || html;
+  bodyText = rawContent
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, " ")
+    .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, " ")
+    .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, " ")
+    .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 8000);
+
+  return {
+    html,
+    metaTitle,
+    metaDescription: getMeta("description"),
+    ogTitle: getMeta("og:title"),
+    ogDescription: getMeta("og:description"),
+    ogImage: getMeta("og:image"),
+    publishedTime: getMeta("article:published_time") || getMeta("og:article:published_time") || getMeta("datePublished"),
+    author: getMeta("author") || getMeta("article:author"),
+    jsonLd,
+    bodyText,
+  };
 }
 
 interface SnippetData {
@@ -75,31 +156,53 @@ interface ArticleData {
   snippets: SnippetData[];
 }
 
-async function generateArticleContent(url: string, pageText: string): Promise<ArticleData> {
-  const prompt = `You are a news editor analyzing a news article. Based on the URL and page content, break this article into 5 to 10 distinct news snippets — like chapters of a book. Each snippet should cover a different key point, finding, or angle of the story.
+async function generateArticleContent(url: string, page: PageData): Promise<ArticleData> {
+  const hasRichContent = page.bodyText.length > 200 || page.ogDescription.length > 50 || page.jsonLd.length > 100;
+
+  const context = [
+    page.metaTitle && `Page title: ${page.metaTitle}`,
+    page.ogTitle && `Article headline: ${page.ogTitle}`,
+    page.ogDescription && `Description: ${page.ogDescription}`,
+    page.author && `Author: ${page.author}`,
+    page.publishedTime && `Published: ${page.publishedTime}`,
+    page.jsonLd && `Structured data (JSON-LD):\n${page.jsonLd}`,
+    page.bodyText && `Article body:\n${page.bodyText}`,
+  ].filter(Boolean).join("\n\n");
+
+  const prompt = `You are a professional news editor. Your job is to read a news article and break it into 5 to 10 rich, engaging story chapters — like a visual documentary.
 
 URL: ${url}
 
-Page Content:
-${pageText || "(Could not fetch page content — use the URL to infer the story)"}
+${hasRichContent ? `ARTICLE CONTENT:\n${context}` : `NOTE: This article's full text could not be extracted (site may use JavaScript rendering, require login, or block bots). However, use ALL of the following partial data to infer and create meaningful, specific content about this story — do NOT give generic placeholder content:
 
-Respond with a JSON object ONLY (no markdown) with these exact fields:
+${context || `URL path clues: ${url}`}
+
+Even with limited data, create substantive, specific chapters that sound like real journalism about this actual story.`}
+
+Your task: Break this article into exactly 5 to 10 chapters. Each chapter covers a DIFFERENT, SPECIFIC aspect of this particular story.
+
+CRITICAL RULES:
+- Every chapter must be about this SPECIFIC story/article — not generic news
+- Use all available clues (title, description, URL keywords, structured data) to infer the full story
+- Headlines must be punchy and journalistic, not vague
+- Explanations must be specific and informative, not "details are emerging"
+- If content is limited, use what you know about this topic from your training data
+
+Respond with a JSON object ONLY (no markdown, no code block):
 {
-  "title": "The main headline of the article (concise, journalistic)",
-  "summary": "2-3 sentence overall summary of the full article",
-  "source": "The news source domain (e.g. 'BBC News', 'Reuters', 'The Guardian')",
-  "publishedAt": "ISO 8601 date string if you can determine when it was published, otherwise today's date: ${new Date().toISOString()}",
+  "title": "Concise journalistic headline for the full article",
+  "summary": "2-3 sentence summary of what this article is about",
+  "source": "The news outlet name (e.g. 'BBC News', 'Reuters', 'Daily Felix')",
+  "publishedAt": "ISO 8601 date (use article date if found, otherwise: ${new Date().toISOString()})",
   "snippets": [
     {
-      "headline": "Short punchy headline for this snippet (max 10 words)",
-      "caption": "One sentence that captures the key fact of this snippet",
-      "explanation": "2-3 sentences expanding on this snippet with context and detail",
-      "imagePrompt": "A vivid, detailed prompt for generating a photorealistic or cinematic image representing this specific snippet. Be specific about subject, mood, lighting."
+      "headline": "Specific punchy headline (max 10 words)",
+      "caption": "One precise sentence with the key fact of this chapter",
+      "explanation": "2-3 sentences with specific context, numbers, names, and details",
+      "imagePrompt": "Detailed cinematic image prompt for this specific chapter — describe subject, setting, mood, lighting, atmosphere"
     }
   ]
-}
-
-Important: Create between 5 and 10 snippets. Each snippet must be distinct and cover a different aspect of the story. Make the snippets flow logically like chapters.`;
+}`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-5.2",
@@ -210,8 +313,9 @@ router.post("/", async (req, res) => {
       return;
     }
 
-    const pageText = await fetchPageContent(url);
-    const content = await generateArticleContent(url, pageText);
+    const page = await fetchPageData(url);
+    req.log.info({ url, bodyLen: page.bodyText.length, hasOg: !!page.ogTitle }, "Fetched page data");
+    const content = await generateArticleContent(url, page);
 
     const [article] = await db.insert(articlesTable).values({
       url,
