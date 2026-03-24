@@ -58,6 +58,10 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
   },
+  define: {
+    // Explicitly forward Replit secrets to import.meta.env for the frontend bundle
+    'import.meta.env.VITE_ADMIN_PIN': JSON.stringify(process.env.VITE_ADMIN_PIN ?? '1234'),
+  },
   server: {
     port,
     host: "0.0.0.0",
