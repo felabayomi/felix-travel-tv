@@ -6,18 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Slide {
+export interface Article {
   id: number;
   url: string;
   title: string;
-  tagline: string;
   summary: string;
   /** @nullable */
-  imageUrl: string | null;
-  /** @nullable */
-  imagePrompt: string | null;
-  displayOrder: number;
-  /** @nullable */
-  category: string | null;
+  source: string | null;
+  publishedAt: Date;
   createdAt: Date;
+  snippetCount: number;
 }

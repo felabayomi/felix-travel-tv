@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface RegenerateSlideInput {
-  /** A brief description of what this product actually does */
-  hint: string;
+export interface CreateArticleInput {
+  /** The URL of the news article to process */
+  url: string;
 }

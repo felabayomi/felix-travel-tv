@@ -10,8 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
-  - name: slides
-    description: Travel showcase slides management
+  - name: articles
+    description: News articles management
 paths:
   /healthz:
     get:
@@ -26,39 +26,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
-  /slides:
+  /articles:
     get:
-      operationId: getSlides
-      tags: [slides]
-      summary: Get all slides
-      description: Returns all travel product slides in display order
+      operationId: getArticles
+      tags: [articles]
+      summary: Get all articles
+      description: Returns all news articles ordered by published date descending
       responses:
         "200":
-          description: List of slides
+          description: List of articles
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Slide"
+                  $ref: "#/components/schemas/Article"
     post:
-      operationId: createSlide
-      tags: [slides]
-      summary: Create a slide from a URL
-      description: Fetches the URL, generates a summary with AI, and creates a slide
+      operationId: createArticle
+      tags: [articles]
+      summary: Create an article from a URL
+      description: Fetches the URL, breaks the content into snippets with AI, and creates an article
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateSlideInput"
+              $ref: "#/components/schemas/CreateArticleInput"
       responses:
         "201":
-          description: Slide created
+          description: Article created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Slide"
+                $ref: "#/components/schemas/Article"
         "400":
           description: Bad request
           content:
@@ -71,11 +71,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /slides/{id}:
+  /articles/{id}:
     delete:
-      operationId: deleteSlide
-      tags: [slides]
-      summary: Delete a slide
+      operationId: deleteArticle
+      tags: [articles]
+      summary: Delete an article and all its snippets
       parameters:
         - in: path
           name: id
@@ -84,102 +84,60 @@ paths:
             type: integer
       responses:
         "204":
-          description: Slide deleted
+          description: Article deleted
         "404":
-          description: Slide not found
+          description: Article not found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-    patch:
-      operationId: updateSlide
-      tags: [slides]
-      summary: Edit slide content
+  /articles/{id}/snippets:
+    get:
+      operationId: getArticleSnippets
+      tags: [articles]
+      summary: Get snippets for an article
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateSlideInput"
       responses:
         "200":
-          description: Slide updated
+          description: List of snippets
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Slide"
+                type: array
+                items:
+                  $ref: "#/components/schemas/Snippet"
         "404":
-          description: Slide not found
+          description: Article not found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /slides/{id}/regenerate:
-    post:
-      operationId: regenerateSlide
-      tags: [slides]
-      summary: Regenerate slide content using AI with a hint
+  /snippets/{id}/image:
+    get:
+      operationId: getSnippetImage
+      tags: [articles]
+      summary: Get snippet image as binary
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RegenerateSlideInput"
       responses:
         "200":
-          description: Slide regenerated
+          description: Image bytes
           content:
-            application/json:
+            image/png:
               schema:
-                $ref: "#/components/schemas/Slide"
+                type: string
+                format: binary
         "404":
-          description: Slide not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-  /slides/{id}/reorder:
-    patch:
-      operationId: reorderSlide
-      tags: [slides]
-      summary: Update slide display order
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ReorderSlideInput"
-      responses:
-        "200":
-          description: Slide reordered
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Slide"
-        "404":
-          description: Slide not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          description: Not found
 components:
   schemas:
     HealthStatus:
@@ -189,7 +147,7 @@ components:
           type: string
       required:
         - status
-    Slide:
+    Article:
       type: object
       properties:
         id:
@@ -198,65 +156,67 @@ components:
           type: string
         title:
           type: string
-        tagline:
-          type: string
         summary:
+          type: string
+        source:
+          type: ["string", "null"]
+        publishedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        snippetCount:
+          type: integer
+      required:
+        - id
+        - url
+        - title
+        - summary
+        - source
+        - publishedAt
+        - createdAt
+        - snippetCount
+    Snippet:
+      type: object
+      properties:
+        id:
+          type: integer
+        articleId:
+          type: integer
+        snippetOrder:
+          type: integer
+        headline:
+          type: string
+        caption:
+          type: string
+        explanation:
           type: string
         imageUrl:
           type: ["string", "null"]
         imagePrompt:
-          type: ["string", "null"]
-        displayOrder:
-          type: integer
-        category:
           type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
       required:
         - id
-        - url
-        - title
-        - tagline
-        - summary
+        - articleId
+        - snippetOrder
+        - headline
+        - caption
+        - explanation
         - imageUrl
         - imagePrompt
-        - displayOrder
-        - category
         - createdAt
-    CreateSlideInput:
+    CreateArticleInput:
       type: object
       properties:
         url:
           type: string
-          description: The URL of the travel product to showcase
+          description: The URL of the news article to process
       required:
         - url
-    RegenerateSlideInput:
-      type: object
-      required: [hint]
-      properties:
-        hint:
-          type: string
-          description: A brief description of what this product actually does
-    UpdateSlideInput:
-      type: object
-      properties:
-        title:
-          type: string
-        tagline:
-          type: string
-        summary:
-          type: string
-        category:
-          type: string
-    ReorderSlideInput:
-      type: object
-      properties:
-        displayOrder:
-          type: integer
-      required:
-        - displayOrder
     ErrorResponse:
       type: object
       properties:

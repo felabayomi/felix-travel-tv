@@ -16,111 +16,61 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Returns all travel product slides in display order
- * @summary Get all slides
+ * Returns all news articles ordered by published date descending
+ * @summary Get all articles
  */
-export const GetSlidesResponseItem = zod.object({
+export const GetArticlesResponseItem = zod.object({
   id: zod.number(),
   url: zod.string(),
   title: zod.string(),
-  tagline: zod.string(),
   summary: zod.string(),
-  imageUrl: zod.string().nullable(),
-  imagePrompt: zod.string().nullable(),
-  displayOrder: zod.number(),
-  category: zod.string().nullable(),
+  source: zod.string().nullable(),
+  publishedAt: zod.date(),
   createdAt: zod.date(),
+  snippetCount: zod.number(),
 });
-export const GetSlidesResponse = zod.array(GetSlidesResponseItem);
+export const GetArticlesResponse = zod.array(GetArticlesResponseItem);
 
 /**
- * Fetches the URL, generates a summary with AI, and creates a slide
- * @summary Create a slide from a URL
+ * Fetches the URL, breaks the content into snippets with AI, and creates an article
+ * @summary Create an article from a URL
  */
-export const CreateSlideBody = zod.object({
-  url: zod.string().describe("The URL of the travel product to showcase"),
+export const CreateArticleBody = zod.object({
+  url: zod.string().describe("The URL of the news article to process"),
 });
 
 /**
- * @summary Delete a slide
+ * @summary Delete an article and all its snippets
  */
-export const DeleteSlideParams = zod.object({
+export const DeleteArticleParams = zod.object({
   id: zod.coerce.number(),
 });
 
 /**
- * @summary Edit slide content
+ * @summary Get snippets for an article
  */
-export const UpdateSlideParams = zod.object({
+export const GetArticleSnippetsParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const UpdateSlideBody = zod.object({
-  title: zod.string().optional(),
-  tagline: zod.string().optional(),
-  summary: zod.string().optional(),
-  category: zod.string().optional(),
-});
-
-export const UpdateSlideResponse = zod.object({
+export const GetArticleSnippetsResponseItem = zod.object({
   id: zod.number(),
-  url: zod.string(),
-  title: zod.string(),
-  tagline: zod.string(),
-  summary: zod.string(),
+  articleId: zod.number(),
+  snippetOrder: zod.number(),
+  headline: zod.string(),
+  caption: zod.string(),
+  explanation: zod.string(),
   imageUrl: zod.string().nullable(),
   imagePrompt: zod.string().nullable(),
-  displayOrder: zod.number(),
-  category: zod.string().nullable(),
   createdAt: zod.date(),
 });
+export const GetArticleSnippetsResponse = zod.array(
+  GetArticleSnippetsResponseItem,
+);
 
 /**
- * @summary Regenerate slide content using AI with a hint
+ * @summary Get snippet image as binary
  */
-export const RegenerateSlideParams = zod.object({
+export const GetSnippetImageParams = zod.object({
   id: zod.coerce.number(),
-});
-
-export const RegenerateSlideBody = zod.object({
-  hint: zod
-    .string()
-    .describe("A brief description of what this product actually does"),
-});
-
-export const RegenerateSlideResponse = zod.object({
-  id: zod.number(),
-  url: zod.string(),
-  title: zod.string(),
-  tagline: zod.string(),
-  summary: zod.string(),
-  imageUrl: zod.string().nullable(),
-  imagePrompt: zod.string().nullable(),
-  displayOrder: zod.number(),
-  category: zod.string().nullable(),
-  createdAt: zod.date(),
-});
-
-/**
- * @summary Update slide display order
- */
-export const ReorderSlideParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const ReorderSlideBody = zod.object({
-  displayOrder: zod.number(),
-});
-
-export const ReorderSlideResponse = zod.object({
-  id: zod.number(),
-  url: zod.string(),
-  title: zod.string(),
-  tagline: zod.string(),
-  summary: zod.string(),
-  imageUrl: zod.string().nullable(),
-  imagePrompt: zod.string().nullable(),
-  displayOrder: zod.number(),
-  category: zod.string().nullable(),
-  createdAt: zod.date(),
 });

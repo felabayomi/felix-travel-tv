@@ -52,13 +52,28 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ### `artifacts/travel-showcase` (`@workspace/travel-showcase`)
 
-Full-screen auto-play travel product showcase. Users paste URLs → backend fetches page content → AI (GPT-5.2) generates summary/tagline/category/image prompt → AI generates a full hero image → slide is saved and added to the looping showcase.
+Cinematic **News Reader** — "Books & Chapters" concept. Users paste a news article URL → backend fetches full article content → AI (GPT-5.2) breaks the article into 5–10 story snippets (chapters) → AI generates a unique image per chapter → displayed as a full-screen looping slideshow.
 
-- Admin panel (gear icon, bottom right): add/delete/reorder slides
-- Auto-play carousel loops all slides every 12 seconds with cinematic cross-fade transitions  
-- Images are AI-generated and stored as base64 in the database
-- If no image is available, category-specific gradient backgrounds are shown
-- Depends on: `@workspace/api-client-react`, `@workspace/integrations-openai-ai-react`
+**Data model:**
+- `articles` table — one per URL (title, summary, source, publishedAt, createdAt)
+- `snippets` table — 5–10 per article (headline, caption, explanation, imageUrl, snippetOrder)
+
+**UI:**
+- Left sidebar: articles grouped by date (Today / Yesterday / date), click to select
+- Main display: full-screen cinematic snippet view with chapter badge, headline, caption, explanation
+- Auto-advances through chapters every 12 seconds in a loop
+- Chapter dot nav and prev/next arrows for manual navigation
+- Admin panel (gear icon × 6): add new article URL (PIN protected)
+- Gear icon bottom right (6 quick taps to open), default PIN: 1234 or `VITE_ADMIN_PIN`
+
+**Key files:**
+- `src/pages/NewsPage.tsx` — main layout (sidebar + display)
+- `src/components/SnippetDisplay.tsx` — full-screen chapter view
+- `src/components/ArticleSidebar.tsx` — date-grouped article list
+- `src/components/NewsAdminPanel.tsx` — URL submission form
+- `src/hooks/use-snippet-player.ts` — auto-advance logic for chapters
+
+Depends on: `@workspace/api-client-react`, `@workspace/integrations-openai-ai-react`
 
 ### `lib/integrations-openai-ai-server` (`@workspace/integrations-openai-ai-server`)
 

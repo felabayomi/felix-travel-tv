@@ -9,41 +9,35 @@ export interface HealthStatus {
   status: string;
 }
 
-export interface Slide {
+export interface Article {
   id: number;
   url: string;
   title: string;
-  tagline: string;
   summary: string;
+  /** @nullable */
+  source: string | null;
+  publishedAt: string;
+  createdAt: string;
+  snippetCount: number;
+}
+
+export interface Snippet {
+  id: number;
+  articleId: number;
+  snippetOrder: number;
+  headline: string;
+  caption: string;
+  explanation: string;
   /** @nullable */
   imageUrl: string | null;
   /** @nullable */
   imagePrompt: string | null;
-  displayOrder: number;
-  /** @nullable */
-  category: string | null;
   createdAt: string;
 }
 
-export interface CreateSlideInput {
-  /** The URL of the travel product to showcase */
+export interface CreateArticleInput {
+  /** The URL of the news article to process */
   url: string;
-}
-
-export interface RegenerateSlideInput {
-  /** A brief description of what this product actually does */
-  hint: string;
-}
-
-export interface UpdateSlideInput {
-  title?: string;
-  tagline?: string;
-  summary?: string;
-  category?: string;
-}
-
-export interface ReorderSlideInput {
-  displayOrder: number;
 }
 
 export interface ErrorResponse {
