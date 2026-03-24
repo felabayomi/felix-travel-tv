@@ -10,7 +10,7 @@ import { useRef, useEffect, useCallback, useMemo } from 'react';
 
 export function ShowcasePage() {
   const { data: slides = [], isLoading, isError } = useGetSlides();
-  const intervalMs = 12000;
+  const intervalMs = 20000;
   
   const { currentIndex, isPaused, goTo } = useSlideshow(slides, intervalMs);
 
