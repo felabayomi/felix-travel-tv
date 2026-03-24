@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { 
   X, Plus, Trash2, ArrowUp, ArrowDown, ExternalLink, 
-  Settings2, Loader2, Image as ImageIcon, Eye, Pencil, Sparkles, XCircle
+  Settings2, Loader2, Image as ImageIcon, Eye, Pencil, Sparkles, XCircle, Search
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
@@ -29,6 +29,7 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [hint, setHint] = useState('');
   const [editError, setEditError] = useState('');
+  const [search, setSearch] = useState('');
   
   const queryClient = useQueryClient();
   const invalidateSlides = () => queryClient.invalidateQueries({ queryKey: getGetSlidesQueryKey() });
@@ -109,6 +110,17 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
     setIsOpen(false);
     setTimeout(() => goTo(index), 200);
   };
+
+  const q = search.trim().toLowerCase();
+  const filteredSlides = q
+    ? slides.filter(s =>
+        s.title.toLowerCase().includes(q) ||
+        s.tagline.toLowerCase().includes(q) ||
+        s.category.toLowerCase().includes(q) ||
+        s.url.toLowerCase().includes(q) ||
+        (s.summary ?? '').toLowerCase().includes(q)
+      )
+    : slides;
 
   return (
     <>
@@ -191,10 +203,41 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
 
               {/* Slides list */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                  Active Slides ({slides.length})
-                </h3>
-                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                      Active Slides ({slides.length})
+                    </h3>
+                    {q && (
+                      <span className="text-xs text-primary">
+                        {filteredSlides.length} result{filteredSlides.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Search box */}
+                  {slides.length > 0 && (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/60 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search by title, category, URL…"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="w-full bg-background border border-border rounded-lg pl-9 pr-8 py-2 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-muted-foreground/40"
+                      />
+                      {search && (
+                        <button
+                          onClick={() => setSearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground transition-colors"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {isLoadingSlides ? (
                   <div className="flex justify-center p-8">
                     <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -203,10 +246,15 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
                   <div className="text-center p-8 border border-dashed border-border rounded-xl">
                     <p className="text-sm text-muted-foreground">No products added yet.</p>
                   </div>
+                ) : filteredSlides.length === 0 ? (
+                  <div className="text-center p-8 border border-dashed border-border rounded-xl">
+                    <p className="text-sm text-muted-foreground">No slides match "{search}".</p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
-                    {slides.map((slide, index) => (
-                      <div key={slide.id} className="group bg-background border border-border rounded-xl overflow-hidden hover:border-primary/40 transition-colors">
+                    {filteredSlides.map((slide) => {
+                      const index = slides.indexOf(slide);
+                      return (<div key={slide.id} className="group bg-background border border-border rounded-xl overflow-hidden hover:border-primary/40 transition-colors">
 
                         {/* Normal card view */}
                         {editingId !== slide.id ? (
@@ -330,8 +378,8 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
                             </button>
                           </div>
                         )}
-                      </div>
-                    ))}
+                      </div>);
+                    })}
                   </div>
                 )}
               </div>
