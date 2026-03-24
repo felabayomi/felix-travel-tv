@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { 
   X, Plus, Trash2, ArrowUp, ArrowDown, ExternalLink, 
-  Settings2, Loader2, Image as ImageIcon, Eye, Pencil, Sparkles, XCircle, Search
+  Settings2, Loader2, Image as ImageIcon, Eye, EyeOff, Pencil, Sparkles, XCircle, Search, Lock
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
@@ -30,7 +30,75 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
   const [hint, setHint] = useState('');
   const [editError, setEditError] = useState('');
   const [search, setSearch] = useState('');
-  
+
+  // ── Auth / PIN protection ──────────────────────────────────────────────
+  const CORRECT_PIN = import.meta.env.VITE_ADMIN_PIN ?? '1234';
+  const STORAGE_KEY = 'showcase_admin_auth';
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return (
+      localStorage.getItem(STORAGE_KEY) === 'true' ||
+      sessionStorage.getItem(STORAGE_KEY) === 'true'
+    );
+  });
+  const [showPinDialog, setShowPinDialog] = useState(false);
+  const [pin, setPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
+  const [pinError, setPinError] = useState('');
+
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleGearTap = () => {
+    tapCountRef.current += 1;
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+    tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0; }, 1500);
+
+    if (tapCountRef.current >= 6) {
+      tapCountRef.current = 0;
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+      if (isAuthenticated) {
+        setIsOpen(true);
+      } else {
+        setPin('');
+        setPinError('');
+        setShowPin(false);
+        setShowPinDialog(true);
+      }
+    }
+  };
+
+  const handlePinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pin === CORRECT_PIN) {
+      if (keepSignedIn) {
+        localStorage.setItem(STORAGE_KEY, 'true');
+      } else {
+        sessionStorage.setItem(STORAGE_KEY, 'true');
+      }
+      setIsAuthenticated(true);
+      setShowPinDialog(false);
+      setPin('');
+      setIsOpen(true);
+    } else {
+      setPinError('Incorrect PIN — try again.');
+      setPin('');
+    }
+  };
+
+  const handlePanelClose = () => {
+    setIsOpen(false);
+    if (!keepSignedIn && !localStorage.getItem(STORAGE_KEY)) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      setIsAuthenticated(false);
+    }
+  };
+
+  // Cleanup tap timer on unmount
+  useEffect(() => () => { if (tapTimerRef.current) clearTimeout(tapTimerRef.current); }, []);
+  // ──────────────────────────────────────────────────────────────────────
+
   const queryClient = useQueryClient();
   const invalidateSlides = () => queryClient.invalidateQueries({ queryKey: getGetSlidesQueryKey() });
 
@@ -124,18 +192,123 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
 
   return (
     <>
+      {/* Gear button — invisible tap target, requires 6 quick taps */}
       <button 
-        onClick={() => setIsOpen(true)}
+        onClick={handleGearTap}
         className={cn(
           "fixed bottom-6 right-6 p-3 rounded-full bg-black/20 text-white/50 backdrop-blur-md",
           "hover:bg-black/50 hover:text-white transition-all duration-300 z-40 group",
-          isOpen && "opacity-0 pointer-events-none"
+          (isOpen || showPinDialog) && "opacity-0 pointer-events-none"
         )}
-        title="Open Admin Panel"
+        title="Admin"
       >
         <Settings2 className="w-5 h-5 group-hover:rotate-90 transition-transform duration-700" />
       </button>
 
+      {/* ── PIN dialog ───────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showPinDialog && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPinDialog(false)}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 260 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-6 pointer-events-none"
+            >
+              <form
+                onSubmit={handlePinSubmit}
+                className="pointer-events-auto w-full max-w-xs bg-card border border-border rounded-2xl p-8 shadow-2xl space-y-6"
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Icon + title */}
+                <div className="flex flex-col items-center gap-3">
+                  <div className="p-3 rounded-full bg-primary/10 border border-primary/20">
+                    <Lock className="w-6 h-6 text-primary" />
+                  </div>
+                  <h2 className="text-lg font-display font-bold text-foreground">Admin Access</h2>
+                  <p className="text-xs text-muted-foreground text-center">Enter your PIN to continue</p>
+                </div>
+
+                {/* PIN input */}
+                <div className="space-y-2">
+                  <div className="relative">
+                    <input
+                      autoFocus
+                      type={showPin ? 'text' : 'password'}
+                      inputMode="numeric"
+                      placeholder="Enter PIN"
+                      value={pin}
+                      onChange={e => { setPin(e.target.value); setPinError(''); }}
+                      className="w-full bg-background border border-border rounded-xl px-4 pr-11 py-3 text-center text-xl tracking-widest font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPin(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {pinError && (
+                    <p className="text-xs text-destructive text-center">{pinError}</p>
+                  )}
+                </div>
+
+                {/* Keep me signed in */}
+                <label className="flex items-center gap-3 cursor-pointer select-none group">
+                  <div
+                    onClick={() => setKeepSignedIn(v => !v)}
+                    className={cn(
+                      "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all",
+                      keepSignedIn
+                        ? "bg-primary border-primary"
+                        : "border-border bg-background group-hover:border-primary/60"
+                    )}
+                  >
+                    {keepSignedIn && (
+                      <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 12 12">
+                        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                    Keep me signed in
+                  </span>
+                </label>
+
+                {/* Actions */}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowPinDialog(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-white/5 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!pin}
+                    className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20"
+                  >
+                    Unlock
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Admin panel ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {isOpen && (
           <>
@@ -143,7 +316,7 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsOpen(false)}
+              onClick={handlePanelClose}
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
             />
             
@@ -161,7 +334,7 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
                   <p className="text-xs text-muted-foreground mt-1">Manage your active products</p>
                 </div>
                 <button 
-                  onClick={() => setIsOpen(false)}
+                  onClick={handlePanelClose}
                   className="p-2 rounded-full hover:bg-white/10 transition-colors"
                 >
                   <X className="w-5 h-5" />
