@@ -152,6 +152,9 @@ function WaitingScreenPanel() {
   const [newSocialLabel, setNewSocialLabel] = useState('');
   const [newSocialUrl, setNewSocialUrl] = useState('');
   const [newTickerItem, setNewTickerItem] = useState('');
+  const [liveTickerItems, setLiveTickerItems] = useState<{ headline: string; caption: string; isCustom?: boolean }[]>([]);
+  const [editingCustomIdx, setEditingCustomIdx] = useState<number | null>(null);
+  const [editCustomText, setEditCustomText] = useState('');
 
   const update = <K extends keyof WaitingConfig>(key: K, value: WaitingConfig[K]) =>
     setConfig(prev => ({ ...prev, [key]: value }));
@@ -189,6 +192,19 @@ function WaitingScreenPanel() {
     }
     syncOnMount();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch live ticker items every 4s so the admin sees what's actually scrolling
+  useEffect(() => {
+    async function fetchLive() {
+      try {
+        const res = await fetch('/api/ticker', { cache: 'no-store' });
+        if (res.ok) setLiveTickerItems(await res.json());
+      } catch { /* ignore */ }
+    }
+    fetchLive();
+    const id = setInterval(fetchLive, 4000);
+    return () => clearInterval(id);
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -417,6 +433,115 @@ function WaitingScreenPanel() {
       <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
         <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">News Ticker</p>
 
+        {/* Live ticker contents list */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] text-muted-foreground/50 uppercase tracking-widest">All Items Currently Scrolling</p>
+            <span className="text-[10px] text-muted-foreground/40">{liveTickerItems.length} item{liveTickerItems.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {liveTickerItems.length === 0 ? (
+            <div className="px-3 py-4 rounded-lg bg-background border border-border text-center text-[12px] text-muted-foreground/40">
+              No items in ticker yet
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-0.5">
+              {liveTickerItems.map((item, i) => {
+                if (item.isCustom) {
+                  // Find index in config.customTickerItems
+                  const customIdx = config.customTickerItems.indexOf(item.headline);
+                  const isEditing = editingCustomIdx === customIdx && customIdx !== -1;
+                  return (
+                    <div key={`custom-${i}`} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                      <span className="shrink-0 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase"
+                        style={{ background: 'rgba(200,16,46,0.15)', color: '#c8102e', border: '1px solid rgba(200,16,46,0.25)' }}>
+                        CUSTOM
+                      </span>
+                      {isEditing ? (
+                        <div className="flex-1 flex gap-1.5">
+                          <input
+                            autoFocus
+                            value={editCustomText}
+                            onChange={e => setEditCustomText(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                const updated = [...config.customTickerItems];
+                                updated[customIdx] = editCustomText.trim() || item.headline;
+                                update('customTickerItems', updated);
+                                setEditingCustomIdx(null);
+                              }
+                              if (e.key === 'Escape') setEditingCustomIdx(null);
+                            }}
+                            className="flex-1 bg-background border border-primary/40 rounded px-2 py-0.5 text-sm text-white focus:outline-none"
+                          />
+                          <button
+                            onClick={() => {
+                              const updated = [...config.customTickerItems];
+                              updated[customIdx] = editCustomText.trim() || item.headline;
+                              update('customTickerItems', updated);
+                              setEditingCustomIdx(null);
+                            }}
+                            className="text-green-400 hover:text-green-300 transition-colors shrink-0"
+                          ><Check className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setEditingCustomIdx(null)} className="text-muted-foreground hover:text-white transition-colors shrink-0">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="text-sm text-white/80 flex-1 leading-snug">{item.headline}</span>
+                          <button
+                            onClick={() => { setEditingCustomIdx(customIdx); setEditCustomText(item.headline); }}
+                            className="text-muted-foreground hover:text-white transition-colors shrink-0"
+                          ><Edit3 className="w-3.5 h-3.5" /></button>
+                          <button
+                            onClick={() => update('customTickerItems', config.customTickerItems.filter((_, idx) => idx !== customIdx))}
+                            className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                          ><X className="w-3.5 h-3.5" /></button>
+                        </>
+                      )}
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div key={`article-${i}`} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-background border border-border opacity-70">
+                      <span className="shrink-0 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase"
+                        style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        ARTICLE
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white/60 leading-snug truncate">{item.headline}</p>
+                        {item.caption && <p className="text-[11px] text-muted-foreground/40 truncate mt-0.5">{item.caption}</p>}
+                      </div>
+                    </div>
+                  );
+                }
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Add custom message */}
+        <div className="space-y-2">
+          <p className="text-[11px] text-muted-foreground/50">Add Custom Message</p>
+          <div className="flex gap-2">
+            <input
+              value={newTickerItem}
+              onChange={e => setNewTickerItem(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addTickerItem()}
+              placeholder="Type a message and press Enter..."
+              className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+            />
+            <button
+              onClick={addTickerItem}
+              disabled={!newTickerItem.trim()}
+              className="px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 disabled:opacity-40 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
         {/* Speed control */}
         <div className="space-y-2">
           <p className="text-[11px] text-muted-foreground/50">Scroll Speed</p>
@@ -442,42 +567,6 @@ function WaitingScreenPanel() {
               </button>
             ))}
           </div>
-        </div>
-
-        {/* Custom messages */}
-        <div className="space-y-3">
-        <p className="text-[11px] text-muted-foreground/50">Custom Messages — scroll alongside article headlines.</p>
-        {config.customTickerItems.length > 0 && (
-          <div className="space-y-1.5">
-            {config.customTickerItems.map((item, i) => (
-              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
-                <span className="text-sm text-white/80 flex-1 leading-snug">{item}</span>
-                <button
-                  onClick={() => update('customTickerItems', config.customTickerItems.filter((_, idx) => idx !== i))}
-                  className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="flex gap-2">
-          <input
-            value={newTickerItem}
-            onChange={e => setNewTickerItem(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addTickerItem()}
-            placeholder="Add a scrolling message... (Enter to add)"
-            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
-          />
-          <button
-            onClick={addTickerItem}
-            disabled={!newTickerItem.trim()}
-            className="px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 disabled:opacity-40 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
         </div>
 
         {/* Ticker Save button */}
