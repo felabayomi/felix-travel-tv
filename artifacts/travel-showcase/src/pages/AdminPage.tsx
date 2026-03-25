@@ -4,7 +4,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Trash2, Edit3, Check, X,
   Mic, MicOff, Lock, Eye, EyeOff, ExternalLink, Radio,
   Loader2, FileText, Link, CalendarDays, ChevronDown, ChevronUp,
-  Settings2, RotateCcw
+  Settings2, RotateCcw, Play, Pause
 } from 'lucide-react';
 import {
   useGetArticles, useGetArticleSnippets, useCreateArticle,
@@ -427,6 +427,8 @@ function AdminDashboard() {
   const [currentSnippetIndex, setCurrentSnippetIndex] = useState(0);
   const [showAddDrawer, setShowAddDrawer] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [autoPlay, setAutoPlay] = useState(false);
+  const AUTO_PLAY_SECONDS = 15;
   const [articleOverrides, setArticleOverrides] = useState<Record<number, Partial<Article>>>({});
 
   // Auto-select first article
@@ -464,12 +466,36 @@ function AdminDashboard() {
     await setPlayback(articleId, index);
   }, []);
 
+  const handleNext = useCallback(() => {
+    if (!selectedArticleId || snippets.length === 0) return;
+    const next = Math.min(currentSnippetIndex + 1, snippets.length - 1);
+    updatePlayback(selectedArticleId, next);
+  }, [selectedArticleId, snippets.length, currentSnippetIndex, updatePlayback]);
+
+  const handlePrev = useCallback(() => {
+    if (!selectedArticleId || snippets.length === 0) return;
+    const prev = Math.max(currentSnippetIndex - 1, 0);
+    updatePlayback(selectedArticleId, prev);
+  }, [selectedArticleId, snippets.length, currentSnippetIndex, updatePlayback]);
+
   useEffect(() => {
     if (!voiceEnabled || !snippets[currentSnippetIndex]) return;
     if (prevIndexRef.current === currentSnippetIndex) return;
     prevIndexRef.current = currentSnippetIndex;
-    speak(snippets[currentSnippetIndex].id);
-  }, [currentSnippetIndex, snippets, voiceEnabled, speak]);
+    const isLastChapter = currentSnippetIndex >= snippets.length - 1;
+    speak(
+      snippets[currentSnippetIndex].id,
+      autoPlay && !isLastChapter ? handleNext : undefined,
+    );
+  }, [currentSnippetIndex, snippets, voiceEnabled, speak, autoPlay, handleNext]);
+
+  // Timer-based auto-advance when voice is off
+  useEffect(() => {
+    if (!autoPlay || voiceEnabled || !selectedArticleId || snippets.length === 0) return;
+    if (currentSnippetIndex >= snippets.length - 1) return;
+    const timer = setTimeout(() => handleNext(), AUTO_PLAY_SECONDS * 1000);
+    return () => clearTimeout(timer);
+  }, [autoPlay, voiceEnabled, currentSnippetIndex, snippets.length, selectedArticleId, handleNext]);
 
   const handleSelectArticle = async (article: Article) => {
     stop();
@@ -477,18 +503,6 @@ function AdminDashboard() {
     setSelectedArticleId(article.id);
     setCurrentSnippetIndex(0);
     await setPlayback(article.id, 0);
-  };
-
-  const handleNext = () => {
-    if (!selectedArticleId || snippets.length === 0) return;
-    const next = Math.min(currentSnippetIndex + 1, snippets.length - 1);
-    updatePlayback(selectedArticleId, next);
-  };
-
-  const handlePrev = () => {
-    if (!selectedArticleId || snippets.length === 0) return;
-    const prev = Math.max(currentSnippetIndex - 1, 0);
-    updatePlayback(selectedArticleId, prev);
   };
 
   const handleSelectChapter = (index: number) => {
@@ -641,6 +655,21 @@ function AdminDashboard() {
                       className="p-2.5 rounded-xl border border-border text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                     >
                       <ChevronRight className="w-5 h-5" />
+                    </button>
+
+                    {/* Auto-play toggle */}
+                    <button
+                      onClick={() => setAutoPlay(v => !v)}
+                      title={autoPlay ? `Auto-advancing every ${AUTO_PLAY_SECONDS}s (or after audio ends)` : 'Auto-play off — click to enable'}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all",
+                        autoPlay
+                          ? "bg-green-500/20 border-green-500/40 text-green-400"
+                          : "border-border text-white/50 hover:text-white hover:bg-white/5"
+                      )}
+                    >
+                      {autoPlay ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      {autoPlay ? 'Auto' : 'Manual'}
                     </button>
 
                     {/* Voice toggle */}
