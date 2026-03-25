@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from 'react';
-import Marquee from 'react-fast-marquee';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { useGetArticles, useGetArticleSnippets } from '@workspace/api-client-react';
@@ -246,12 +245,25 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
         </div>
       </div>
 
-      {/* Marquee scroll strip */}
-      <div style={{ flex: 1, overflow: 'hidden', height: '80px', display: 'flex', alignItems: 'center' }}>
-        <Marquee speed={pps} loop={0} autoFill gradient={false}>
-          <span style={textStyle}>{tickerText}</span>
-        </Marquee>
-      </div>
+      {/* CSS scroll strip */}
+      {(() => {
+        const CHAR_WIDTH_PX = 11; // approx px per char at 19px IBM Plex Sans
+        const stripWidth = tickerText.length * CHAR_WIDTH_PX;
+        const duration = Math.max(4, stripWidth / pps);
+        const animName = `ticker-scroll-${pps}`;
+        return (
+          <div style={{ flex: 1, overflow: 'hidden', height: '80px', display: 'flex', alignItems: 'center' }}>
+            <style>{`@keyframes ${animName}{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
+            <div
+              key={`${pps}-${tickerText.length}`}
+              style={{ display: 'inline-flex', animation: `${animName} ${duration}s linear infinite`, willChange: 'transform' }}
+            >
+              <span style={textStyle}>{tickerText}</span>
+              <span style={textStyle}>{tickerText}</span>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

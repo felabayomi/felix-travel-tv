@@ -1030,15 +1030,51 @@ function AdminDashboard() {
   const [mainTab, setMainTab] = useState<'broadcast' | 'waiting'>('broadcast');
   const AUTO_PLAY_SECONDS = 15;
   const [articleOverrides, setArticleOverrides] = useState<Record<number, Partial<Article>>>({});
+  const [articleOrder, setArticleOrder] = useState<number[]>(() => {
+    try { return JSON.parse(localStorage.getItem('newsreader_article_order') ?? '[]'); } catch { return []; }
+  });
+
+  // Keep order in sync as articles load or change
+  useEffect(() => {
+    if (articles.length === 0) return;
+    const ids = articles.map(a => a.id);
+    setArticleOrder(prev => {
+      const existing = prev.filter(id => ids.includes(id));
+      const newIds = ids.filter(id => !prev.includes(id));
+      const merged = [...existing, ...newIds];
+      localStorage.setItem('newsreader_article_order', JSON.stringify(merged));
+      return merged;
+    });
+  }, [articles]);
+
+  const sortedArticles = [...articles].sort((a, b) => {
+    const ai = articleOrder.indexOf(a.id);
+    const bi = articleOrder.indexOf(b.id);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+
+  const moveArticle = (id: number, dir: -1 | 1) => {
+    setArticleOrder(prev => {
+      const idx = prev.indexOf(id);
+      if (idx === -1) return prev;
+      const next = idx + dir;
+      if (next < 0 || next >= prev.length) return prev;
+      const updated = [...prev];
+      [updated[idx], updated[next]] = [updated[next], updated[idx]];
+      localStorage.setItem('newsreader_article_order', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   // Auto-select first article
   useEffect(() => {
-    if (articles.length > 0 && selectedArticleId === null) {
-      const first = articles[0];
+    if (sortedArticles.length > 0 && selectedArticleId === null) {
+      const first = sortedArticles[0];
       setSelectedArticleId(first.id);
       setCurrentSnippetIndex(0);
       setPlayback(first.id, 0).catch(() => {});
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [articles, selectedArticleId]);
 
   const { data: snippets = [], isLoading: isLoadingSnippets } = useGetArticleSnippets(
@@ -1196,16 +1232,35 @@ function AdminDashboard() {
             ) : articles.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-8">No articles yet</p>
             ) : (
-              articles.map(article => {
+              sortedArticles.map((article, listIdx) => {
                 const a = { ...article, ...articleOverrides[article.id] };
                 const isSelected = a.id === selectedArticleId;
                 return (
                   <div key={a.id} className={cn(
-                    "group flex items-start gap-2 p-3 rounded-xl cursor-pointer transition-all border",
+                    "group flex items-start gap-1.5 p-3 rounded-xl cursor-pointer transition-all border",
                     isSelected
                       ? "bg-primary/10 border-primary/30 text-white"
                       : "border-transparent hover:bg-white/5 text-white/60 hover:text-white/80"
                   )}>
+                    {/* Reorder buttons */}
+                    <div className="flex flex-col gap-0.5 pt-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={e => { e.stopPropagation(); moveArticle(a.id, -1); }}
+                        disabled={listIdx === 0}
+                        className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Move up"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); moveArticle(a.id, 1); }}
+                        disabled={listIdx === sortedArticles.length - 1}
+                        className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Move down"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     <button onClick={() => handleSelectArticle(a as Article)} className="flex-1 min-w-0 text-left">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">
                         {a.source || 'Unknown'} · {new Date(a.publishedAt).toLocaleDateString()}
