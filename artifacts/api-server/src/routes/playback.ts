@@ -3,6 +3,7 @@ import { Router, type IRouter } from "express";
 export interface PlaybackState {
   articleId: number | null;
   snippetIndex: number;
+  onAir: boolean;
   updatedAt: number;
 }
 
@@ -10,6 +11,7 @@ export interface PlaybackState {
 export let playbackState: PlaybackState = {
   articleId: null,
   snippetIndex: 0,
+  onAir: false,
   updatedAt: Date.now(),
 };
 
@@ -28,10 +30,22 @@ router.put("/", (req, res) => {
     return;
   }
   playbackState = {
+    ...playbackState,
     articleId: typeof articleId === "number" ? articleId : null,
     snippetIndex,
     updatedAt: Date.now(),
   };
+  res.json(playbackState);
+});
+
+// PATCH /api/playback — toggle onAir only
+router.patch("/", (req, res) => {
+  const { onAir } = req.body ?? {};
+  if (typeof onAir !== "boolean") {
+    res.status(400).json({ error: "onAir must be a boolean" });
+    return;
+  }
+  playbackState = { ...playbackState, onAir, updatedAt: Date.now() };
   res.json(playbackState);
 });
 

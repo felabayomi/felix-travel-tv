@@ -9,13 +9,14 @@ import { AmbientMusicPlayer } from '@/components/AmbientMusicPlayer';
 interface PlaybackState {
   articleId: number | null;
   snippetIndex: number;
+  onAir: boolean;
   updatedAt: number;
 }
 
 const POLL_MS = 2000;
 
 function usePlaybackSync() {
-  const [state, setState] = useState<PlaybackState>({ articleId: null, snippetIndex: 0, updatedAt: 0 });
+  const [state, setState] = useState<PlaybackState>({ articleId: null, snippetIndex: 0, onAir: false, updatedAt: 0 });
 
   useEffect(() => {
     let cancelled = false;
@@ -39,7 +40,7 @@ function usePlaybackSync() {
 }
 
 export function PublicDisplay() {
-  const { articleId, snippetIndex } = usePlaybackSync();
+  const { articleId, snippetIndex, onAir } = usePlaybackSync();
   const { data: articles = [] } = useGetArticles();
   const { data: snippets = [], isLoading: isLoadingSnippets } = useGetArticleSnippets(
     articleId ?? 0,
@@ -116,17 +117,27 @@ export function PublicDisplay() {
         </div>
       )}
 
-      {/* Chapter counter — top right */}
+      {/* Top right: chapter counter + ON AIR badge */}
       {snippets.length > 0 && (
-        <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-1.5">
+        <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-2">
           <span className="font-mono text-sm tracking-widest text-white/40">
             {String(safeIndex + 1).padStart(2, '0')} / {String(snippets.length).padStart(2, '0')}
           </span>
-          {/* LIVE indicator */}
-          <span className="flex items-center gap-1.5 text-[11px] text-primary/70 font-medium uppercase tracking-widest">
-            <Radio className="w-3 h-3 animate-pulse" />
-            Live
-          </span>
+          <AnimatePresence>
+            {onAir && (
+              <motion.span
+                key="on-air"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.3 }}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-600 text-white text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-red-600/40"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                On Air
+              </motion.span>
+            )}
+          </AnimatePresence>
         </div>
       )}
 

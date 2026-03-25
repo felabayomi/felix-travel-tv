@@ -28,6 +28,14 @@ async function setPlayback(articleId: number | null, snippetIndex: number) {
   });
 }
 
+async function setOnAirState(onAir: boolean) {
+  await fetch('/api/playback', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ onAir }),
+  });
+}
+
 async function patchSnippet(id: number, fields: { headline?: string; caption?: string; explanation?: string }) {
   const res = await fetch(`/api/snippets/${id}`, {
     method: 'PATCH',
@@ -428,6 +436,7 @@ function AdminDashboard() {
   const [showAddDrawer, setShowAddDrawer] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [autoPlay, setAutoPlay] = useState(false);
+  const [onAir, setOnAir] = useState(false);
   const AUTO_PLAY_SECONDS = 15;
   const [articleOverrides, setArticleOverrides] = useState<Record<number, Partial<Article>>>({});
 
@@ -530,6 +539,24 @@ function AdminDashboard() {
           <Radio className="w-4 h-4 text-primary animate-pulse" />
           <span className="font-display font-bold text-lg text-foreground">News Admin</span>
         </div>
+        {/* On Air toggle */}
+        <button
+          onClick={() => {
+            const next = !onAir;
+            setOnAir(next);
+            setOnAirState(next).catch(() => {});
+          }}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-bold tracking-widest uppercase transition-all",
+            onAir
+              ? "bg-red-600 border-red-500 text-white shadow-lg shadow-red-600/30 animate-pulse"
+              : "border-border text-muted-foreground hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Radio className="w-3.5 h-3.5" />
+          {onAir ? 'On Air' : 'Off Air'}
+        </button>
+
         <a
           href={publicUrl}
           target="_blank"
