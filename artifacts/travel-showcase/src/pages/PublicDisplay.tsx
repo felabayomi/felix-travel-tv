@@ -290,7 +290,7 @@ export function PublicDisplay() {
   const activeNamesLenRef = useRef(activeEntries.length);
   activeNamesLenRef.current = activeEntries.length;
   useEffect(() => {
-    const id = setInterval(() => setNameIndex(i => (i + 1) % activeNamesLenRef.current), 4500);
+    const id = setInterval(() => setNameIndex(i => (i + 1) % activeNamesLenRef.current), 7000);
     return () => clearInterval(id);
   }, []);
 
