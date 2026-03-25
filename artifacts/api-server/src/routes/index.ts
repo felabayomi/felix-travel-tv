@@ -205,6 +205,8 @@ router.get('/ticker', async (req, res) => {
       .from(snippetsTable);
     const snippetItems = rows.map(r => ({ headline: r.headline, caption: r.caption, isCustom: false }));
     const customItems = waitingConfig.customTickerItems.map(text => ({ headline: text, caption: '', isCustom: true }));
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     res.json([...snippetItems, ...customItems]);
   } catch (err) {
     res.status(500).json({ error: String(err) });

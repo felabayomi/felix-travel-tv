@@ -144,7 +144,7 @@ function GlobalTicker() {
   useEffect(() => {
     async function fetchTicker() {
       try {
-        const res = await fetch('/api/ticker');
+        const res = await fetch('/api/ticker', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           setItems(data);
@@ -152,7 +152,7 @@ function GlobalTicker() {
       } catch { /* ignore */ }
     }
     fetchTicker();
-    const id = setInterval(fetchTicker, 30000);
+    const id = setInterval(fetchTicker, 10000);
     return () => clearInterval(id);
   }, []);
 
