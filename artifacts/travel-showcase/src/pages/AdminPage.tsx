@@ -68,6 +68,7 @@ interface WaitingConfig {
   websiteUrl: string;
   socialLinks: Array<{ label: string; url: string }>;
   customTickerItems: string[];
+  tickerSpeed: number;
 }
 
 const EMPTY_CONFIG: WaitingConfig = {
@@ -79,6 +80,7 @@ const EMPTY_CONFIG: WaitingConfig = {
   websiteUrl: '',
   socialLinks: [],
   customTickerItems: [],
+  tickerSpeed: 3,
 };
 
 const PRESETS: Array<{ name: string; description: string; config: Partial<WaitingConfig> }> = [
@@ -377,10 +379,40 @@ function WaitingScreenPanel() {
         </div>
       </div>
 
-      {/* Custom Ticker Messages */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
-        <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Custom Ticker Messages</p>
-        <p className="text-[11px] text-muted-foreground/50">These scroll alongside article headlines in the bottom ticker bar.</p>
+      {/* Ticker Settings */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+        <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">News Ticker</p>
+
+        {/* Speed control */}
+        <div className="space-y-2">
+          <p className="text-[11px] text-muted-foreground/50">Scroll Speed</p>
+          <div className="flex gap-1.5">
+            {[
+              { label: 'Slowest', value: 1 },
+              { label: 'Slow', value: 2 },
+              { label: 'Normal', value: 3 },
+              { label: 'Fast', value: 4 },
+              { label: 'Fastest', value: 5 },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => update('tickerSpeed', opt.value)}
+                className="flex-1 py-1.5 rounded-md text-[11px] font-medium tracking-wide transition-all"
+                style={{
+                  background: config.tickerSpeed === opt.value ? '#c8102e' : 'rgba(255,255,255,0.06)',
+                  color: config.tickerSpeed === opt.value ? '#fff' : 'rgba(255,255,255,0.45)',
+                  border: config.tickerSpeed === opt.value ? '1px solid #c8102e' : '1px solid rgba(255,255,255,0.08)',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Custom messages */}
+        <div className="space-y-3">
+        <p className="text-[11px] text-muted-foreground/50">Custom Messages — scroll alongside article headlines.</p>
         {config.customTickerItems.length > 0 && (
           <div className="space-y-1.5">
             {config.customTickerItems.map((item, i) => (
@@ -411,6 +443,7 @@ function WaitingScreenPanel() {
           >
             <Plus className="w-4 h-4" />
           </button>
+        </div>
         </div>
       </div>
 

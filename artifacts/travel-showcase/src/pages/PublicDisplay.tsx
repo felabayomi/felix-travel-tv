@@ -55,6 +55,7 @@ interface WaitingConfig {
   websiteUrl: string;
   socialLinks: Array<{ label: string; url: string }>;
   customTickerItems: string[];
+  tickerSpeed: number;
 }
 
 const POLL_MS = 2000;
@@ -165,7 +166,9 @@ function Countdown({ targetTime }: { targetTime: string }) {
   );
 }
 
-function GlobalTicker() {
+const TICKER_SPEED_MULTIPLIERS = [0.040, 0.028, 0.017, 0.010, 0.006];
+
+function GlobalTicker({ speed = 3 }: { speed?: number }) {
   const [items, setItems] = useState<TickerItem[]>([]);
 
   useEffect(() => {
@@ -191,7 +194,8 @@ function GlobalTicker() {
       ).join('     ◆     ')
     : 'STANDING BY FOR BROADCAST  ·  TUNE IN FOR LIVE COVERAGE';
 
-  const duration = Math.max(8, Math.round(tickerText.length * 0.017));
+  const multiplier = TICKER_SPEED_MULTIPLIERS[Math.min(Math.max(speed, 1), 5) - 1] ?? 0.017;
+  const duration = Math.max(5, Math.round(tickerText.length * multiplier));
 
   return (
     <div
@@ -421,7 +425,7 @@ export function PublicDisplay() {
           </div>
         </motion.div>
 
-        <GlobalTicker />
+        <GlobalTicker speed={config?.tickerSpeed ?? 3} />
       </div>
     );
   }
@@ -517,7 +521,7 @@ export function PublicDisplay() {
       )}
 
       {/* ── Global persistent ticker (always at bottom, never resets on slide change) ── */}
-      <GlobalTicker />
+      <GlobalTicker speed={config?.tickerSpeed ?? 3} />
 
       <AmbientMusicPlayer />
     </main>
