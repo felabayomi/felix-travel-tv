@@ -52,12 +52,12 @@ export function NewsPage() {
     { query: { enabled: selectedArticleId !== null } }
   );
 
-  const { currentIndex, currentSnippet, next, prev, goTo } = useSnippetPlayer(snippets, intervalMs, voiceEnabled);
+  // Timer always runs — voice reads alongside but never controls advancement
+  const { currentIndex, currentSnippet, next, prev, goTo } = useSnippetPlayer(snippets, intervalMs, false);
 
   const selectedArticle = articles.find(a => a.id === selectedArticleId) ?? null;
 
-  // When voice is on, speech ending drives the slide advance (always pass next; hook ignores it when disabled)
-  const { speak, stop } = useVoiceReader(voiceEnabled, next);
+  const { speak, stop } = useVoiceReader(voiceEnabled);
 
   // Speak current chapter when it changes
   const prevSnippetIdRef = useRef<number | null>(null);
@@ -359,12 +359,11 @@ export function NewsPage() {
                   </div>
                 )}
 
-                {/* Progress bar — shows voice waveform when narrating, timer bar otherwise */}
+                {/* Progress bar — always shows timer countdown */}
                 <ProgressBar
                   duration={intervalMs}
                   slideKey={currentSnippet.id}
-                  isPaused={voiceEnabled}
-                  isVoiceMode={voiceEnabled}
+                  isPaused={false}
                 />
               </>
             )}

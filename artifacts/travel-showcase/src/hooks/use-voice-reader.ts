@@ -1,9 +1,6 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 
-export function useVoiceReader(enabled: boolean, onEnd?: () => void) {
-  const onEndRef = useRef(onEnd);
-  onEndRef.current = onEnd;
-
+export function useVoiceReader(enabled: boolean) {
   const stop = useCallback(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
@@ -31,15 +28,6 @@ export function useVoiceReader(enabled: boolean, onEnd?: () => void) {
     ) || voices.find(v => v.lang.startsWith('en'));
     if (preferred) utterance.voice = preferred;
 
-    utterance.onend = () => {
-      onEndRef.current?.();
-    };
-
-    utterance.onerror = () => {
-      // Still advance on error so the show doesn't get stuck
-      onEndRef.current?.();
-    };
-
     window.speechSynthesis.speak(utterance);
   }, [enabled]);
 
@@ -51,8 +39,7 @@ export function useVoiceReader(enabled: boolean, onEnd?: () => void) {
     return () => { stop(); };
   }, [stop]);
 
-  // Chrome bug: speechSynthesis pauses after ~15s in background tabs.
-  // Keep it alive with a periodic resume.
+  // Chrome bug: speechSynthesis silently pauses after ~15s in background tabs
   useEffect(() => {
     if (!enabled) return;
     const id = setInterval(() => {
