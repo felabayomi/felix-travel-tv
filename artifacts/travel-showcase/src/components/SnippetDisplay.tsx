@@ -69,7 +69,7 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
 
       {/* Dark tint over image */}
       {snippet.imageUrl && (
-        <div className="absolute inset-0 bg-black/25 pointer-events-none" />
+        <div className="absolute inset-0 bg-black/10 pointer-events-none" />
       )}
 
       {/* ── Top accent line ── */}
@@ -84,7 +84,7 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
           <motion.div
             key={snippet.id}
             className="absolute left-0 right-0 z-20"
-            style={{ bottom: '52px' }}
+            style={{ bottom: '110px' }}
             initial={{ y: '110%' }}
             animate={{ y: 0 }}
             exit={{ y: '110%' }}
