@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Loader2, Newspaper, ChevronLeft, ChevronRight, LayoutList, X,
-  SlidersHorizontal, Volume2, VolumeX
+  SlidersHorizontal, Volume2, VolumeX, Mic, MicOff
 } from 'lucide-react';
 import {
   useGetArticles,
@@ -77,6 +77,12 @@ export function NewsPage() {
     stop();
     prevSnippetIdRef.current = null;
   }, [selectedArticleId, stop]);
+
+  // When voice is turned ON mid-chapter, immediately speak the current chapter
+  useEffect(() => {
+    if (!voiceEnabled || !currentSnippet) return;
+    prevSnippetIdRef.current = null; // reset so speak() fires for current chapter
+  }, [voiceEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deleteMutation = useDeleteArticle({
     mutation: {
@@ -221,6 +227,20 @@ export function NewsPage() {
 
                 {/* Bottom controls row */}
                 <div className="absolute bottom-8 right-8 z-20 flex items-center gap-2">
+
+                  {/* Voice reader toggle — Mic icon (distinct from music Volume icon) */}
+                  <button
+                    onClick={() => setVoiceEnabled(v => !v)}
+                    className={cn(
+                      "p-3 rounded-full backdrop-blur-md border transition-all",
+                      voiceEnabled
+                        ? "bg-primary/30 border-primary/50 text-primary"
+                        : "bg-black/30 border-white/10 text-white/60 hover:text-white hover:bg-black/60"
+                    )}
+                    title={voiceEnabled ? "Voice narration on — click to turn off" : "Turn on voice narration"}
+                  >
+                    {voiceEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+                  </button>
 
                   {/* Settings toggle */}
                   <button
