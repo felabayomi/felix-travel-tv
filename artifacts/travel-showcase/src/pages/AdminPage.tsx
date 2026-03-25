@@ -1078,6 +1078,7 @@ function AdminDashboard() {
         <button
           onClick={() => {
             sessionStorage.removeItem(AUTH_KEY);
+            localStorage.removeItem(AUTH_KEY);
             window.location.reload();
           }}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-destructive transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5"
