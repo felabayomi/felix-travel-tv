@@ -233,7 +233,7 @@ export function PublicDisplay() {
     }
   }, [snippetIndex]);
 
-  if (!articleId) {
+  if (!articleId || !onAir) {
     const channelName = config?.channelName || 'News Reader';
     const tagline = config?.tagline || '';
     const hasTopics = (config?.topics?.length ?? 0) > 0;
