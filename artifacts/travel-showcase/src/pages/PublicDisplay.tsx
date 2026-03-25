@@ -130,7 +130,7 @@ export function PublicDisplay() {
             <img
               src="https://mediahost.app/api/media/serve/f8aaf8b9e07f545cae42f0fef812662d?w=600&h=400&fit=contain"
               alt="logo"
-              style={{ height: '26px', width: 'auto', objectFit: 'contain', display: 'block' }}
+              style={{ height: '26px', width: 'auto', objectFit: 'contain', display: 'block', mixBlendMode: 'multiply' }}
             />
             <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.1em' }}>
               NEWS

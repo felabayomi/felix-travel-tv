@@ -170,7 +170,7 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
           <img
             src="https://mediahost.app/api/media/serve/f8aaf8b9e07f545cae42f0fef812662d?w=600&h=400&fit=contain"
             alt="logo"
-            style={{ height: '28px', width: 'auto', objectFit: 'contain', display: 'block' }}
+            style={{ height: '28px', width: 'auto', objectFit: 'contain', display: 'block', mixBlendMode: 'multiply' }}
           />
           <span
             style={{
