@@ -174,12 +174,24 @@ function Countdown({ targetTime }: { targetTime: string }) {
   );
 }
 
-const TICKER_SPEED_MULTIPLIERS = [0.040, 0.028, 0.017, 0.010, 0.006];
+// px per frame at ~60fps for each speed level 1–5
+const TICKER_PX_PER_FRAME = [0.35, 0.7, 1.2, 2.0, 3.5];
 
 function GlobalTicker({ speed = 3 }: { speed?: number }) {
   const [items, setItems] = useState<TickerItem[]>([]);
   const lastJsonRef = useRef<string>('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef(0);
+  const rafRef = useRef<number>(0);
+  const speedRef = useRef(speed);
 
+  // Keep speedRef current so RAF loop picks up changes immediately, no restart needed
+  useEffect(() => { speedRef.current = speed; }, [speed]);
+
+  // Reset scroll position when items change so new content starts cleanly
+  useEffect(() => { posRef.current = 0; }, [items]);
+
+  // Fetch ticker items every 4 seconds
   useEffect(() => {
     async function fetchTicker() {
       try {
@@ -199,6 +211,25 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
     return () => clearInterval(id);
   }, []);
 
+  // requestAnimationFrame loop — moves the strip left, loops seamlessly
+  useEffect(() => {
+    function tick() {
+      if (scrollRef.current) {
+        const halfWidth = scrollRef.current.scrollWidth / 2;
+        const pxPerFrame = TICKER_PX_PER_FRAME[Math.min(Math.max(speedRef.current, 1), 5) - 1] ?? 1.2;
+        posRef.current -= pxPerFrame;
+        // Once we've scrolled one full copy width, jump back — seamless loop
+        if (halfWidth > 0 && posRef.current <= -halfWidth) {
+          posRef.current = 0;
+        }
+        scrollRef.current.style.transform = `translateX(${posRef.current}px)`;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
+
   const tickerText = items.length > 0
     ? items.map(item =>
         item.isCustom || !item.caption
@@ -207,23 +238,25 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
       ).join('     ◆     ')
     : 'STANDING BY FOR BROADCAST  ·  TUNE IN FOR LIVE COVERAGE';
 
-  const multiplier = TICKER_SPEED_MULTIPLIERS[Math.min(Math.max(speed, 1), 5) - 1] ?? 0.017;
-  const duration = Math.max(5, Math.round(tickerText.length * multiplier));
-
-  // animKey forces a DOM remount (fresh animation) whenever speed or content changes.
-  // Without this, changing the inline `animation` style on an existing element
-  // does NOT restart the CSS animation in browsers — it just continues the old cycle.
-  const animKey = `${duration}-${items.length}`;
+  const spanStyle: React.CSSProperties = {
+    paddingRight: '5rem',
+    fontFamily: 'IBM Plex Sans, sans-serif',
+    fontWeight: 500,
+    fontSize: '19px',
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: '0.05em',
+    whiteSpace: 'nowrap',
+  };
 
   return (
     <div
-      className="absolute bottom-0 left-0 right-0 z-50 flex items-center overflow-hidden"
-      style={{ height: '80px', background: 'rgba(3,3,8,0.97)', borderTop: '2px solid #c8102e' }}
+      className="absolute bottom-0 left-0 right-0 z-50 flex items-center"
+      style={{ height: '80px', background: 'rgba(3,3,8,0.97)', borderTop: '2px solid #c8102e', overflow: 'hidden' }}
     >
       {/* Logo + label */}
       <div
         className="flex-shrink-0 flex items-center gap-3 h-full px-6"
-        style={{ background: '#ffffff' }}
+        style={{ background: '#ffffff', zIndex: 1 }}
       >
         <img
           src="/ticker-logo.png"
@@ -235,28 +268,24 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
         </span>
       </div>
 
-      {/* Seamless double-copy scroll */}
-      <div className="flex-1 overflow-hidden">
+      {/* Scroll strip — two copies for seamless loop */}
+      <div style={{ flex: 1, overflow: 'hidden', height: '80px', position: 'relative' }}>
         <div
-          key={animKey}
-          className="flex whitespace-nowrap"
-          style={{ animation: `global-ticker-scroll ${duration}s linear infinite` }}
+          ref={scrollRef}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            height: '80px',
+            display: 'flex',
+            alignItems: 'center',
+            willChange: 'transform',
+          }}
         >
-          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '19px', color: 'rgba(255,255,255,0.85)', letterSpacing: '0.05em' }}>
-            {tickerText}
-          </span>
-          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '19px', color: 'rgba(255,255,255,0.85)', letterSpacing: '0.05em' }}>
-            {tickerText}
-          </span>
+          <span style={spanStyle}>{tickerText}</span>
+          <span style={spanStyle}>{tickerText}</span>
         </div>
       </div>
-
-      <style>{`
-        @keyframes global-ticker-scroll {
-          0%   { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-      `}</style>
     </div>
   );
 }
