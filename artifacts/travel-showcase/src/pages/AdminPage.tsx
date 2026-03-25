@@ -77,6 +77,7 @@ interface WaitingConfig {
   socialLinks: Array<{ label: string; url: string }>;
   customTickerItems: string[];
   tickerSpeed: number;
+  rotatingNames: string[];
 }
 
 const EMPTY_CONFIG: WaitingConfig = {
@@ -89,6 +90,7 @@ const EMPTY_CONFIG: WaitingConfig = {
   socialLinks: [],
   customTickerItems: [],
   tickerSpeed: 3,
+  rotatingNames: [],
 };
 
 const PRESETS: Array<{ name: string; description: string; config: Partial<WaitingConfig> }> = [
@@ -109,6 +111,14 @@ const PRESETS: Array<{ name: string; description: string; config: Partial<Waitin
         'Book your next trip with City Discoverer Live',
         'New flight deals updated daily — book a session at schedez.io',
         'Subscribe for weekly travel tips, tools and destination guides',
+      ],
+      rotatingNames: [
+        'The Travel Blueprint',
+        'Plan Less Travel More',
+        'Where To Next?',
+        'Done For You Travel',
+        'The Traveler Hub',
+        'Your Travel Advisor',
       ],
     },
   },
@@ -156,6 +166,7 @@ function WaitingScreenPanel() {
   const [saved, setSaved] = useState(false);
   const [tickerSaving, setTickerSaving] = useState(false);
   const [tickerSaved, setTickerSaved] = useState(false);
+  const [newRotatingName, setNewRotatingName] = useState('');
   const [newTopic, setNewTopic] = useState('');
   const [newSocialLabel, setNewSocialLabel] = useState('');
   const [newSocialUrl, setNewSocialUrl] = useState('');
@@ -277,7 +288,7 @@ function WaitingScreenPanel() {
       </div>
 
       {/* Channel Branding */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
         <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Channel Branding</p>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -298,6 +309,58 @@ function WaitingScreenPanel() {
               className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
             />
           </div>
+        </div>
+
+        {/* Rotating Names */}
+        <div>
+          <label className="text-[11px] text-muted-foreground mb-2 block uppercase tracking-widest">
+            Rotating Channel Names
+            <span className="ml-2 normal-case text-muted-foreground/50">— auto-cycle on waiting screen</span>
+          </label>
+          {(config.rotatingNames ?? []).length > 0 && (
+            <div className="space-y-1.5 mb-2">
+              {(config.rotatingNames ?? []).map((name, i) => (
+                <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                  <span className="text-[#c8102e] text-xs font-mono">{i + 1}</span>
+                  <span className="text-sm text-white flex-1">{name}</span>
+                  <button
+                    onClick={() => update('rotatingNames', (config.rotatingNames ?? []).filter((_, idx) => idx !== i))}
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              value={newRotatingName}
+              onChange={e => setNewRotatingName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && newRotatingName.trim()) {
+                  update('rotatingNames', [...(config.rotatingNames ?? []), newRotatingName.trim()]);
+                  setNewRotatingName('');
+                }
+              }}
+              placeholder="Add a name and press Enter"
+              className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+            />
+            <button
+              onClick={() => {
+                if (newRotatingName.trim()) {
+                  update('rotatingNames', [...(config.rotatingNames ?? []), newRotatingName.trim()]);
+                  setNewRotatingName('');
+                }
+              }}
+              className="px-3 py-2 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-all text-xs font-medium"
+            >
+              Add
+            </button>
+          </div>
+          <p className="text-[11px] text-muted-foreground/50 mt-1.5">
+            If empty, the single Channel Name above is shown. If 2+, they auto-rotate every 4.5 s.
+          </p>
         </div>
       </div>
 

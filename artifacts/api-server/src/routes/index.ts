@@ -19,6 +19,7 @@ interface WaitingConfig {
   socialLinks: Array<{ label: string; url: string }>;
   customTickerItems: string[];
   tickerSpeed: number;
+  rotatingNames: string[];
 }
 
 const WAITING_CONFIG_KEY = 'waiting_config';
@@ -33,6 +34,7 @@ let waitingConfig: WaitingConfig = {
   socialLinks: [],
   customTickerItems: [],
   tickerSpeed: 3,
+  rotatingNames: [],
 };
 
 // Load persisted config from DB on startup
@@ -267,6 +269,9 @@ router.put('/waiting-config', async (req, res) => {
     tickerSpeed: typeof b.tickerSpeed === 'number' && b.tickerSpeed >= 1 && b.tickerSpeed <= 5
       ? b.tickerSpeed
       : waitingConfig.tickerSpeed,
+    rotatingNames: Array.isArray(b.rotatingNames)
+      ? b.rotatingNames.filter((t: unknown) => typeof t === 'string')
+      : waitingConfig.rotatingNames,
   };
   await persistWaitingConfig();
   res.json(waitingConfig);

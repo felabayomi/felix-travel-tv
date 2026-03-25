@@ -56,18 +56,10 @@ interface WaitingConfig {
   socialLinks: Array<{ label: string; url: string }>;
   customTickerItems: string[];
   tickerSpeed: number;
+  rotatingNames: string[];
 }
 
 const POLL_MS = 2000;
-
-const CHANNEL_NAMES = [
-  'The Travel Blueprint',
-  'Plan Less Travel More',
-  'Where To Next?',
-  'Done For You Travel',
-  'The Traveler Hub',
-  'Your Travel Advisor',
-];
 
 function usePlaybackSync() {
   const [state, setState] = useState<PlaybackState>({ articleId: null, snippetIndex: 0, onAir: false, updatedAt: 0 });
@@ -290,9 +282,15 @@ export function PublicDisplay() {
   const currentSnippet = snippets[safeIndex] ?? null;
   const selectedArticle = articles.find(a => a.id === articleId) ?? null;
 
+  const activeNames = (config?.rotatingNames?.length ?? 0) > 0
+    ? (config!.rotatingNames)
+    : [config?.channelName || 'News Reader'];
+
   const [nameIndex, setNameIndex] = useState(0);
+  const activeNamesLenRef = useRef(activeNames.length);
+  activeNamesLenRef.current = activeNames.length;
   useEffect(() => {
-    const id = setInterval(() => setNameIndex(i => (i + 1) % CHANNEL_NAMES.length), 4500);
+    const id = setInterval(() => setNameIndex(i => (i + 1) % activeNamesLenRef.current), 4500);
     return () => clearInterval(id);
   }, []);
 
@@ -306,7 +304,6 @@ export function PublicDisplay() {
   }, [snippetIndex]);
 
   if (!articleId || !onAir) {
-    const channelName = config?.channelName || 'News Reader';
     const tagline = config?.tagline || '';
     const hasTopics = (config?.topics?.length ?? 0) > 0;
     const hasWebsite = !!config?.websiteUrl;
@@ -378,7 +375,7 @@ export function PublicDisplay() {
                       className="text-6xl text-white uppercase"
                       style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, letterSpacing: '0.06em', lineHeight: 1 }}
                     >
-                      {CHANNEL_NAMES[nameIndex]}
+                      {activeNames[nameIndex % activeNames.length]}
                     </motion.h1>
                   </AnimatePresence>
                 </div>
