@@ -242,6 +242,8 @@ router.get('/ticker', async (req, res) => {
 
 // GET /api/waiting-config
 router.get('/waiting-config', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
   res.json(waitingConfig);
 });
 

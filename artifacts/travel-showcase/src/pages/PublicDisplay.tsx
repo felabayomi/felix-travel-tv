@@ -89,7 +89,7 @@ function useWaitingConfig() {
   useEffect(() => {
     async function fetchConfig() {
       try {
-        const res = await fetch('/api/waiting-config');
+        const res = await fetch('/api/waiting-config', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           const newJson = JSON.stringify(data);
@@ -101,7 +101,7 @@ function useWaitingConfig() {
       } catch { /* ignore */ }
     }
     fetchConfig();
-    const id = setInterval(fetchConfig, 10000);
+    const id = setInterval(fetchConfig, 4000);
     return () => clearInterval(id);
   }, []);
 
@@ -195,7 +195,7 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
       } catch { /* ignore */ }
     }
     fetchTicker();
-    const id = setInterval(fetchTicker, 10000);
+    const id = setInterval(fetchTicker, 4000);
     return () => clearInterval(id);
   }, []);
 
@@ -209,6 +209,11 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
 
   const multiplier = TICKER_SPEED_MULTIPLIERS[Math.min(Math.max(speed, 1), 5) - 1] ?? 0.017;
   const duration = Math.max(5, Math.round(tickerText.length * multiplier));
+
+  // animKey forces a DOM remount (fresh animation) whenever speed or content changes.
+  // Without this, changing the inline `animation` style on an existing element
+  // does NOT restart the CSS animation in browsers — it just continues the old cycle.
+  const animKey = `${duration}-${items.length}`;
 
   return (
     <div
@@ -233,6 +238,7 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
       {/* Seamless double-copy scroll */}
       <div className="flex-1 overflow-hidden">
         <div
+          key={animKey}
           className="flex whitespace-nowrap"
           style={{ animation: `global-ticker-scroll ${duration}s linear infinite` }}
         >
