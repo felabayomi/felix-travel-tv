@@ -164,8 +164,29 @@ function WaitingScreenPanel() {
       body: JSON.stringify(cfg),
     }).catch(() => {});
 
-  // Push to server on mount (resync after server restart)
-  useEffect(() => { pushToServer(config); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // On mount: pull server config first; if server has data, use it.
+  // Only push local data to server if server is empty (e.g. fresh restart with no DB record yet).
+  useEffect(() => {
+    async function syncOnMount() {
+      try {
+        const res = await fetch('/api/waiting-config');
+        if (res.ok) {
+          const serverData: WaitingConfig = await res.json();
+          const serverHasData = !!(serverData.channelName || serverData.topics.length > 0 || serverData.customTickerItems.length > 0);
+          if (serverHasData) {
+            const merged = { ...EMPTY_CONFIG, ...serverData };
+            setConfig(merged);
+            localStorage.setItem(WAITING_CONFIG_KEY, JSON.stringify(merged));
+          } else {
+            pushToServer(config);
+          }
+        }
+      } catch {
+        pushToServer(config);
+      }
+    }
+    syncOnMount();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
     setSaving(true);
