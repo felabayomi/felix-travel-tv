@@ -80,7 +80,8 @@ export function NewsPage() {
     ? computeReadingMs(currentSnippetForTiming)
     : intervalMs;
 
-  const { currentIndex, currentSnippet, next, prev, goTo } = useSnippetPlayer(snippets, activeInterval, false);
+  // When voice is on, pause the timer — slides advance only when audio finishes
+  const { currentIndex, currentSnippet, next, prev, goTo } = useSnippetPlayer(snippets, activeInterval, voiceEnabled);
 
   // Keep the timing snippet in sync (one render behind is fine — applies on next chapter)
   useEffect(() => {
@@ -89,21 +90,21 @@ export function NewsPage() {
 
   const selectedArticle = articles.find(a => a.id === selectedArticleId) ?? null;
 
-  const { speak, stop, prefetch } = useVoiceReader(voiceEnabled);
+  const { speak, stop, prefetch, isLoading: isVoiceLoading, playProgress } = useVoiceReader(voiceEnabled);
 
-  // Speak current chapter when it changes; prefetch next chapter
+  // Speak current chapter when it changes; advance slide when audio ends
   const prevSnippetIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (!currentSnippet) return;
     if (prevSnippetIdRef.current === currentSnippet.id) return;
     prevSnippetIdRef.current = currentSnippet.id;
     if (voiceEnabled) {
-      speak(currentSnippet.id);
+      speak(currentSnippet.id, next);
     }
     // Prefetch the next chapter's audio in the background
     const nextSnippet = snippets[currentIndex + 1];
     if (nextSnippet) prefetch(nextSnippet.id);
-  }, [currentSnippet, currentIndex, snippets, voiceEnabled, speak, prefetch]);
+  }, [currentSnippet, currentIndex, snippets, voiceEnabled, speak, prefetch, next]);
 
   // Stop voice + reset when switching articles
   useEffect(() => {
@@ -113,13 +114,12 @@ export function NewsPage() {
   }, [selectedArticleId, stop]);
 
   // When voice is turned ON mid-chapter, immediately start speaking the current chapter
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!voiceEnabled || !currentSnippet) return;
     prevSnippetIdRef.current = currentSnippet.id;
-    speak(currentSnippet.id);
-  // Only re-run when voiceEnabled flips ON; ignore speak/currentSnippet changes here
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceEnabled]);
+    speak(currentSnippet.id, next);
+  }, [voiceEnabled]); // intentionally omit speak/next/currentSnippet to only run when voice flips ON
 
   // Total time counter — ticks every second while playing
   useEffect(() => {
@@ -426,6 +426,8 @@ export function NewsPage() {
                   duration={activeInterval}
                   slideKey={`${currentSnippet.id}-${activeInterval}`}
                   isPaused={false}
+                  voiceProgress={voiceEnabled ? playProgress : undefined}
+                  isVoiceLoading={voiceEnabled ? isVoiceLoading : undefined}
                 />
               </>
             )}

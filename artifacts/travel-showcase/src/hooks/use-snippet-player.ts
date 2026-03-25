@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Snippet } from '@workspace/api-client-react/src/generated/api.schemas';
 
 export function useSnippetPlayer(snippets: Snippet[], intervalMs: number = 12000, isPaused: boolean = false) {
@@ -21,21 +21,19 @@ export function useSnippetPlayer(snippets: Snippet[], intervalMs: number = 12000
     return () => clearInterval(timer);
   }, [snippets.length, snippetKey, intervalMs, isPaused]);
 
-  const next = () => {
-    if (snippets.length === 0) return;
-    setCurrentIndex(prev => (prev + 1) % snippets.length);
-  };
+  const next = useCallback(() => {
+    setCurrentIndex(prev => (snippets.length === 0 ? 0 : (prev + 1) % snippets.length));
+  }, [snippets.length]);
 
-  const prev = () => {
-    if (snippets.length === 0) return;
-    setCurrentIndex(prev => (prev - 1 + snippets.length) % snippets.length);
-  };
+  const prev = useCallback(() => {
+    setCurrentIndex(prev => (snippets.length === 0 ? 0 : (prev - 1 + snippets.length) % snippets.length));
+  }, [snippets.length]);
 
-  const goTo = (index: number) => {
+  const goTo = useCallback((index: number) => {
     if (index >= 0 && index < snippets.length) {
       setCurrentIndex(index);
     }
-  };
+  }, [snippets.length]);
 
   return {
     currentIndex,
