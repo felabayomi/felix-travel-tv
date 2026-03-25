@@ -166,6 +166,8 @@ function WaitingScreenPanel() {
   const [saved, setSaved] = useState(false);
   const [tickerSaving, setTickerSaving] = useState(false);
   const [tickerSaved, setTickerSaved] = useState(false);
+  const [rotNamesSaving, setRotNamesSaving] = useState(false);
+  const [rotNamesSaved, setRotNamesSaved] = useState(false);
   const [newRotatingName, setNewRotatingName] = useState('');
   const [newRotatingTagline, setNewRotatingTagline] = useState('');
   const [newTopic, setNewTopic] = useState('');
@@ -246,6 +248,17 @@ function WaitingScreenPanel() {
       setTimeout(() => setTickerSaved(false), 2500);
     } catch { /* ignore */ }
     setTickerSaving(false);
+  };
+
+  const handleSaveRotatingNames = async () => {
+    setRotNamesSaving(true);
+    try {
+      localStorage.setItem(WAITING_CONFIG_KEY, JSON.stringify(config));
+      await pushToServer(config);
+      setRotNamesSaved(true);
+      setTimeout(() => setRotNamesSaved(false), 2500);
+    } catch { /* ignore */ }
+    setRotNamesSaving(false);
   };
 
   const addTopic = () => {
@@ -377,6 +390,20 @@ function WaitingScreenPanel() {
           <p className="text-[11px] text-muted-foreground/50 mt-1.5">
             Each entry shows a big name + tagline on the waiting screen. They rotate every 4.5 s.
           </p>
+          <div className="flex justify-end pt-2 border-t border-border/40 mt-2">
+            <button
+              onClick={handleSaveRotatingNames}
+              disabled={rotNamesSaving}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all"
+              style={{
+                background: rotNamesSaved ? '#16a34a' : '#c8102e',
+                color: '#fff',
+                opacity: rotNamesSaving ? 0.6 : 1,
+              }}
+            >
+              {rotNamesSaving ? 'Saving…' : rotNamesSaved ? '✓ Saved to Server' : 'Save Rotating Names'}
+            </button>
+          </div>
         </div>
       </div>
 
