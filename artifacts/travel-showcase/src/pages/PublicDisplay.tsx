@@ -109,10 +109,10 @@ function GlobalTicker() {
           className="flex whitespace-nowrap"
           style={{ animation: `global-ticker-scroll ${duration}s linear infinite` }}
         >
-          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '14px', color: 'rgba(255,255,255,0.85)', letterSpacing: '0.05em' }}>
+          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '19px', color: 'rgba(255,255,255,0.85)', letterSpacing: '0.05em' }}>
             {tickerText}
           </span>
-          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '14px', color: 'rgba(255,255,255,0.85)', letterSpacing: '0.05em' }}>
+          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '19px', color: 'rgba(255,255,255,0.85)', letterSpacing: '0.05em' }}>
             {tickerText}
           </span>
         </div>
