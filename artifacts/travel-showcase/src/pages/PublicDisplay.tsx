@@ -170,6 +170,7 @@ const TICKER_SPEED_MULTIPLIERS = [0.040, 0.028, 0.017, 0.010, 0.006];
 
 function GlobalTicker({ speed = 3 }: { speed?: number }) {
   const [items, setItems] = useState<TickerItem[]>([]);
+  const lastJsonRef = useRef<string>('');
 
   useEffect(() => {
     async function fetchTicker() {
@@ -177,7 +178,11 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
         const res = await fetch('/api/ticker', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
-          setItems(data);
+          const newJson = JSON.stringify(data);
+          if (newJson !== lastJsonRef.current) {
+            lastJsonRef.current = newJson;
+            setItems(data);
+          }
         }
       } catch { /* ignore */ }
     }
