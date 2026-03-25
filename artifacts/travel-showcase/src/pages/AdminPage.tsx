@@ -60,15 +60,20 @@ async function patchArticle(id: number, fields: { title?: string; source?: strin
 function PinGate({ onAuth }: { onAuth: () => void }) {
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (pin === ADMIN_PIN) {
-      sessionStorage.setItem(AUTH_KEY, 'true');
+      if (remember) {
+        localStorage.setItem(AUTH_KEY, 'true');
+      } else {
+        sessionStorage.setItem(AUTH_KEY, 'true');
+      }
       onAuth();
     } else {
-      setError('Incorrect PIN');
+      setError('Incorrect access code');
       setPin('');
     }
   };
@@ -81,23 +86,37 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
             <Lock className="w-6 h-6 text-primary" />
           </div>
           <h2 className="text-xl font-display font-bold text-foreground">Admin Access</h2>
-          <p className="text-xs text-muted-foreground text-center">Enter your PIN to access the control panel</p>
+          <p className="text-xs text-muted-foreground text-center">Enter your access code to continue</p>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-3">
           <div className="relative">
             <input
-              autoFocus type={showPin ? 'text' : 'password'} inputMode="numeric"
-              placeholder="Enter PIN" value={pin}
+              autoFocus type={showPin ? 'text' : 'password'}
+              placeholder="Enter access code" value={pin}
               onChange={e => { setPin(e.target.value); setError(''); }}
               className="w-full bg-background border border-border rounded-xl px-4 pr-11 py-3 text-center text-2xl tracking-widest font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
             />
             <button type="button" onClick={() => setShowPin(v => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              title={showPin ? 'Hide code' : 'Show code'}
             >
               {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
           {error && <p className="text-xs text-destructive text-center">{error}</p>}
+          <label className="flex items-center gap-2.5 cursor-pointer select-none group">
+            <div
+              onClick={() => setRemember(v => !v)}
+              className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                remember ? 'bg-primary border-primary' : 'border-border bg-background group-hover:border-primary/50'
+              }`}
+            >
+              {remember && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+            </div>
+            <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+              Keep me signed in
+            </span>
+          </label>
         </div>
         <button type="submit" disabled={!pin}
           className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 disabled:opacity-40 transition-all"
