@@ -15,6 +15,7 @@ function ESTClock() {
   }, []);
 
   const day = now.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' }).toUpperCase();
+  const date = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }).toUpperCase();
   const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'America/New_York' });
 
   return (
@@ -22,7 +23,10 @@ function ESTClock() {
       <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '11px', fontWeight: 400, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.4)' }}>
         {day} · EST
       </span>
-      <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '22px', fontWeight: 600, letterSpacing: '0.06em', color: '#ffffff', lineHeight: 1 }}>
+      <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '11px', fontWeight: 400, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.55)' }}>
+        {date}
+      </span>
+      <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '22px', fontWeight: 600, letterSpacing: '0.06em', color: '#ffffff', lineHeight: 1.2 }}>
         {time}
       </span>
     </div>
