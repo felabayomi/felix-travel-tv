@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import Marquee from 'react-fast-marquee';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { useGetArticles, useGetArticleSnippets } from '@workspace/api-client-react';
@@ -174,24 +175,13 @@ function Countdown({ targetTime }: { targetTime: string }) {
   );
 }
 
-// px per frame at ~60fps for each speed level 1–5
-const TICKER_PX_PER_FRAME = [0.35, 0.7, 1.2, 2.0, 3.5];
+// px/s for each speed level 1–5 (react-fast-marquee speed prop)
+const TICKER_SPEEDS_PPS = [25, 50, 90, 150, 250];
 
 function GlobalTicker({ speed = 3 }: { speed?: number }) {
   const [items, setItems] = useState<TickerItem[]>([]);
   const lastJsonRef = useRef<string>('');
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const posRef = useRef(0);
-  const rafRef = useRef<number>(0);
-  const speedRef = useRef(speed);
 
-  // Keep speedRef current so RAF loop picks up changes immediately, no restart needed
-  useEffect(() => { speedRef.current = speed; }, [speed]);
-
-  // Reset scroll position when items change so new content starts cleanly
-  useEffect(() => { posRef.current = 0; }, [items]);
-
-  // Fetch ticker items every 4 seconds
   useEffect(() => {
     async function fetchTicker() {
       try {
@@ -211,24 +201,7 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
     return () => clearInterval(id);
   }, []);
 
-  // requestAnimationFrame loop — moves the strip left, loops seamlessly
-  useEffect(() => {
-    function tick() {
-      if (scrollRef.current) {
-        const halfWidth = scrollRef.current.scrollWidth / 2;
-        const pxPerFrame = TICKER_PX_PER_FRAME[Math.min(Math.max(speedRef.current, 1), 5) - 1] ?? 1.2;
-        posRef.current -= pxPerFrame;
-        // Once we've scrolled one full copy width, jump back — seamless loop
-        if (halfWidth > 0 && posRef.current <= -halfWidth) {
-          posRef.current = 0;
-        }
-        scrollRef.current.style.transform = `translateX(${posRef.current}px)`;
-      }
-      rafRef.current = requestAnimationFrame(tick);
-    }
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, []);
+  const pps = TICKER_SPEEDS_PPS[Math.min(Math.max(speed, 1), 5) - 1] ?? 90;
 
   const tickerText = items.length > 0
     ? items.map(item =>
@@ -238,14 +211,14 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
       ).join('     ◆     ')
     : 'STANDING BY FOR BROADCAST  ·  TUNE IN FOR LIVE COVERAGE';
 
-  const spanStyle: React.CSSProperties = {
-    paddingRight: '5rem',
+  const textStyle: React.CSSProperties = {
     fontFamily: 'IBM Plex Sans, sans-serif',
     fontWeight: 500,
     fontSize: '19px',
     color: 'rgba(255,255,255,0.85)',
     letterSpacing: '0.05em',
     whiteSpace: 'nowrap',
+    paddingRight: '6rem',
   };
 
   return (
@@ -268,23 +241,11 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
         </span>
       </div>
 
-      {/* Scroll strip — two copies for seamless loop */}
-      <div style={{ flex: 1, overflow: 'hidden', height: '80px', position: 'relative' }}>
-        <div
-          ref={scrollRef}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            height: '80px',
-            display: 'flex',
-            alignItems: 'center',
-            willChange: 'transform',
-          }}
-        >
-          <span style={spanStyle}>{tickerText}</span>
-          <span style={spanStyle}>{tickerText}</span>
-        </div>
+      {/* Marquee scroll strip */}
+      <div style={{ flex: 1, overflow: 'hidden', height: '80px', display: 'flex', alignItems: 'center' }}>
+        <Marquee speed={pps} loop={0} autoFill gradient={false}>
+          <span style={textStyle}>{tickerText}</span>
+        </Marquee>
       </div>
     </div>
   );
