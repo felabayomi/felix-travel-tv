@@ -4,7 +4,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Trash2, Edit3, Check, X,
   Mic, MicOff, Lock, Eye, EyeOff, ExternalLink, Radio,
   Loader2, FileText, Link, CalendarDays, ChevronDown, ChevronUp,
-  Settings2, RotateCcw, Play, Pause
+  Settings2, RotateCcw, Play, Pause, Clock, Globe
 } from 'lucide-react';
 import {
   useGetArticles, useGetArticleSnippets, useCreateArticle,
@@ -54,6 +54,379 @@ async function patchArticle(id: number, fields: { title?: string; source?: strin
   });
   if (!res.ok) throw new Error('Failed to save');
   return res.json();
+}
+
+// ─── Waiting Screen Config ────────────────────────────────────────────────
+const WAITING_CONFIG_KEY = 'newsreader_waiting_config';
+
+interface WaitingConfig {
+  channelName: string;
+  tagline: string;
+  broadcastTime: string;
+  topics: string[];
+  websiteLabel: string;
+  websiteUrl: string;
+  socialLinks: Array<{ label: string; url: string }>;
+  customTickerItems: string[];
+}
+
+const EMPTY_CONFIG: WaitingConfig = {
+  channelName: '',
+  tagline: '',
+  broadcastTime: '',
+  topics: [],
+  websiteLabel: '',
+  websiteUrl: '',
+  socialLinks: [],
+  customTickerItems: [],
+};
+
+const PRESETS: Array<{ name: string; description: string; config: Partial<WaitingConfig> }> = [
+  {
+    name: 'Travel Channel',
+    description: 'City Discoverer / global travel planner setup',
+    config: {
+      channelName: 'City Discoverer Live',
+      tagline: 'Travel Planning • Deals • Tools • News',
+      topics: ['Travel Industry Updates', 'Flight Deals of the Week', 'New Visa Rules', 'Travel Tech Tools', 'City of the Day', 'Finance & Travel Costs'],
+      websiteLabel: 'Book a travel session',
+      websiteUrl: 'globaltravelplanner.com',
+      socialLinks: [
+        { label: 'Twitch', url: 'twitch.tv/globaltravelplanner' },
+        { label: 'YouTube', url: 'youtube.com/CityDiscoverer' },
+      ],
+      customTickerItems: [
+        'Book your next trip with City Discoverer Live',
+        'New flight deals updated daily — visit globaltravelplanner.com',
+        'Subscribe for weekly travel tips, tools and destination guides',
+      ],
+    },
+  },
+  {
+    name: 'Finance News',
+    description: 'Markets, investing & economics',
+    config: {
+      channelName: 'Finance Today Live',
+      tagline: 'Markets • Investing • Economics',
+      topics: ['Market Updates', 'Exchange Rates', 'Investment Tips', 'Economic News', 'Crypto Watch'],
+      websiteLabel: '',
+      websiteUrl: '',
+      socialLinks: [],
+      customTickerItems: [
+        'Markets open at 09:30 ET',
+        'Follow for daily market updates and analysis',
+      ],
+    },
+  },
+  {
+    name: 'General News',
+    description: 'All-purpose news broadcast',
+    config: {
+      channelName: 'News Reader',
+      tagline: 'Live News Broadcast',
+      topics: ['World News', 'Technology', 'Health & Science', 'Sports', 'Entertainment'],
+      websiteLabel: '',
+      websiteUrl: '',
+      socialLinks: [],
+      customTickerItems: [],
+    },
+  },
+];
+
+function WaitingScreenPanel() {
+  const [config, setConfig] = useState<WaitingConfig>(() => {
+    try {
+      const stored = localStorage.getItem(WAITING_CONFIG_KEY);
+      return stored ? { ...EMPTY_CONFIG, ...JSON.parse(stored) } : { ...EMPTY_CONFIG };
+    } catch {
+      return { ...EMPTY_CONFIG };
+    }
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [newTopic, setNewTopic] = useState('');
+  const [newSocialLabel, setNewSocialLabel] = useState('');
+  const [newSocialUrl, setNewSocialUrl] = useState('');
+  const [newTickerItem, setNewTickerItem] = useState('');
+
+  const update = <K extends keyof WaitingConfig>(key: K, value: WaitingConfig[K]) =>
+    setConfig(prev => ({ ...prev, [key]: value }));
+
+  const applyPreset = (preset: typeof PRESETS[0]) =>
+    setConfig(prev => ({ ...prev, ...preset.config }));
+
+  const pushToServer = (cfg: WaitingConfig) =>
+    fetch('/api/waiting-config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    }).catch(() => {});
+
+  // Push to server on mount (resync after server restart)
+  useEffect(() => { pushToServer(config); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      localStorage.setItem(WAITING_CONFIG_KEY, JSON.stringify(config));
+      await pushToServer(config);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  const addTopic = () => {
+    if (!newTopic.trim()) return;
+    update('topics', [...config.topics, newTopic.trim()]);
+    setNewTopic('');
+  };
+
+  const addSocialLink = () => {
+    if (!newSocialLabel.trim() || !newSocialUrl.trim()) return;
+    update('socialLinks', [...config.socialLinks, { label: newSocialLabel.trim(), url: newSocialUrl.trim() }]);
+    setNewSocialLabel('');
+    setNewSocialUrl('');
+  };
+
+  const addTickerItem = () => {
+    if (!newTickerItem.trim()) return;
+    update('customTickerItems', [...config.customTickerItems, newTickerItem.trim()]);
+    setNewTickerItem('');
+  };
+
+  return (
+    <div className="space-y-5">
+
+      {/* Quick Presets */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium mb-3">Quick Presets</p>
+        <div className="grid grid-cols-3 gap-2">
+          {PRESETS.map(preset => (
+            <button
+              key={preset.name}
+              onClick={() => applyPreset(preset)}
+              className="flex flex-col items-start gap-1 p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-left"
+            >
+              <span className="text-sm font-semibold text-white">{preset.name}</span>
+              <span className="text-[11px] text-muted-foreground leading-tight">{preset.description}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-muted-foreground/50 mt-2">Presets fill the fields below — you can then edit and save.</p>
+      </div>
+
+      {/* Channel Branding */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+        <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Channel Branding</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[11px] text-muted-foreground mb-1.5 block uppercase tracking-widest">Channel Name</label>
+            <input
+              value={config.channelName}
+              onChange={e => update('channelName', e.target.value)}
+              placeholder="e.g. City Discoverer Live"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground mb-1.5 block uppercase tracking-widest">Tagline</label>
+            <input
+              value={config.tagline}
+              onChange={e => update('tagline', e.target.value)}
+              placeholder="e.g. Travel Planning • Deals • Tools"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Broadcast Countdown */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Broadcast Countdown</p>
+        </div>
+        <div>
+          <label className="text-[11px] text-muted-foreground mb-1.5 block uppercase tracking-widest">Scheduled Start Time (optional)</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="datetime-local"
+              value={config.broadcastTime}
+              onChange={e => update('broadcastTime', e.target.value)}
+              className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/60"
+            />
+            {config.broadcastTime && (
+              <button
+                onClick={() => update('broadcastTime', '')}
+                className="px-3 py-2 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-all text-xs"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground/50 mt-1.5">Viewers see a live countdown timer on the waiting screen.</p>
+        </div>
+      </div>
+
+      {/* Today's Topics */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+        <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Today's Topics</p>
+        {config.topics.length > 0 && (
+          <div className="space-y-1.5">
+            {config.topics.map((topic, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                <span className="text-[#c8102e] text-xs">•</span>
+                <span className="text-sm text-white flex-1">{topic}</span>
+                <button
+                  onClick={() => update('topics', config.topics.filter((_, idx) => idx !== i))}
+                  className="text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input
+            value={newTopic}
+            onChange={e => setNewTopic(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addTopic()}
+            placeholder="Add a topic... (Enter to add)"
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+          />
+          <button
+            onClick={addTopic}
+            disabled={!newTopic.trim()}
+            className="px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 disabled:opacity-40 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Website & Booking */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Globe className="w-3.5 h-3.5 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Website & Booking</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[11px] text-muted-foreground mb-1.5 block uppercase tracking-widest">Call-to-action label</label>
+            <input
+              value={config.websiteLabel}
+              onChange={e => update('websiteLabel', e.target.value)}
+              placeholder="e.g. Book a session"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground mb-1.5 block uppercase tracking-widest">URL</label>
+            <input
+              value={config.websiteUrl}
+              onChange={e => update('websiteUrl', e.target.value)}
+              placeholder="e.g. globaltravelplanner.com"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Social Links */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+        <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Social Links</p>
+        {config.socialLinks.length > 0 && (
+          <div className="space-y-1.5">
+            {config.socialLinks.map((link, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                <span className="text-xs text-muted-foreground w-16 shrink-0 truncate font-medium">{link.label}</span>
+                <span className="text-sm text-white/70 flex-1 truncate">{link.url}</span>
+                <button
+                  onClick={() => update('socialLinks', config.socialLinks.filter((_, idx) => idx !== i))}
+                  className="text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input
+            value={newSocialLabel}
+            onChange={e => setNewSocialLabel(e.target.value)}
+            placeholder="Platform"
+            className="w-24 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+          />
+          <input
+            value={newSocialUrl}
+            onChange={e => setNewSocialUrl(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addSocialLink()}
+            placeholder="URL or handle"
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+          />
+          <button
+            onClick={addSocialLink}
+            disabled={!newSocialLabel.trim() || !newSocialUrl.trim()}
+            className="px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 disabled:opacity-40 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Custom Ticker Messages */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+        <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Custom Ticker Messages</p>
+        <p className="text-[11px] text-muted-foreground/50">These scroll alongside article headlines in the bottom ticker bar.</p>
+        {config.customTickerItems.length > 0 && (
+          <div className="space-y-1.5">
+            {config.customTickerItems.map((item, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                <span className="text-sm text-white/80 flex-1 leading-snug">{item}</span>
+                <button
+                  onClick={() => update('customTickerItems', config.customTickerItems.filter((_, idx) => idx !== i))}
+                  className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input
+            value={newTickerItem}
+            onChange={e => setNewTickerItem(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addTickerItem()}
+            placeholder="Add a scrolling message... (Enter to add)"
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+          />
+          <button
+            onClick={addTickerItem}
+            disabled={!newTickerItem.trim()}
+            className="px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 disabled:opacity-40 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Save button */}
+      <div className="flex justify-end pb-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 disabled:opacity-50 transition-all"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : null}
+          {saved ? 'Saved!' : 'Save Waiting Screen'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ─── PIN Gate ─────────────────────────────────────────────────────────────
@@ -481,6 +854,7 @@ function AdminDashboard() {
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [autoPlay, setAutoPlay] = useState(false);
   const [onAir, setOnAir] = useState(false);
+  const [mainTab, setMainTab] = useState<'broadcast' | 'waiting'>('broadcast');
   const AUTO_PLAY_SECONDS = 15;
   const [articleOverrides, setArticleOverrides] = useState<Record<number, Partial<Article>>>({});
 
@@ -685,8 +1059,33 @@ function AdminDashboard() {
         </aside>
 
         {/* ── Main content ── */}
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
-          {!selectedArticle ? (
+        <main className="flex-1 overflow-y-auto p-6">
+          {/* Tab switcher */}
+          <div className="flex items-center gap-1 border-b border-border mb-6">
+            <button
+              onClick={() => setMainTab('broadcast')}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px",
+                mainTab === 'broadcast' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-white"
+              )}
+            >
+              <Radio className="w-3.5 h-3.5" /> Broadcast
+            </button>
+            <button
+              onClick={() => setMainTab('waiting')}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px",
+                mainTab === 'waiting' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-white"
+              )}
+            >
+              <Settings2 className="w-3.5 h-3.5" /> Waiting Screen
+            </button>
+          </div>
+
+          <div className="space-y-6">
+          {mainTab === 'waiting' ? (
+            <WaitingScreenPanel />
+          ) : !selectedArticle ? (
             <div className="flex flex-col items-center justify-center h-64 text-center">
               <p className="text-muted-foreground">Select an article from the left to start</p>
               <button onClick={() => setShowAddDrawer(true)}
@@ -816,6 +1215,7 @@ function AdminDashboard() {
               </div>
             </>
           )}
+          </div>
         </main>
       </div>
 

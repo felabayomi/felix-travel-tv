@@ -1,0 +1,163 @@
+That looks really good actually — your News Reader waiting screen already looks like something a real broadcast would use.
+
+Now the important part:
+When it says “Waiting for the broadcast to begin”, that screen should give viewers useful information so they don’t leave.
+
+Think of it like a TV channel before the news starts.
+
+⸻
+
+What To Show On “Waiting For Broadcast” Screen
+
+Here are the best things to include:
+
+1. Countdown Timer (Most Important)
+
+Add:
+
+Broadcast begins in 14:32
+
+This keeps people watching because they know when it starts.
+
+⸻
+
+2. Today’s Topics / Headlines
+
+Add a small section like:
+
+Today's Topics:
+• Travel Industry Updates
+• Flight Deals of the Week
+• New Visa Rules
+• Travel Tech Tools
+• City of the Day
+• Finance & Travel Costs
+
+This tells viewers what they will get.
+
+⸻
+
+3. Your Brand / Channel Info
+
+Add something like:
+
+City Discoverer Live
+Travel Planning • Deals • Tools • News
+Live Travel Office
+
+
+⸻
+
+4. Social / Website / Booking
+
+Since you’re also a travel planner, this is very important:
+
+Add:
+
+Need help planning a trip?
+Book a session:
+globaltravelplanner.com
+
+Follow:
+Twitch.tv/globaltravelplanner
+YouTube: City Discoverer
+
+This turns your stream into marketing automatically.
+
+⸻
+
+5. Scrolling News Ticker (You Already Have This)
+
+The ticker at the bottom is perfect.
+You can use it for:
+	•	Travel news
+	•	Flight deals
+	•	Travel tips
+	•	Exchange rates
+	•	Headlines
+	•	Announcements
+
+Examples:
+
+Flight deals this week: NYC → Paris $420
+Passport processing delays increasing
+New digital nomad visas announced
+Travel insurance costs rising in 2026
+Tip: Book flights on Tuesday mornings
+
+
+⸻
+
+Example Layout For Your Screen
+
+Here’s a good layout structure:
+
+------------------------------------------------
+|                                              |
+|              NEWS READER                     |
+|                                              |
+|      Broadcast begins in 14:32               |
+|                                              |
+|  Today’s Topics:                             |
+|  • Travel News                               |
+|  • Flight Deals                              |
+|  • Travel Tools                              |
+|  • City of the Day                           |
+|                                              |
+|  Book travel help:                           |
+|  globaltravelplanner.com                     |
+|                                              |
+------------------------------------------------
+|  Scrolling ticker news at bottom             |
+------------------------------------------------
+
+
+⸻
+
+This Is Actually a Good Streaming Concept
+
+What you are building is basically a Live Travel / Finance / Tools News Channel, which is actually a very interesting niche.
+
+Your stream could have segments like:
+
+Your Possible Stream Structure
+
+Starting Soon (Countdown)
+News Headlines
+Travel Deals
+App / Tool Demo
+City of the Day
+Finance / Cost of Travel
+Live Trip Planning
+Q&A
+Ending Screen
+
+That would look very professional.
+
+⸻
+
+One More Very Important Tip
+
+Instead of saying:
+
+Waiting for the broadcast to begin
+
+Use something more engaging like:
+
+Better Text Options:
+
+Broadcast begins shortly
+Preparing today's news and updates
+Live broadcast starting soon
+Stay tuned — going live shortly
+Starting soon — travel news & tools
+
+Small wording change makes it feel more professional.
+
+⸻
+
+If you want, next I can help you design:
+	•	Starting Soon screen
+	•	News screen layout
+	•	Lower thirds (name bar)
+	•	Scene structure for OBS

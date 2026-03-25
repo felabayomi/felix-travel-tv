@@ -8,6 +8,29 @@ import { eq } from "drizzle-orm";
 // In-memory TTS cache: snippetId → mp3 Buffer
 const ttsCache = new Map<number, Buffer>();
 
+// ── Waiting Screen Config (in-memory, admin pushes on load) ─────────────────
+interface WaitingConfig {
+  channelName: string;
+  tagline: string;
+  broadcastTime: string | null;
+  topics: string[];
+  websiteLabel: string;
+  websiteUrl: string;
+  socialLinks: Array<{ label: string; url: string }>;
+  customTickerItems: string[];
+}
+
+let waitingConfig: WaitingConfig = {
+  channelName: '',
+  tagline: '',
+  broadcastTime: null,
+  topics: [],
+  websiteLabel: '',
+  websiteUrl: '',
+  socialLinks: [],
+  customTickerItems: [],
+};
+
 const router: IRouter = Router();
 
 router.use(healthRouter);
@@ -174,16 +197,41 @@ router.get("/snippets/:id/audio", async (req, res) => {
   }
 });
 
-// GET /api/ticker — all snippets' headlines + captions for the global ticker crawl
+// GET /api/ticker — all snippets' headlines + captions + custom waiting-screen items
 router.get('/ticker', async (req, res) => {
   try {
     const rows = await db
       .select({ headline: snippetsTable.headline, caption: snippetsTable.caption })
       .from(snippetsTable);
-    res.json(rows);
+    const snippetItems = rows.map(r => ({ headline: r.headline, caption: r.caption, isCustom: false }));
+    const customItems = waitingConfig.customTickerItems.map(text => ({ headline: text, caption: '', isCustom: true }));
+    res.json([...snippetItems, ...customItems]);
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
+});
+
+// GET /api/waiting-config
+router.get('/waiting-config', (_req, res) => {
+  res.json(waitingConfig);
+});
+
+// PUT /api/waiting-config
+router.put('/waiting-config', (req, res) => {
+  const b = req.body ?? {};
+  waitingConfig = {
+    channelName: typeof b.channelName === 'string' ? b.channelName : waitingConfig.channelName,
+    tagline: typeof b.tagline === 'string' ? b.tagline : waitingConfig.tagline,
+    broadcastTime: 'broadcastTime' in b ? (b.broadcastTime || null) : waitingConfig.broadcastTime,
+    topics: Array.isArray(b.topics) ? b.topics.filter((t: unknown) => typeof t === 'string') : waitingConfig.topics,
+    websiteLabel: typeof b.websiteLabel === 'string' ? b.websiteLabel : waitingConfig.websiteLabel,
+    websiteUrl: typeof b.websiteUrl === 'string' ? b.websiteUrl : waitingConfig.websiteUrl,
+    socialLinks: Array.isArray(b.socialLinks) ? b.socialLinks : waitingConfig.socialLinks,
+    customTickerItems: Array.isArray(b.customTickerItems)
+      ? b.customTickerItems.filter((t: unknown) => typeof t === 'string')
+      : waitingConfig.customTickerItems,
+  };
+  res.json(waitingConfig);
 });
 
 export default router;

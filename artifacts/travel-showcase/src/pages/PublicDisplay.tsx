@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Newspaper } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useGetArticles, useGetArticleSnippets } from '@workspace/api-client-react';
 import { ProgressBar } from '@/components/ProgressBar';
 import { SnippetDisplay } from '@/components/SnippetDisplay';
@@ -16,6 +16,18 @@ interface PlaybackState {
 interface TickerItem {
   headline: string;
   caption: string;
+  isCustom?: boolean;
+}
+
+interface WaitingConfig {
+  channelName: string;
+  tagline: string;
+  broadcastTime: string | null;
+  topics: string[];
+  websiteLabel: string;
+  websiteUrl: string;
+  socialLinks: Array<{ label: string; url: string }>;
+  customTickerItems: string[];
 }
 
 const POLL_MS = 2000;
@@ -42,6 +54,24 @@ function usePlaybackSync() {
   return state;
 }
 
+function useWaitingConfig() {
+  const [config, setConfig] = useState<WaitingConfig | null>(null);
+
+  useEffect(() => {
+    async function fetchConfig() {
+      try {
+        const res = await fetch('/api/waiting-config');
+        if (res.ok) setConfig(await res.json());
+      } catch { /* ignore */ }
+    }
+    fetchConfig();
+    const id = setInterval(fetchConfig, 10000);
+    return () => clearInterval(id);
+  }, []);
+
+  return config;
+}
+
 function LiveClock() {
   const [time, setTime] = useState(() => new Date());
   useEffect(() => {
@@ -55,6 +85,56 @@ function LiveClock() {
     >
       {time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
     </span>
+  );
+}
+
+function Countdown({ targetTime }: { targetTime: string }) {
+  const [remaining, setRemaining] = useState(() => {
+    const diff = new Date(targetTime).getTime() - Date.now();
+    return Math.max(0, Math.floor(diff / 1000));
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const diff = new Date(targetTime).getTime() - Date.now();
+      setRemaining(Math.max(0, Math.floor(diff / 1000)));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [targetTime]);
+
+  if (remaining <= 0) {
+    return (
+      <p
+        className="text-white/40 text-sm uppercase tracking-widest"
+        style={{ fontFamily: 'Oswald, sans-serif' }}
+      >
+        Broadcast starting shortly
+      </p>
+    );
+  }
+
+  const h = Math.floor(remaining / 3600);
+  const m = Math.floor((remaining % 3600) / 60);
+  const s = remaining % 60;
+  const timeStr = h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`;
+
+  return (
+    <div>
+      <p
+        className="text-white/30 text-xs uppercase tracking-widest mb-1"
+        style={{ fontFamily: 'Oswald, sans-serif' }}
+      >
+        Broadcast begins in
+      </p>
+      <p
+        className="text-5xl text-white tabular-nums"
+        style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, letterSpacing: '0.05em' }}
+      >
+        {timeStr}
+      </p>
+    </div>
   );
 }
 
@@ -77,10 +157,13 @@ function GlobalTicker() {
   }, []);
 
   const tickerText = items.length > 0
-    ? items.map(item => `${item.headline.toUpperCase()}  ·  ${item.caption}`).join('     ◆     ')
+    ? items.map(item =>
+        item.isCustom || !item.caption
+          ? item.headline.toUpperCase()
+          : `${item.headline.toUpperCase()}  ·  ${item.caption}`
+      ).join('     ◆     ')
     : 'STANDING BY FOR BROADCAST  ·  TUNE IN FOR LIVE COVERAGE';
 
-  // Scale duration with content length so scroll speed stays ~180px/s
   const duration = Math.max(8, Math.round(tickerText.length * 0.017));
 
   return (
@@ -130,6 +213,7 @@ function GlobalTicker() {
 
 export function PublicDisplay() {
   const { articleId, snippetIndex, onAir } = usePlaybackSync();
+  const config = useWaitingConfig();
   const { data: articles = [] } = useGetArticles();
   const { data: snippets = [], isLoading: isLoadingSnippets } = useGetArticleSnippets(
     articleId ?? 0,
@@ -150,16 +234,26 @@ export function PublicDisplay() {
   }, [snippetIndex]);
 
   if (!articleId) {
+    const channelName = config?.channelName || 'News Reader';
+    const tagline = config?.tagline || '';
+    const hasTopics = (config?.topics?.length ?? 0) > 0;
+    const hasWebsite = !!config?.websiteUrl;
+    const hasSocial = (config?.socialLinks?.length ?? 0) > 0;
+    const hasCountdown = !!config?.broadcastTime;
+    const hasInfo = hasTopics || hasWebsite || hasSocial;
+
     return (
       <div
-        className="min-h-screen flex flex-col items-center justify-center text-center p-8"
+        className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-12 pb-28"
         style={{ background: '#050508' }}
       >
         {/* Top accent line */}
-        <div className="absolute top-0 left-0 right-0 h-[3px]"
-          style={{ background: 'linear-gradient(to right, #c8102e, #ff3333, #c8102e)' }} />
+        <div
+          className="absolute top-0 left-0 right-0 h-[3px]"
+          style={{ background: 'linear-gradient(to right, #c8102e, #ff3333, #c8102e)' }}
+        />
 
-        {/* ON AIR badge even on waiting screen */}
+        {/* ON AIR badge */}
         <AnimatePresence>
           {onAir && (
             <motion.div
@@ -179,22 +273,122 @@ export function PublicDisplay() {
         </AnimatePresence>
 
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1 }}
-          className="flex flex-col items-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="w-full max-w-4xl"
         >
-          <Newspaper className="w-20 h-20 mb-8" style={{ color: '#c8102e', opacity: 0.25 }} />
-          <h1
-            className="text-5xl mb-4 text-white uppercase tracking-widest"
-            style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700 }}
-          >
-            News Reader
-          </h1>
-          <p className="text-base text-white/30 leading-relaxed max-w-sm tracking-wide"
-            style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
-            Waiting for the broadcast to begin...
-          </p>
+          {/* Two-column layout when there are topics */}
+          <div className={`flex gap-16 ${hasTopics ? 'items-start' : 'flex-col items-center text-center'}`}>
+
+            {/* Left / Center: Branding + countdown + website/social */}
+            <div className={`flex flex-col gap-7 flex-1 ${hasTopics ? 'items-start' : 'items-center'}`}>
+
+              {/* Thin red rule */}
+              <div
+                className={`h-px w-16 ${hasTopics ? '' : 'mx-auto'}`}
+                style={{ background: '#c8102e' }}
+              />
+
+              {/* Channel name */}
+              <div>
+                <h1
+                  className="text-6xl text-white uppercase"
+                  style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, letterSpacing: '0.06em', lineHeight: 1 }}
+                >
+                  {channelName}
+                </h1>
+                {tagline && (
+                  <p
+                    className="text-white/35 text-sm uppercase tracking-widest mt-2"
+                    style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}
+                  >
+                    {tagline}
+                  </p>
+                )}
+              </div>
+
+              {/* Countdown */}
+              {hasCountdown && config?.broadcastTime && (
+                <Countdown targetTime={config.broadcastTime} />
+              )}
+
+              {/* Standby text when no countdown */}
+              {!hasCountdown && (
+                <p
+                  className="text-white/25 text-base tracking-wide"
+                  style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}
+                >
+                  Live broadcast starting soon
+                </p>
+              )}
+
+              {/* Website */}
+              {hasWebsite && (
+                <div className={hasTopics ? '' : 'text-center'}>
+                  {config?.websiteLabel && (
+                    <p
+                      className="text-white/25 text-[11px] uppercase tracking-widest mb-1"
+                      style={{ fontFamily: 'Oswald, sans-serif' }}
+                    >
+                      {config.websiteLabel}
+                    </p>
+                  )}
+                  <p
+                    className="text-white/70 font-mono text-sm"
+                    style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}
+                  >
+                    {config?.websiteUrl}
+                  </p>
+                </div>
+              )}
+
+              {/* Social links */}
+              {hasSocial && (
+                <div className={`space-y-1.5 ${hasTopics ? '' : 'text-center'}`}>
+                  {config?.socialLinks.map((link, i) => (
+                    <p key={i} className="text-white/35 text-xs" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
+                      <span className="text-white/20 mr-1">{link.label}:</span>
+                      {link.url}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              {/* Thin rule bottom */}
+              <div
+                className={`h-px w-16 ${hasTopics ? '' : 'mx-auto'}`}
+                style={{ background: 'rgba(200,16,46,0.3)' }}
+              />
+            </div>
+
+            {/* Right: Today's Topics */}
+            {hasTopics && (
+              <div className="shrink-0 w-64 pt-1">
+                <p
+                  className="text-[#c8102e] text-xs uppercase tracking-widest font-bold mb-4"
+                  style={{ fontFamily: 'Oswald, sans-serif', letterSpacing: '0.18em' }}
+                >
+                  Today's Topics
+                </p>
+                <ul className="space-y-3">
+                  {config?.topics.map((topic, i) => (
+                    <li
+                      key={i}
+                      className="flex items-center gap-3 text-white/60 text-sm"
+                      style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}
+                    >
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ background: '#c8102e' }}
+                      />
+                      {topic}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         </motion.div>
 
         <GlobalTicker />
