@@ -1,8 +1,10 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import articlesRouter from "./articles";
-import { db, snippetsTable } from "@workspace/db";
+import playbackRouter from "./playback";
+import { db, snippetsTable, articlesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+
 // In-memory TTS cache: snippetId → mp3 Buffer
 const ttsCache = new Map<number, Buffer>();
 
@@ -10,6 +12,46 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/articles", articlesRouter);
+router.use("/playback", playbackRouter);
+
+// PATCH /api/snippets/:id — edit snippet text fields
+router.patch("/snippets/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid ID" }); return; }
+    const { headline, caption, explanation } = req.body ?? {};
+    const updates: Record<string, string> = {};
+    if (typeof headline === "string" && headline.trim()) updates.headline = headline.trim();
+    if (typeof caption === "string" && caption.trim()) updates.caption = caption.trim();
+    if (typeof explanation === "string" && explanation.trim()) updates.explanation = explanation.trim();
+    if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No valid fields to update" }); return; }
+    // Evict TTS cache so re-reading picks up new text
+    ttsCache.delete(id);
+    const rows = await db.update(snippetsTable).set(updates).where(eq(snippetsTable.id, id)).returning();
+    if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// PATCH /api/articles/:id — edit article title/source
+router.patch("/articles/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid ID" }); return; }
+    const { title, source } = req.body ?? {};
+    const updates: Record<string, string> = {};
+    if (typeof title === "string" && title.trim()) updates.title = title.trim();
+    if (typeof source === "string") updates.source = source.trim();
+    if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No valid fields to update" }); return; }
+    const rows = await db.update(articlesTable).set(updates).where(eq(articlesTable.id, id)).returning();
+    if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
 
 // Serve snippet images at /api/snippets/:id/image
 router.get("/snippets/:id/image", async (req, res) => {
