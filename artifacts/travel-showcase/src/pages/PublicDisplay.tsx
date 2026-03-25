@@ -84,12 +84,20 @@ function usePlaybackSync() {
 
 function useWaitingConfig() {
   const [config, setConfig] = useState<WaitingConfig | null>(null);
+  const lastJsonRef = useRef<string>('');
 
   useEffect(() => {
     async function fetchConfig() {
       try {
         const res = await fetch('/api/waiting-config');
-        if (res.ok) setConfig(await res.json());
+        if (res.ok) {
+          const data = await res.json();
+          const newJson = JSON.stringify(data);
+          if (newJson !== lastJsonRef.current) {
+            lastJsonRef.current = newJson;
+            setConfig(data);
+          }
+        }
       } catch { /* ignore */ }
     }
     fetchConfig();
