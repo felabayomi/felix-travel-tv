@@ -46,7 +46,7 @@ async function patchSnippet(id: number, fields: { headline?: string; caption?: s
   return res.json();
 }
 
-async function patchArticle(id: number, fields: { title?: string; source?: string }) {
+async function patchArticle(id: number, fields: { title?: string; source?: string; publishedAt?: string }) {
   const res = await fetch(`/api/articles/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -362,27 +362,46 @@ function AddArticleDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: 
 }
 
 // ─── Article Meta Editor ──────────────────────────────────────────────────
+function toDateInput(iso: string) {
+  // Convert ISO string to YYYY-MM-DD for <input type="date">
+  try { return new Date(iso).toISOString().slice(0, 10); } catch { return ''; }
+}
+
 function ArticleMetaEditor({ article, onSaved }: { article: Article; onSaved: (a: Article) => void }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(article.title);
   const [source, setSource] = useState(article.source ?? '');
+  const [date, setDate] = useState(() => toDateInput(article.publishedAt));
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const updated = await patchArticle(article.id, { title, source });
+      const updated = await patchArticle(article.id, {
+        title,
+        source,
+        publishedAt: date ? new Date(date).toISOString() : undefined,
+      });
       onSaved(updated);
       setEditing(false);
     } catch { /* ignore */ }
     setSaving(false);
   };
 
+  const handleCancel = () => {
+    setTitle(article.title);
+    setSource(article.source ?? '');
+    setDate(toDateInput(article.publishedAt));
+    setEditing(false);
+  };
+
   if (!editing) {
     return (
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-0.5">{source || 'No source'}</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-0.5">
+            {source || 'No source'} · {date || '—'}
+          </p>
           <h2 className="text-base font-semibold text-white leading-snug line-clamp-2">{title}</h2>
         </div>
         <button onClick={() => setEditing(true)} className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-all shrink-0 mt-1">
@@ -395,19 +414,25 @@ function ArticleMetaEditor({ article, onSaved }: { article: Article; onSaved: (a
   return (
     <div className="space-y-2">
       <input value={title} onChange={e => setTitle(e.target.value)}
+        placeholder="Article title"
         className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all font-semibold"
       />
-      <input value={source} onChange={e => setSource(e.target.value)}
-        placeholder="Source name"
-        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all"
-      />
+      <div className="grid grid-cols-2 gap-2">
+        <input value={source} onChange={e => setSource(e.target.value)}
+          placeholder="Source name"
+          className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all"
+        />
+        <input type="date" value={date} onChange={e => setDate(e.target.value)}
+          className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all text-foreground"
+        />
+      </div>
       <div className="flex gap-2">
         <button onClick={handleSave} disabled={saving}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
         >
           {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Save
         </button>
-        <button onClick={() => { setTitle(article.title); setSource(article.source ?? ''); setEditing(false); }}
+        <button onClick={handleCancel}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:bg-white/5"
         >
           <X className="w-3 h-3" /> Cancel

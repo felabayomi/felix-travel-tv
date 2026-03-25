@@ -40,10 +40,14 @@ router.patch("/articles/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid ID" }); return; }
-    const { title, source } = req.body ?? {};
-    const updates: Record<string, string> = {};
+    const { title, source, publishedAt } = req.body ?? {};
+    const updates: Record<string, unknown> = {};
     if (typeof title === "string" && title.trim()) updates.title = title.trim();
     if (typeof source === "string") updates.source = source.trim();
+    if (typeof publishedAt === "string") {
+      const d = new Date(publishedAt);
+      if (!isNaN(d.getTime())) updates.publishedAt = d;
+    }
     if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No valid fields to update" }); return; }
     const rows = await db.update(articlesTable).set(updates).where(eq(articlesTable.id, id)).returning();
     if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
