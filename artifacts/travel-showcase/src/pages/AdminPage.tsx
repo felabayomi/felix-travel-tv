@@ -88,7 +88,7 @@ const PRESETS: Array<{ name: string; description: string; config: Partial<Waitin
     config: {
       channelName: 'City Discoverer Live',
       tagline: 'Travel Planning • Deals • Tools • News',
-      topics: ['Travel Industry Updates', 'Flight Deals of the Week', 'New Visa Rules', 'Travel Tech Tools', 'City of the Day', 'Finance & Travel Costs'],
+      topics: ['Travel Industry Updates', 'Flight Deals of the Week', 'New Visa Rules', 'Travel Tech Tools — City Discoverer Companion, Itinerary Builder, LiveLoop, FanLore & more', 'City of the Day', 'Finance & Travel Costs'],
       websiteLabel: 'Book a session',
       websiteUrl: 'schedez.io',
       socialLinks: [
