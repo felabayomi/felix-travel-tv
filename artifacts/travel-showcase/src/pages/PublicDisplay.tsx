@@ -237,7 +237,7 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
           style={{ height: '58px', width: 'auto', objectFit: 'contain', display: 'block' }}
         />
         <span style={{ fontFamily: 'Oswald, sans-serif', color: '#111', fontWeight: 700, fontSize: '15px', letterSpacing: '0.1em' }}>
-          NEWS
+          TRAVEL ADVISOR
         </span>
       </div>
 
