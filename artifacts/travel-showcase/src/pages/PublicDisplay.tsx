@@ -86,19 +86,19 @@ function GlobalTicker() {
   return (
     <div
       className="absolute bottom-0 left-0 right-0 z-50 flex items-center overflow-hidden"
-      style={{ height: '60px', background: 'rgba(3,3,8,0.97)', borderTop: '2px solid #c8102e' }}
+      style={{ height: '80px', background: 'rgba(3,3,8,0.97)', borderTop: '2px solid #c8102e' }}
     >
       {/* Logo + label */}
       <div
-        className="flex-shrink-0 flex items-center gap-2 h-full px-4"
+        className="flex-shrink-0 flex items-center gap-3 h-full px-6"
         style={{ background: '#ffffff' }}
       >
         <img
           src="/ticker-logo.png"
           alt="logo"
-          style={{ height: '40px', width: 'auto', objectFit: 'contain', display: 'block' }}
+          style={{ height: '58px', width: 'auto', objectFit: 'contain', display: 'block' }}
         />
-        <span style={{ fontFamily: 'Oswald, sans-serif', color: '#111', fontWeight: 700, fontSize: '12px', letterSpacing: '0.1em' }}>
+        <span style={{ fontFamily: 'Oswald, sans-serif', color: '#111', fontWeight: 700, fontSize: '15px', letterSpacing: '0.1em' }}>
           NEWS
         </span>
       </div>
@@ -109,10 +109,10 @@ function GlobalTicker() {
           className="flex whitespace-nowrap"
           style={{ animation: `global-ticker-scroll ${duration}s linear infinite` }}
         >
-          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '12px', color: 'rgba(255,255,255,0.8)', letterSpacing: '0.05em' }}>
+          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '14px', color: 'rgba(255,255,255,0.85)', letterSpacing: '0.05em' }}>
             {tickerText}
           </span>
-          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '12px', color: 'rgba(255,255,255,0.8)', letterSpacing: '0.05em' }}>
+          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '14px', color: 'rgba(255,255,255,0.85)', letterSpacing: '0.05em' }}>
             {tickerText}
           </span>
         </div>
