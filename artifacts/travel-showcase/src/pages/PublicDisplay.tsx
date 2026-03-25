@@ -91,14 +91,14 @@ function GlobalTicker() {
       {/* Logo + label */}
       <div
         className="flex-shrink-0 flex items-center gap-2 h-full px-4"
-        style={{ background: '#c8102e' }}
+        style={{ background: '#ffffff' }}
       >
         <img
           src="/ticker-logo.png"
           alt="logo"
           style={{ height: '40px', width: 'auto', objectFit: 'contain', display: 'block' }}
         />
-        <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.1em' }}>
+        <span style={{ fontFamily: 'Oswald, sans-serif', color: '#111', fontWeight: 700, fontSize: '12px', letterSpacing: '0.1em' }}>
           NEWS
         </span>
       </div>
