@@ -300,9 +300,10 @@ router.get("/", async (req, res) => {
 // POST /api/articles
 router.post("/", async (req, res) => {
   try {
-    const { url } = req.body;
+    const { url, text, source: sourceOverride, title: titleOverride } = req.body;
+
     if (!url || typeof url !== "string") {
-      res.status(400).json({ error: "Invalid input" });
+      res.status(400).json({ error: "URL is required" });
       return;
     }
 
@@ -313,9 +314,34 @@ router.post("/", async (req, res) => {
       return;
     }
 
-    const page = await fetchPageData(url);
-    req.log.info({ url, bodyLen: page.bodyText.length, hasOg: !!page.ogTitle }, "Fetched page data");
+    let page: PageData;
+
+    if (text && typeof text === "string" && text.trim().length > 100) {
+      // User pasted the article text directly — use it as the body
+      const domain = new URL(url).hostname.replace(/^www\./, "");
+      page = {
+        html: "",
+        metaTitle: titleOverride || "",
+        metaDescription: "",
+        ogTitle: titleOverride || "",
+        ogDescription: "",
+        ogImage: "",
+        publishedTime: "",
+        author: "",
+        jsonLd: "",
+        bodyText: text.trim().slice(0, 12000),
+      };
+      req.log.info({ url, textLen: text.trim().length, source: sourceOverride || domain }, "Using pasted text");
+    } else {
+      // No text provided — try to fetch the URL
+      page = await fetchPageData(url);
+      req.log.info({ url, bodyLen: page.bodyText.length, hasOg: !!page.ogTitle }, "Fetched page data");
+    }
+
     const content = await generateArticleContent(url, page);
+    if (sourceOverride && typeof sourceOverride === "string") {
+      content.source = sourceOverride;
+    }
 
     const [article] = await db.insert(articlesTable).values({
       url,

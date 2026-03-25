@@ -71,16 +71,16 @@ export function ArticleSidebar({
                     </span>
                   </div>
                   {group.items.map(article => (
-                    <motion.button
+                    <motion.div
                       key={article.id}
-                      onClick={() => onSelect(article)}
                       whileHover={{ x: 3 }}
                       className={cn(
-                        "w-full text-left px-4 py-3 mx-1 rounded-xl transition-all duration-200 group flex items-start gap-3",
+                        "w-full text-left px-4 py-3 mx-1 rounded-xl transition-all duration-200 group flex items-start gap-3 cursor-pointer",
                         selectedId === article.id
                           ? "bg-primary/20 border border-primary/30"
                           : "hover:bg-white/5 border border-transparent"
                       )}
+                      onClick={() => onSelect(article)}
                     >
                       <ChevronRight className={cn(
                         "w-4 h-4 mt-0.5 shrink-0 transition-colors",
@@ -123,7 +123,7 @@ export function ArticleSidebar({
                           {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                         </button>
                       </div>
-                    </motion.button>
+                    </motion.div>
                   ))}
                 </div>
               ))
