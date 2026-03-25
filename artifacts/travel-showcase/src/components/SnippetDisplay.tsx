@@ -157,7 +157,7 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
       <div
         className="absolute bottom-0 left-0 right-0 z-20 flex items-center overflow-hidden"
         style={{
-          height: '48px',
+          height: '60px',
           background: 'rgba(3,3,8,0.97)',
           borderTop: '2px solid #c8102e',
         }}
@@ -170,7 +170,7 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
           <img
             src="/ticker-logo.png"
             alt="logo"
-            style={{ height: '28px', width: 'auto', objectFit: 'contain', display: 'block' }}
+            style={{ height: '40px', width: 'auto', objectFit: 'contain', display: 'block' }}
           />
           <span
             style={{
