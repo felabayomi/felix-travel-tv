@@ -89,15 +89,15 @@ const PRESETS: Array<{ name: string; description: string; config: Partial<Waitin
       channelName: 'City Discoverer Live',
       tagline: 'Travel Planning • Deals • Tools • News',
       topics: ['Travel Industry Updates', 'Flight Deals of the Week', 'New Visa Rules', 'Travel Tech Tools', 'City of the Day', 'Finance & Travel Costs'],
-      websiteLabel: 'Book a travel session',
-      websiteUrl: 'globaltravelplanner.com',
+      websiteLabel: 'Book a session',
+      websiteUrl: 'schedez.io',
       socialLinks: [
         { label: 'Twitch', url: 'twitch.tv/globaltravelplanner' },
         { label: 'Virtual Office', url: 'eacd.us' },
       ],
       customTickerItems: [
         'Book your next trip with City Discoverer Live',
-        'New flight deals updated daily — visit globaltravelplanner.com',
+        'New flight deals updated daily — book a session at schedez.io',
         'Subscribe for weekly travel tips, tools and destination guides',
       ],
     },
