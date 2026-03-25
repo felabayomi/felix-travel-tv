@@ -290,7 +290,7 @@ export function PublicDisplay() {
   const activeNamesLenRef = useRef(activeEntries.length);
   activeNamesLenRef.current = activeEntries.length;
   useEffect(() => {
-    const id = setInterval(() => setNameIndex(i => (i + 1) % activeNamesLenRef.current), 7000);
+    const id = setInterval(() => setNameIndex(i => (i + 1) % activeNamesLenRef.current), 10000);
     return () => clearInterval(id);
   }, []);
 
@@ -366,10 +366,10 @@ export function PublicDisplay() {
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.div
                     key={nameIndex}
-                    initial={{ opacity: 0, y: 22 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -22 }}
-                    transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+                    initial={{ opacity: 0, y: 48, filter: 'blur(6px)' }}
+                    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, y: -48, filter: 'blur(6px)' }}
+                    transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
                   >
                     <h1
                       className="text-5xl text-white uppercase"
