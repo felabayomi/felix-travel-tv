@@ -222,20 +222,6 @@ export function NewsPage() {
                 {/* Bottom controls row */}
                 <div className="absolute bottom-8 right-8 z-20 flex items-center gap-2">
 
-                  {/* Voice toggle */}
-                  <button
-                    onClick={() => setVoiceEnabled(v => !v)}
-                    className={cn(
-                      "p-3 rounded-full backdrop-blur-md border transition-all",
-                      voiceEnabled
-                        ? "bg-primary/30 border-primary/50 text-primary"
-                        : "bg-black/30 border-white/10 text-white/60 hover:text-white hover:bg-black/60"
-                    )}
-                    title={voiceEnabled ? "Voice reader on — click to turn off" : "Turn on voice reader"}
-                  >
-                    {voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
-                  </button>
-
                   {/* Settings toggle */}
                   <button
                     onClick={() => setSettingsOpen(v => !v)}
