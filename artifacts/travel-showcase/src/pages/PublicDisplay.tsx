@@ -328,14 +328,14 @@ export function PublicDisplay() {
                 <div className={hasTopics ? '' : 'text-center'}>
                   {config?.websiteLabel && (
                     <p
-                      className="text-white/25 text-[11px] uppercase tracking-widest mb-1"
+                      className="text-white/55 text-[11px] uppercase tracking-widest mb-1"
                       style={{ fontFamily: 'Oswald, sans-serif' }}
                     >
                       {config.websiteLabel}
                     </p>
                   )}
                   <p
-                    className="text-white/70 font-mono text-sm"
+                    className="text-white/90 font-mono text-sm"
                     style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}
                   >
                     {config?.websiteUrl}
@@ -347,8 +347,8 @@ export function PublicDisplay() {
               {hasSocial && (
                 <div className={`space-y-1.5 ${hasTopics ? '' : 'text-center'}`}>
                   {config?.socialLinks.map((link, i) => (
-                    <p key={i} className="text-white/35 text-xs" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
-                      <span className="text-white/20 mr-1">{link.label}:</span>
+                    <p key={i} className="text-white/75 text-xs" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
+                      <span className="text-white/50 mr-1">{link.label}:</span>
                       {link.url}
                     </p>
                   ))}
