@@ -372,14 +372,14 @@ export function PublicDisplay() {
                     transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
                   >
                     <h1
-                      className="text-6xl text-white uppercase"
+                      className="text-5xl text-white uppercase"
                       style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, letterSpacing: '0.06em', lineHeight: 1 }}
                     >
                       {activeEntries[nameIndex % activeEntries.length].name}
                     </h1>
                     {activeEntries[nameIndex % activeEntries.length].tagline && (
                       <p
-                        className="text-white/40 text-sm tracking-wide mt-2"
+                        className="text-white/40 text-base tracking-wide mt-2"
                         style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}
                       >
                         {activeEntries[nameIndex % activeEntries.length].tagline}
