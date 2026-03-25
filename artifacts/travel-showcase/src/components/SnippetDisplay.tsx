@@ -142,7 +142,7 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
                 style={{
                   fontFamily: 'IBM Plex Sans, sans-serif',
                   fontWeight: 300,
-                  fontSize: 'clamp(11px, 1vw, 13px)',
+                  fontSize: 'clamp(14px, 1.3vw, 17px)',
                   maxWidth: '68%',
                 }}
               >
