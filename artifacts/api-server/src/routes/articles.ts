@@ -300,7 +300,7 @@ router.get("/", async (req, res) => {
 // POST /api/articles
 router.post("/", async (req, res) => {
   try {
-    const { url, text, source: sourceOverride, title: titleOverride } = req.body;
+    const { url, text, source: sourceOverride, title: titleOverride, publishedDate } = req.body;
 
     if (!url || typeof url !== "string") {
       res.status(400).json({ error: "URL is required" });
@@ -343,12 +343,20 @@ router.post("/", async (req, res) => {
       content.source = sourceOverride;
     }
 
+    // Use user-supplied date if provided, otherwise trust AI-detected date
+    let resolvedDate: Date;
+    if (publishedDate && typeof publishedDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(publishedDate)) {
+      resolvedDate = new Date(publishedDate + "T12:00:00Z");
+    } else {
+      resolvedDate = new Date(content.publishedAt);
+    }
+
     const [article] = await db.insert(articlesTable).values({
       url,
       title: content.title,
       summary: content.summary,
       source: content.source,
-      publishedAt: new Date(content.publishedAt),
+      publishedAt: resolvedDate,
     }).returning();
 
     // Generate images for all snippets in parallel

@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Settings2, Loader2, Eye, EyeOff, Lock, Link, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Plus, Settings2, Loader2, Eye, EyeOff, Lock, Link, FileText, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCreateArticle, getGetArticlesQueryKey } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
+
+const SOURCE_KEY = 'newsreader_last_source';
 
 interface NewsAdminPanelProps {
   onArticleAdded: () => void;
@@ -13,7 +15,8 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [url, setUrl] = useState('');
   const [articleText, setArticleText] = useState('');
-  const [source, setSource] = useState('');
+  const [source, setSource] = useState(() => localStorage.getItem(SOURCE_KEY) ?? '');
+  const [articleDate, setArticleDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showTextArea, setShowTextArea] = useState(true);
   const [addError, setAddError] = useState('');
 
@@ -81,7 +84,6 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
       onSuccess: () => {
         setUrl('');
         setArticleText('');
-        setSource('');
         setAddError('');
         queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
         onArticleAdded();
@@ -100,11 +102,13 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
     e.preventDefault();
     if (!url.trim()) return;
     setAddError('');
+    if (source.trim()) localStorage.setItem(SOURCE_KEY, source.trim());
     createMutation.mutate({
       data: {
         url: url.trim(),
         ...(hasText ? { text: articleText.trim() } : {}),
         ...(source.trim() ? { source: source.trim() } : {}),
+        ...(articleDate ? { publishedDate: articleDate } : {}),
       } as any,
     });
   };
@@ -230,17 +234,37 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
                   <p className="text-[11px] text-muted-foreground/50">Used for attribution and linking back to the original</p>
                 </div>
 
-                {/* Source override */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-muted-foreground block">Source name <span className="text-muted-foreground/40">(optional)</span></label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Expedition America, Daily Felix…"
-                    value={source}
-                    onChange={e => setSource(e.target.value)}
-                    disabled={createMutation.isPending}
-                    className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-muted-foreground/40"
-                  />
+                {/* Source + Date row */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-muted-foreground block">
+                      Source name
+                      {localStorage.getItem(SOURCE_KEY) && (
+                        <span className="ml-1.5 text-[10px] text-primary/60">(saved)</span>
+                      )}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Daily Felix…"
+                      value={source}
+                      onChange={e => setSource(e.target.value)}
+                      disabled={createMutation.isPending}
+                      className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-muted-foreground/40"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                      <CalendarDays className="w-3.5 h-3.5" />
+                      Article date
+                    </label>
+                    <input
+                      type="date"
+                      value={articleDate}
+                      onChange={e => setArticleDate(e.target.value)}
+                      disabled={createMutation.isPending}
+                      className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all text-foreground"
+                    />
+                  </div>
                 </div>
 
                 {/* Article text toggle */}

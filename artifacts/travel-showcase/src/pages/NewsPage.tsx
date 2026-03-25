@@ -22,11 +22,12 @@ import { AmbientMusicPlayer } from '@/components/AmbientMusicPlayer';
 import { cn } from '@/lib/utils';
 
 const TIMING_OPTIONS = [
+  { label: '1s', value: 1000 },
+  { label: '2s', value: 2000 },
+  { label: '3s', value: 3000 },
+  { label: '4s', value: 4000 },
   { label: '5s', value: 5000 },
   { label: '8s', value: 8000 },
-  { label: '12s', value: 12000 },
-  { label: '20s', value: 20000 },
-  { label: '30s', value: 30000 },
 ];
 
 export function NewsPage() {
