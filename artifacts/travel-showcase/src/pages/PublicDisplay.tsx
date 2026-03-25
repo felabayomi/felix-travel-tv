@@ -236,9 +236,14 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
           alt="logo"
           style={{ height: '72px', width: 'auto', objectFit: 'contain', display: 'block' }}
         />
-        <span style={{ fontFamily: 'Oswald, sans-serif', color: '#111', fontWeight: 700, fontSize: '15px', letterSpacing: '0.1em' }}>
-          TRAVEL ADVISOR
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+          <span style={{ fontFamily: 'Oswald, sans-serif', color: '#D4880A', fontWeight: 700, fontSize: '12px', letterSpacing: '0.12em' }}>
+            REAL-TIME
+          </span>
+          <span style={{ fontFamily: 'Oswald, sans-serif', color: '#1A4B8C', fontWeight: 700, fontSize: '13px', letterSpacing: '0.08em' }}>
+            TRAVEL ADVISOR
+          </span>
+        </div>
       </div>
 
       {/* Marquee scroll strip */}
