@@ -77,7 +77,7 @@ interface WaitingConfig {
   socialLinks: Array<{ label: string; url: string }>;
   customTickerItems: string[];
   tickerSpeed: number;
-  rotatingNames: string[];
+  rotatingNames: Array<{ name: string; tagline: string }>;
 }
 
 const EMPTY_CONFIG: WaitingConfig = {
@@ -113,12 +113,12 @@ const PRESETS: Array<{ name: string; description: string; config: Partial<Waitin
         'Subscribe for weekly travel tips, tools and destination guides',
       ],
       rotatingNames: [
-        'The Travel Blueprint',
-        'Plan Less Travel More',
-        'Where To Next?',
-        'Done For You Travel',
-        'The Traveler Hub',
-        'Your Travel Advisor',
+        { name: 'The Travel Blueprint',  tagline: 'Smart planning for unforgettable trips' },
+        { name: 'Plan Less Travel More', tagline: 'I handle the details. You enjoy the journey' },
+        { name: 'Where To Next?',        tagline: "Tell me your dream destination — I'll make it happen" },
+        { name: 'Done For You Travel',   tagline: 'I plan, price, and book everything for you' },
+        { name: 'The Traveler Hub',      tagline: 'Travel planning for every type of traveler' },
+        { name: 'Your Travel Advisor',   tagline: 'Your personal planner, booker, and travel expert' },
       ],
     },
   },
@@ -167,6 +167,7 @@ function WaitingScreenPanel() {
   const [tickerSaving, setTickerSaving] = useState(false);
   const [tickerSaved, setTickerSaved] = useState(false);
   const [newRotatingName, setNewRotatingName] = useState('');
+  const [newRotatingTagline, setNewRotatingTagline] = useState('');
   const [newTopic, setNewTopic] = useState('');
   const [newSocialLabel, setNewSocialLabel] = useState('');
   const [newSocialUrl, setNewSocialUrl] = useState('');
@@ -319,13 +320,18 @@ function WaitingScreenPanel() {
           </label>
           {(config.rotatingNames ?? []).length > 0 && (
             <div className="space-y-1.5 mb-2">
-              {(config.rotatingNames ?? []).map((name, i) => (
-                <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
-                  <span className="text-[#c8102e] text-xs font-mono">{i + 1}</span>
-                  <span className="text-sm text-white flex-1">{name}</span>
+              {(config.rotatingNames ?? []).map((entry, i) => (
+                <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                  <span className="text-[#c8102e] text-xs font-mono mt-0.5">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white truncate">{entry.name}</p>
+                    {entry.tagline && (
+                      <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5">{entry.tagline}</p>
+                    )}
+                  </div>
                   <button
                     onClick={() => update('rotatingNames', (config.rotatingNames ?? []).filter((_, idx) => idx !== i))}
-                    className="text-muted-foreground hover:text-destructive transition-colors"
+                    className="text-muted-foreground hover:text-destructive transition-colors mt-0.5"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -333,33 +339,43 @@ function WaitingScreenPanel() {
               ))}
             </div>
           )}
-          <div className="flex gap-2">
+          <div className="space-y-1.5">
             <input
               value={newRotatingName}
               onChange={e => setNewRotatingName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && newRotatingName.trim()) {
-                  update('rotatingNames', [...(config.rotatingNames ?? []), newRotatingName.trim()]);
-                  setNewRotatingName('');
-                }
-              }}
-              placeholder="Add a name and press Enter"
-              className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+              placeholder="Channel name (e.g. The Travel Blueprint)"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
             />
-            <button
-              onClick={() => {
-                if (newRotatingName.trim()) {
-                  update('rotatingNames', [...(config.rotatingNames ?? []), newRotatingName.trim()]);
-                  setNewRotatingName('');
-                }
-              }}
-              className="px-3 py-2 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-all text-xs font-medium"
-            >
-              Add
-            </button>
+            <div className="flex gap-2">
+              <input
+                value={newRotatingTagline}
+                onChange={e => setNewRotatingTagline(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newRotatingName.trim()) {
+                    update('rotatingNames', [...(config.rotatingNames ?? []), { name: newRotatingName.trim(), tagline: newRotatingTagline.trim() }]);
+                    setNewRotatingName('');
+                    setNewRotatingTagline('');
+                  }
+                }}
+                placeholder="Tagline (optional)"
+                className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+              />
+              <button
+                onClick={() => {
+                  if (newRotatingName.trim()) {
+                    update('rotatingNames', [...(config.rotatingNames ?? []), { name: newRotatingName.trim(), tagline: newRotatingTagline.trim() }]);
+                    setNewRotatingName('');
+                    setNewRotatingTagline('');
+                  }
+                }}
+                className="px-3 py-2 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-all text-xs font-medium"
+              >
+                Add
+              </button>
+            </div>
           </div>
           <p className="text-[11px] text-muted-foreground/50 mt-1.5">
-            If empty, the single Channel Name above is shown. If 2+, they auto-rotate every 4.5 s.
+            Each entry shows a big name + tagline on the waiting screen. They rotate every 4.5 s.
           </p>
         </div>
       </div>

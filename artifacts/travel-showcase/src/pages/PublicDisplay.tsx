@@ -56,7 +56,7 @@ interface WaitingConfig {
   socialLinks: Array<{ label: string; url: string }>;
   customTickerItems: string[];
   tickerSpeed: number;
-  rotatingNames: string[];
+  rotatingNames: Array<{ name: string; tagline: string }>;
 }
 
 const POLL_MS = 2000;
@@ -282,13 +282,13 @@ export function PublicDisplay() {
   const currentSnippet = snippets[safeIndex] ?? null;
   const selectedArticle = articles.find(a => a.id === articleId) ?? null;
 
-  const activeNames = (config?.rotatingNames?.length ?? 0) > 0
-    ? (config!.rotatingNames)
-    : [config?.channelName || 'News Reader'];
+  const activeEntries: Array<{ name: string; tagline: string }> = (config?.rotatingNames?.length ?? 0) > 0
+    ? config!.rotatingNames
+    : [{ name: config?.channelName || 'News Reader', tagline: config?.tagline || '' }];
 
   const [nameIndex, setNameIndex] = useState(0);
-  const activeNamesLenRef = useRef(activeNames.length);
-  activeNamesLenRef.current = activeNames.length;
+  const activeNamesLenRef = useRef(activeEntries.length);
+  activeNamesLenRef.current = activeEntries.length;
   useEffect(() => {
     const id = setInterval(() => setNameIndex(i => (i + 1) % activeNamesLenRef.current), 4500);
     return () => clearInterval(id);
@@ -304,7 +304,6 @@ export function PublicDisplay() {
   }, [snippetIndex]);
 
   if (!articleId || !onAir) {
-    const tagline = config?.tagline || '';
     const hasTopics = (config?.topics?.length ?? 0) > 0;
     const hasWebsite = !!config?.websiteUrl;
     const hasSocial = (config?.socialLinks?.length ?? 0) > 0;
@@ -362,31 +361,32 @@ export function PublicDisplay() {
                 style={{ background: '#c8102e' }}
               />
 
-              {/* Channel name — rotating */}
+              {/* Channel name + tagline — rotating pair */}
               <div>
-                <div className="relative overflow-hidden" style={{ minHeight: '1.1em' }}>
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.h1
-                      key={nameIndex}
-                      initial={{ opacity: 0, y: 22 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -22 }}
-                      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={nameIndex}
+                    initial={{ opacity: 0, y: 22 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -22 }}
+                    transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <h1
                       className="text-6xl text-white uppercase"
                       style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, letterSpacing: '0.06em', lineHeight: 1 }}
                     >
-                      {activeNames[nameIndex % activeNames.length]}
-                    </motion.h1>
-                  </AnimatePresence>
-                </div>
-                {tagline && (
-                  <p
-                    className="text-white/35 text-sm uppercase tracking-widest mt-2"
-                    style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}
-                  >
-                    {tagline}
-                  </p>
-                )}
+                      {activeEntries[nameIndex % activeEntries.length].name}
+                    </h1>
+                    {activeEntries[nameIndex % activeEntries.length].tagline && (
+                      <p
+                        className="text-white/40 text-sm tracking-wide mt-2"
+                        style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}
+                      >
+                        {activeEntries[nameIndex % activeEntries.length].tagline}
+                      </p>
+                    )}
+                  </motion.div>
+                </AnimatePresence>
               </div>
 
               {/* Countdown */}

@@ -19,7 +19,7 @@ interface WaitingConfig {
   socialLinks: Array<{ label: string; url: string }>;
   customTickerItems: string[];
   tickerSpeed: number;
-  rotatingNames: string[];
+  rotatingNames: Array<{ name: string; tagline: string }>;
 }
 
 const WAITING_CONFIG_KEY = 'waiting_config';
@@ -270,7 +270,8 @@ router.put('/waiting-config', async (req, res) => {
       ? b.tickerSpeed
       : waitingConfig.tickerSpeed,
     rotatingNames: Array.isArray(b.rotatingNames)
-      ? b.rotatingNames.filter((t: unknown) => typeof t === 'string')
+      ? b.rotatingNames.filter((t: unknown) => t !== null && typeof t === 'object' && 'name' in (t as object))
+          .map((t: unknown) => ({ name: String((t as { name: string }).name), tagline: String((t as { tagline?: string }).tagline ?? '') }))
       : waitingConfig.rotatingNames,
   };
   await persistWaitingConfig();
