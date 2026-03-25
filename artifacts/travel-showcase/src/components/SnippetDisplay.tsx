@@ -63,13 +63,13 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.82) 100%)',
+          background: 'radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.55) 100%)',
         }}
       />
 
       {/* Dark tint over image */}
       {snippet.imageUrl && (
-        <div className="absolute inset-0 bg-black/55 pointer-events-none" />
+        <div className="absolute inset-0 bg-black/25 pointer-events-none" />
       )}
 
       {/* ── Top accent line ── */}
