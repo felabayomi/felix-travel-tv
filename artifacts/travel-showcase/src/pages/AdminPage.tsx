@@ -659,7 +659,15 @@ function AdminDashboard() {
 
                     {/* Auto-play toggle */}
                     <button
-                      onClick={() => setAutoPlay(v => !v)}
+                      onClick={() => {
+                        if (!autoPlay && selectedArticleId) {
+                          // Starting: restart from chapter 1
+                          stop();
+                          prevIndexRef.current = -1;
+                          updatePlayback(selectedArticleId, 0);
+                        }
+                        setAutoPlay(v => !v);
+                      }}
                       title={autoPlay ? `Auto-advancing every ${AUTO_PLAY_SECONDS}s (or after audio ends)` : 'Auto-play off — click to enable'}
                       className={cn(
                         "flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all",
