@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import articlesRouter from "./articles";
 import playbackRouter from "./playback";
-import { db, snippetsTable, articlesTable } from "@workspace/db";
+import { db, snippetsTable, articlesTable, configStore } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 // In-memory TTS cache: snippetId → mp3 Buffer
@@ -20,6 +20,8 @@ interface WaitingConfig {
   customTickerItems: string[];
 }
 
+const WAITING_CONFIG_KEY = 'waiting_config';
+
 let waitingConfig: WaitingConfig = {
   channelName: '',
   tagline: '',
@@ -30,6 +32,29 @@ let waitingConfig: WaitingConfig = {
   socialLinks: [],
   customTickerItems: [],
 };
+
+// Load persisted config from DB on startup
+(async () => {
+  try {
+    const rows = await db.select().from(configStore).where(eq(configStore.key, WAITING_CONFIG_KEY));
+    if (rows.length > 0) {
+      const parsed = JSON.parse(rows[0].value) as Partial<WaitingConfig>;
+      waitingConfig = { ...waitingConfig, ...parsed };
+    }
+  } catch (e) {
+    console.error('Failed to load waiting config from DB:', e);
+  }
+})();
+
+async function persistWaitingConfig() {
+  try {
+    await db.insert(configStore)
+      .values({ key: WAITING_CONFIG_KEY, value: JSON.stringify(waitingConfig) })
+      .onConflictDoUpdate({ target: configStore.key, set: { value: JSON.stringify(waitingConfig) } });
+  } catch (e) {
+    console.error('Failed to persist waiting config:', e);
+  }
+}
 
 const router: IRouter = Router();
 
@@ -219,7 +244,7 @@ router.get('/waiting-config', (_req, res) => {
 });
 
 // PUT /api/waiting-config
-router.put('/waiting-config', (req, res) => {
+router.put('/waiting-config', async (req, res) => {
   const b = req.body ?? {};
   waitingConfig = {
     channelName: typeof b.channelName === 'string' ? b.channelName : waitingConfig.channelName,
@@ -233,6 +258,7 @@ router.put('/waiting-config', (req, res) => {
       ? b.customTickerItems.filter((t: unknown) => typeof t === 'string')
       : waitingConfig.customTickerItems,
   };
+  await persistWaitingConfig();
   res.json(waitingConfig);
 });
 
