@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Loader2, Newspaper, ChevronLeft, ChevronRight, LayoutList, X,
-  SlidersHorizontal, Mic, MicOff
+  SlidersHorizontal, Mic, MicOff, Timer
 } from 'lucide-react';
 import {
   useGetArticles,
@@ -10,7 +10,7 @@ import {
   useDeleteArticle,
   getGetArticlesQueryKey,
 } from '@workspace/api-client-react';
-import type { Article } from '@workspace/api-client-react/src/generated/api.schemas';
+import type { Article, Snippet } from '@workspace/api-client-react/src/generated/api.schemas';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnippetPlayer } from '@/hooks/use-snippet-player';
 import { useVoiceReader } from '@/hooks/use-voice-reader';
@@ -30,6 +30,25 @@ const TIMING_OPTIONS = [
   { label: '60s', value: 60000 },
 ];
 
+// ~138 words per minute at speech rate 0.92 → 2.3 words/sec
+const WORDS_PER_SEC = 2.3;
+
+function computeReadingMs(snippet: Snippet | null): number {
+  if (!snippet) return 15000;
+  const text = [snippet.headline, snippet.caption, snippet.explanation]
+    .filter(Boolean).join('. ');
+  const words = text.trim().split(/\s+/).length;
+  const ms = Math.round((words / WORDS_PER_SEC) * 1000) + 1200; // +1.2s buffer
+  return Math.max(8000, Math.min(120000, ms)); // clamp 8s–120s
+}
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m === 0) return `${s}s`;
+  return `${m}m ${String(s).padStart(2, '0')}s`;
+}
+
 export function NewsPage() {
   const queryClient = useQueryClient();
   const { data: articles = [], isLoading, isError } = useGetArticles();
@@ -39,6 +58,7 @@ export function NewsPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [intervalMs, setIntervalMs] = useState(10000);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [totalSeconds, setTotalSeconds] = useState(0);
 
   // Auto-select the first article when loaded
   useEffect(() => {
@@ -52,8 +72,20 @@ export function NewsPage() {
     { query: { enabled: selectedArticleId !== null } }
   );
 
-  // Timer always runs — voice reads alongside but never controls advancement
-  const { currentIndex, currentSnippet, next, prev, goTo } = useSnippetPlayer(snippets, intervalMs, false);
+  // When voice is on: each chapter's timer = its reading duration (word-count based)
+  // When voice is off: use the user-selected interval from settings
+  // activeInterval is computed from the current snippet so each chapter gets its own timing
+  const [currentSnippetForTiming, setCurrentSnippetForTiming] = useState<Snippet | null>(null);
+  const activeInterval = voiceEnabled
+    ? computeReadingMs(currentSnippetForTiming)
+    : intervalMs;
+
+  const { currentIndex, currentSnippet, next, prev, goTo } = useSnippetPlayer(snippets, activeInterval, false);
+
+  // Keep the timing snippet in sync (one render behind is fine — applies on next chapter)
+  useEffect(() => {
+    setCurrentSnippetForTiming(currentSnippet);
+  }, [currentSnippet]);
 
   const selectedArticle = articles.find(a => a.id === selectedArticleId) ?? null;
 
@@ -72,17 +104,25 @@ export function NewsPage() {
     }
   }, [currentSnippet, voiceEnabled, speak]);
 
-  // Stop voice when switching articles
+  // Stop voice + reset when switching articles
   useEffect(() => {
     stop();
     prevSnippetIdRef.current = null;
+    setTotalSeconds(0);
   }, [selectedArticleId, stop]);
 
-  // When voice is turned ON mid-chapter, immediately speak the current chapter
+  // When voice is turned ON mid-chapter, immediately start speaking current chapter
   useEffect(() => {
     if (!voiceEnabled || !currentSnippet) return;
-    prevSnippetIdRef.current = null; // reset so speak() fires for current chapter
+    prevSnippetIdRef.current = null;
   }, [voiceEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Total time counter — ticks every second while playing
+  useEffect(() => {
+    if (snippets.length === 0) return;
+    const id = setInterval(() => setTotalSeconds(s => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [snippets.length, selectedArticleId]);
 
   const deleteMutation = useDeleteArticle({
     mutation: {
@@ -220,15 +260,21 @@ export function NewsPage() {
                   </p>
                 </div>
 
-                {/* Chapter counter — top right */}
-                <div className="absolute top-5 right-5 z-20 font-mono text-sm tracking-widest text-white/40">
-                  {String(currentIndex + 1).padStart(2, '0')} / {String(snippets.length).padStart(2, '0')}
+                {/* Top right: chapter counter + total time */}
+                <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-1">
+                  <span className="font-mono text-sm tracking-widest text-white/40">
+                    {String(currentIndex + 1).padStart(2, '0')} / {String(snippets.length).padStart(2, '0')}
+                  </span>
+                  <span className="flex items-center gap-1 text-[11px] text-white/30 font-mono">
+                    <Timer className="w-3 h-3" />
+                    {formatTime(totalSeconds)}
+                  </span>
                 </div>
 
                 {/* Bottom controls row */}
                 <div className="absolute bottom-8 right-8 z-20 flex items-center gap-2">
 
-                  {/* Voice reader toggle — Mic icon (distinct from music Volume icon) */}
+                  {/* Voice reader toggle */}
                   <button
                     onClick={() => setVoiceEnabled(v => !v)}
                     className={cn(
@@ -273,7 +319,7 @@ export function NewsPage() {
                   </button>
                 </div>
 
-                {/* Settings panel — floats above the controls */}
+                {/* Settings panel */}
                 <AnimatePresence>
                   {settingsOpen && (
                     <motion.div
@@ -281,30 +327,37 @@ export function NewsPage() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 12, scale: 0.95 }}
                       transition={{ duration: 0.2, ease: 'easeOut' }}
-                      className="absolute bottom-24 right-8 z-30 bg-black/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5 w-64 shadow-2xl"
+                      className="absolute bottom-24 right-8 z-30 bg-black/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5 w-72 shadow-2xl"
                     >
                       <p className="text-xs text-white/40 uppercase tracking-widest mb-4 font-medium">Playback Settings</p>
 
-                      {/* Timing */}
-                      <div className="space-y-2">
-                        <p className="text-sm text-white/70 font-medium">Chapter duration</p>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {TIMING_OPTIONS.map(opt => (
-                            <button
-                              key={opt.value}
-                              onClick={() => setIntervalMs(opt.value)}
-                              className={cn(
-                                "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
-                                intervalMs === opt.value
-                                  ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/30"
-                                  : "bg-white/10 text-white/60 border-white/10 hover:bg-white/20 hover:text-white"
-                              )}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
+                      {/* Timing — only shown when voice is off */}
+                      {!voiceEnabled ? (
+                        <div className="space-y-2">
+                          <p className="text-sm text-white/70 font-medium">Chapter duration</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {TIMING_OPTIONS.map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => setIntervalMs(opt.value)}
+                                className={cn(
+                                  "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
+                                  intervalMs === opt.value
+                                    ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/30"
+                                    : "bg-white/10 text-white/60 border-white/10 hover:bg-white/20 hover:text-white"
+                                )}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs text-primary/80 leading-relaxed">
+                          <p className="font-medium mb-1">Voice controls timing</p>
+                          <p className="opacity-70">Each chapter plays for exactly as long as it takes to read aloud. Current chapter: ~{Math.round(computeReadingMs(currentSnippet) / 1000)}s</p>
+                        </div>
+                      )}
 
                       <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
                         <p className="text-sm text-white/70 font-medium">Voice reader</p>
@@ -325,7 +378,6 @@ export function NewsPage() {
                               {voiceEnabled ? 'Reads each chapter aloud' : 'Click to enable narration'}
                             </p>
                           </div>
-                          {/* Toggle pill */}
                           <div className={cn(
                             "ml-auto w-9 h-5 rounded-full transition-all relative shrink-0",
                             voiceEnabled ? "bg-primary" : "bg-white/20"
@@ -336,6 +388,12 @@ export function NewsPage() {
                             )} />
                           </div>
                         </div>
+                      </div>
+
+                      {/* Total time */}
+                      <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-white/40">
+                        <span className="flex items-center gap-1.5"><Timer className="w-3.5 h-3.5" /> Time watched</span>
+                        <span className="font-mono text-white/60">{formatTime(totalSeconds)}</span>
                       </div>
                     </motion.div>
                   )}
@@ -359,10 +417,10 @@ export function NewsPage() {
                   </div>
                 )}
 
-                {/* Progress bar — always shows timer countdown */}
+                {/* Progress bar */}
                 <ProgressBar
-                  duration={intervalMs}
-                  slideKey={currentSnippet.id}
+                  duration={activeInterval}
+                  slideKey={`${currentSnippet.id}-${activeInterval}`}
                   isPaused={false}
                 />
               </>
