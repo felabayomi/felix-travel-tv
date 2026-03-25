@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Newspaper, Radio } from 'lucide-react';
+import { Loader2, Newspaper } from 'lucide-react';
 import { useGetArticles, useGetArticleSnippets } from '@workspace/api-client-react';
 import { ProgressBar } from '@/components/ProgressBar';
 import { SnippetDisplay } from '@/components/SnippetDisplay';
@@ -25,9 +25,7 @@ function usePlaybackSync() {
         const res = await fetch('/api/playback');
         if (res.ok && !cancelled) {
           const data = await res.json();
-          setState(prev =>
-            data.updatedAt !== prev.updatedAt ? data : prev
-          );
+          setState(prev => data.updatedAt !== prev.updatedAt ? data : prev);
         }
       } catch { /* network error — keep last state */ }
     }
@@ -37,6 +35,22 @@ function usePlaybackSync() {
   }, []);
 
   return state;
+}
+
+function LiveClock() {
+  const [time, setTime] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span
+      className="tabular-nums tracking-wider text-white/55 text-sm"
+      style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 500 }}
+    >
+      {time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+    </span>
+  );
 }
 
 export function PublicDisplay() {
@@ -51,7 +65,6 @@ export function PublicDisplay() {
   const currentSnippet = snippets[safeIndex] ?? null;
   const selectedArticle = articles.find(a => a.id === articleId) ?? null;
 
-  // Tick used to reset the progress bar when admin navigates chapters
   const [tick, setTick] = useState(0);
   const prevIndexRef = useRef(snippetIndex);
   useEffect(() => {
@@ -63,33 +76,77 @@ export function PublicDisplay() {
 
   if (!articleId) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center text-center p-8">
+      <div
+        className="min-h-screen flex flex-col items-center justify-center text-center p-8"
+        style={{ background: '#050508' }}
+      >
+        {/* Top accent line */}
+        <div className="absolute top-0 left-0 right-0 h-[3px]"
+          style={{ background: 'linear-gradient(to right, #c8102e, #ff3333, #c8102e)' }} />
+
+        {/* ON AIR badge even on waiting screen */}
+        <AnimatePresence>
+          {onAir && (
+            <motion.div
+              key="on-air-wait"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="absolute top-4 right-6 flex items-center gap-1.5 px-3 py-1 rounded-sm"
+              style={{ background: '#c8102e' }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.1em' }}>
+                ON AIR
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 1 }}
           className="flex flex-col items-center"
         >
-          <Newspaper className="w-24 h-24 text-primary/20 mb-8" />
-          <h1 className="text-4xl md:text-6xl font-display font-bold text-white mb-4">News Reader</h1>
-          <p className="text-xl text-muted-foreground font-light leading-relaxed max-w-md">
-            Waiting for admin to start a story...
-          </p>
-          <p className="mt-6 text-xs text-muted-foreground/30 tracking-widest uppercase">
-            Public Display
+          <Newspaper className="w-20 h-20 mb-8" style={{ color: '#c8102e', opacity: 0.25 }} />
+          <h1
+            className="text-5xl mb-4 text-white uppercase tracking-widest"
+            style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700 }}
+          >
+            News Reader
+          </h1>
+          <p className="text-base text-white/30 leading-relaxed max-w-sm tracking-wide"
+            style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
+            Waiting for the broadcast to begin...
           </p>
         </motion.div>
+
+        {/* Bottom ticker placeholder */}
+        <div className="absolute bottom-0 left-0 right-0 h-12 flex items-center"
+          style={{ background: 'rgba(3,3,8,0.97)', borderTop: '2px solid #c8102e' }}>
+          <div className="flex-shrink-0 flex items-center justify-center h-full px-4"
+            style={{ background: '#c8102e', minWidth: '80px' }}>
+            <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.1em' }}>
+              NEWS
+            </span>
+          </div>
+          <span className="px-6 text-white/30 text-xs tracking-widest uppercase"
+            style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
+            Standing by for broadcast
+          </span>
+        </div>
       </div>
     );
   }
 
   return (
-    <main className="relative w-screen h-screen overflow-hidden bg-background">
+    <main className="relative w-screen h-screen overflow-hidden" style={{ background: '#050508' }}>
 
-      {/* Snippet slideshow */}
+      {/* ── Snippet slideshow ── */}
       {isLoadingSnippets ? (
         <div className="absolute inset-0 flex items-center justify-center">
-          <Loader2 className="w-10 h-10 animate-spin text-primary/40" />
+          <Loader2 className="w-10 h-10 animate-spin" style={{ color: '#c8102e', opacity: 0.5 }} />
         </div>
       ) : (
         <AnimatePresence initial={false}>
@@ -105,59 +162,65 @@ export function PublicDisplay() {
         </AnimatePresence>
       )}
 
-      {/* Article info — top left */}
-      {selectedArticle && (
-        <div className="absolute top-5 left-5 z-20 max-w-xs">
-          <p className="text-xs text-white/40 uppercase tracking-widest mb-0.5">
-            {selectedArticle.source || 'News'}
-          </p>
-          <p className="text-sm font-medium text-white/60 line-clamp-2 leading-snug">
-            {selectedArticle.title}
-          </p>
+      {/* ── Unified top HUD bar (z-40, above everything) ── */}
+      <div
+        className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-6"
+        style={{
+          height: '44px',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.92) 0%, transparent 100%)',
+          borderTop: '3px solid #c8102e',
+        }}
+      >
+        {/* Left: source + chapter */}
+        <div className="flex items-center gap-3">
+          {selectedArticle?.source && (
+            <>
+              <span
+                className="text-white/80 text-xs tracking-[0.18em] uppercase"
+                style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600 }}
+              >
+                {selectedArticle.source}
+              </span>
+              <span className="text-white/20 text-xs">·</span>
+            </>
+          )}
+          {snippets.length > 0 && (
+            <span
+              className="text-white/40 text-xs tracking-[0.15em] uppercase"
+              style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 500 }}
+            >
+              Chapter {safeIndex + 1} of {snippets.length}
+            </span>
+          )}
         </div>
-      )}
 
-      {/* Top right: chapter counter */}
-      {snippets.length > 0 && (
-        <div className="absolute top-5 right-5 z-20">
-          <span className="font-mono text-sm tracking-widest text-white/40">
-            {String(safeIndex + 1).padStart(2, '0')} / {String(snippets.length).padStart(2, '0')}
-          </span>
+        {/* Right: clock + ON AIR badge */}
+        <div className="flex items-center gap-3">
+          <LiveClock />
+          <AnimatePresence>
+            {onAir && (
+              <motion.div
+                key="on-air"
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.85 }}
+                transition={{ duration: 0.3 }}
+                className="flex items-center gap-1.5 px-3 py-0.5 rounded-sm"
+                style={{ background: '#c8102e' }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                <span
+                  style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.12em' }}
+                >
+                  ON AIR
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      )}
+      </div>
 
-      {/* ON AIR badge — always visible when live, regardless of article state */}
-      <AnimatePresence>
-        {onAir && (
-          <motion.span
-            key="on-air"
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
-            className="absolute top-5 right-5 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-600 text-white text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-red-600/40"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-            On Air
-          </motion.span>
-        )}
-      </AnimatePresence>
-
-      {/* Dot navigation — bottom center (read only) */}
-      {snippets.length > 0 && snippets.length <= 12 && (
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 pointer-events-none">
-          {snippets.map((_, i) => (
-            <div
-              key={i}
-              className={`rounded-full transition-all duration-300 ${
-                i === safeIndex ? 'w-6 h-2 bg-primary' : 'w-2 h-2 bg-white/20'
-              }`}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Progress bar — resets when admin navigates */}
+      {/* ── Progress bar ── */}
       {currentSnippet && (
         <ProgressBar
           duration={20000}

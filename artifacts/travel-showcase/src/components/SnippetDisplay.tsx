@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Snippet } from '@workspace/api-client-react/src/generated/api.schemas';
-import { cn } from '@/lib/utils';
 
 interface SnippetDisplayProps {
   snippet: Snippet;
@@ -18,24 +17,6 @@ const bgGradients = [
   'radial-gradient(ellipse at 55% 30%, #0d1e2e 0%, #050508 70%)',
   'radial-gradient(ellipse at 45% 40%, #2e0d1a 0%, #050508 70%)',
 ];
-
-function LiveClock() {
-  const [time, setTime] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <span
-      className="text-white tabular-nums tracking-wider text-sm font-medium"
-      style={{ fontFamily: 'Oswald, sans-serif' }}
-    >
-      {time.toLocaleTimeString('en-US', {
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-      })}
-    </span>
-  );
-}
 
 export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters }: SnippetDisplayProps) {
   const [lowerIn, setLowerIn] = useState(false);
@@ -93,29 +74,9 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
 
       {/* ── Top accent line ── */}
       <div
-        className="absolute top-0 left-0 right-0 z-30 h-[3px]"
+        className="absolute top-0 left-0 right-0 z-10 h-[3px]"
         style={{ background: 'linear-gradient(to right, #c8102e, #ff3333, #c8102e)' }}
       />
-
-      {/* ── Top bar ── */}
-      <div
-        className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 py-3"
-        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.88) 0%, transparent 100%)' }}
-      >
-        {/* Chapter indicator */}
-        <div className="flex items-center gap-2">
-          <div className="w-[3px] h-4 rounded-sm" style={{ background: '#c8102e' }} />
-          <span
-            className="text-white/50 text-xs tracking-[0.18em] uppercase"
-            style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 500 }}
-          >
-            Chapter {chapterIndex + 1} of {totalChapters}
-          </span>
-        </div>
-
-        {/* Live clock */}
-        <LiveClock />
-      </div>
 
       {/* ── Lower third ── */}
       <AnimatePresence>
