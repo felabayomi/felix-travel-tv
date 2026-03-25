@@ -16,4 +16,5 @@ export interface Article {
   publishedAt: Date;
   createdAt: Date;
   snippetCount: number;
+  archived: boolean;
 }

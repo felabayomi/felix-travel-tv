@@ -19,6 +19,7 @@ function formatArticle(a: typeof articlesTable.$inferSelect, snippetCount: numbe
     publishedAt: a.publishedAt,
     createdAt: a.createdAt,
     snippetCount,
+    archived: a.archived,
   };
 }
 

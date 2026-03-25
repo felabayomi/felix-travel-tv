@@ -4,7 +4,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Trash2, Edit3, Check, X,
   Mic, MicOff, Lock, Eye, EyeOff, ExternalLink, Radio,
   Loader2, FileText, Link, CalendarDays, ChevronDown, ChevronUp,
-  Settings2, RotateCcw, Play, Pause, Clock, Globe
+  Settings2, RotateCcw, Play, Pause, Clock, Globe, Archive, ArchiveRestore
 } from 'lucide-react';
 import {
   useGetArticles, useGetArticleSnippets, useCreateArticle,
@@ -44,6 +44,14 @@ async function patchSnippet(id: number, fields: { headline?: string; caption?: s
   });
   if (!res.ok) throw new Error('Failed to save');
   return res.json();
+}
+
+async function archiveArticle(id: number, archived: boolean) {
+  await fetch(`/api/articles/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ archived }),
+  });
 }
 
 async function patchArticle(id: number, fields: { title?: string; source?: string; publishedAt?: string }) {
@@ -1027,7 +1035,7 @@ function AdminDashboard() {
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [autoPlay, setAutoPlay] = useState(false);
   const [onAir, setOnAir] = useState(false);
-  const [mainTab, setMainTab] = useState<'broadcast' | 'waiting'>('broadcast');
+  const [mainTab, setMainTab] = useState<'broadcast' | 'waiting' | 'archive'>('broadcast');
   const AUTO_PLAY_SECONDS = 15;
   const [articleOverrides, setArticleOverrides] = useState<Record<number, Partial<Article>>>({});
   const [articleOrder, setArticleOrder] = useState<number[]>(() => {
@@ -1052,6 +1060,10 @@ function AdminDashboard() {
     const bi = articleOrder.indexOf(b.id);
     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
   });
+  const activeArticles = sortedArticles.filter(a => !a.archived);
+  const archivedArticles = articles.filter(a => a.archived).sort(
+    (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+  );
 
   const moveArticle = (id: number, dir: -1 | 1) => {
     setArticleOrder(prev => {
@@ -1066,10 +1078,10 @@ function AdminDashboard() {
     });
   };
 
-  // Auto-select first article
+  // Auto-select first active article
   useEffect(() => {
-    if (sortedArticles.length > 0 && selectedArticleId === null) {
-      const first = sortedArticles[0];
+    if (activeArticles.length > 0 && selectedArticleId === null) {
+      const first = activeArticles[0];
       setSelectedArticleId(first.id);
       setCurrentSnippetIndex(0);
       setPlayback(first.id, 0).catch(() => {});
@@ -1229,10 +1241,15 @@ function AdminDashboard() {
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-5 h-5 animate-spin text-primary/40" />
               </div>
-            ) : articles.length === 0 ? (
+            ) : activeArticles.length === 0 && archivedArticles.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-8">No articles yet</p>
+            ) : activeArticles.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-6">
+                All articles archived.{' '}
+                <button onClick={() => setMainTab('archive')} className="text-primary underline underline-offset-2">View archive</button>
+              </p>
             ) : (
-              sortedArticles.map((article, listIdx) => {
+              activeArticles.map((article, listIdx) => {
                 const a = { ...article, ...articleOverrides[article.id] };
                 const isSelected = a.id === selectedArticleId;
                 return (
@@ -1254,7 +1271,7 @@ function AdminDashboard() {
                       </button>
                       <button
                         onClick={e => { e.stopPropagation(); moveArticle(a.id, 1); }}
-                        disabled={listIdx === sortedArticles.length - 1}
+                        disabled={listIdx === activeArticles.length - 1}
                         className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
                         title="Move down"
                       >
@@ -1272,14 +1289,29 @@ function AdminDashboard() {
                         </p>
                       )}
                     </button>
-                    <button
-                      onClick={e => { e.stopPropagation(); deleteMutation.mutate({ id: a.id }); }}
-                      disabled={deleteMutation.isPending}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive transition-all shrink-0"
-                      title="Delete article"
-                    >
-                      {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                    </button>
+                    <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          archiveArticle(a.id, true).then(() => {
+                            queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+                            if (selectedArticleId === a.id) { setSelectedArticleId(null); setPlayback(null, 0).catch(() => {}); }
+                          });
+                        }}
+                        className="p-1 rounded text-muted-foreground hover:text-amber-400 transition-all"
+                        title="Archive article"
+                      >
+                        <Archive className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); deleteMutation.mutate({ id: a.id }); }}
+                        disabled={deleteMutation.isPending}
+                        className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
+                        title="Delete article"
+                      >
+                        {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </div>
                 );
               })
@@ -1309,10 +1341,74 @@ function AdminDashboard() {
             >
               <Settings2 className="w-3.5 h-3.5" /> Waiting Screen
             </button>
+            <button
+              onClick={() => setMainTab('archive')}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px",
+                mainTab === 'archive' ? "border-amber-500 text-amber-400" : "border-transparent text-muted-foreground hover:text-white"
+              )}
+            >
+              <Archive className="w-3.5 h-3.5" /> Archive
+              {archivedArticles.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400">
+                  {archivedArticles.length}
+                </span>
+              )}
+            </button>
           </div>
 
           <div className="space-y-6">
-          {mainTab === 'waiting' ? (
+          {mainTab === 'archive' ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-4">
+                <Archive className="w-4 h-4 text-amber-400" />
+                <h2 className="text-sm font-semibold text-foreground">Archived Articles</h2>
+                <span className="text-xs text-muted-foreground">({archivedArticles.length})</span>
+              </div>
+              {archivedArticles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-center">
+                  <Archive className="w-8 h-8 text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">No archived articles</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Archived articles will appear here</p>
+                </div>
+              ) : (
+                archivedArticles.map(article => (
+                  <div key={article.id} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-card/30 hover:bg-card/50 transition-all">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">
+                        {article.source || 'Unknown'} · {new Date(article.publishedAt).toLocaleDateString()}
+                      </p>
+                      <p className="text-sm font-medium text-white/70 leading-snug">{article.title}</p>
+                      {article.snippetCount > 0 && (
+                        <p className="text-[10px] text-muted-foreground/50 mt-1">{article.snippetCount} chapters (off ticker)</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => {
+                          archiveArticle(article.id, false).then(() =>
+                            queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() })
+                          );
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-all"
+                        title="Restore article"
+                      >
+                        <ArchiveRestore className="w-3.5 h-3.5" /> Restore
+                      </button>
+                      <button
+                        onClick={() => deleteMutation.mutate({ id: article.id })}
+                        disabled={deleteMutation.isPending}
+                        className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all"
+                        title="Delete permanently"
+                      >
+                        {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : mainTab === 'waiting' ? (
             <WaitingScreenPanel />
           ) : !selectedArticle ? (
             <div className="flex flex-col items-center justify-center h-64 text-center">

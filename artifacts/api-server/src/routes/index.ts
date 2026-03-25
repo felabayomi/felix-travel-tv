@@ -85,12 +85,12 @@ router.patch("/snippets/:id", async (req, res) => {
   }
 });
 
-// PATCH /api/articles/:id — edit article title/source
+// PATCH /api/articles/:id — edit article title/source/archived
 router.patch("/articles/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid ID" }); return; }
-    const { title, source, publishedAt } = req.body ?? {};
+    const { title, source, publishedAt, archived } = req.body ?? {};
     const updates: Record<string, unknown> = {};
     if (typeof title === "string" && title.trim()) updates.title = title.trim();
     if (typeof source === "string") updates.source = source.trim();
@@ -98,6 +98,7 @@ router.patch("/articles/:id", async (req, res) => {
       const d = new Date(publishedAt);
       if (!isNaN(d.getTime())) updates.publishedAt = d;
     }
+    if (typeof archived === "boolean") updates.archived = archived;
     if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No valid fields to update" }); return; }
     const rows = await db.update(articlesTable).set(updates).where(eq(articlesTable.id, id)).returning();
     if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
@@ -224,12 +225,14 @@ router.get("/snippets/:id/audio", async (req, res) => {
   }
 });
 
-// GET /api/ticker — all snippets' headlines + captions + custom waiting-screen items
+// GET /api/ticker — snippets from non-archived articles + custom waiting-screen items
 router.get('/ticker', async (req, res) => {
   try {
     const rows = await db
       .select({ headline: snippetsTable.headline, caption: snippetsTable.caption })
-      .from(snippetsTable);
+      .from(snippetsTable)
+      .innerJoin(articlesTable, eq(snippetsTable.articleId, articlesTable.id))
+      .where(eq(articlesTable.archived, false));
     const snippetItems = rows.map(r => ({ headline: r.headline, caption: r.caption, isCustom: false }));
     const customItems = waitingConfig.customTickerItems.map(text => ({ headline: text, caption: '', isCustom: true }));
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

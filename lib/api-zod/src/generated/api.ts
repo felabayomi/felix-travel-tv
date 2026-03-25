@@ -28,6 +28,7 @@ export const GetArticlesResponseItem = zod.object({
   publishedAt: zod.date(),
   createdAt: zod.date(),
   snippetCount: zod.number(),
+  archived: zod.boolean(),
 });
 export const GetArticlesResponse = zod.array(GetArticlesResponseItem);
 
