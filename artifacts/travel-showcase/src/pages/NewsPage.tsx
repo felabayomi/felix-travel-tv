@@ -89,20 +89,21 @@ export function NewsPage() {
 
   const selectedArticle = articles.find(a => a.id === selectedArticleId) ?? null;
 
-  const { speak, stop } = useVoiceReader(voiceEnabled);
+  const { speak, stop, prefetch } = useVoiceReader(voiceEnabled);
 
-  // Speak current chapter when it changes
+  // Speak current chapter when it changes; prefetch next chapter
   const prevSnippetIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (!currentSnippet) return;
     if (prevSnippetIdRef.current === currentSnippet.id) return;
     prevSnippetIdRef.current = currentSnippet.id;
     if (voiceEnabled) {
-      const text = [currentSnippet.headline, currentSnippet.caption, currentSnippet.explanation]
-        .filter(Boolean).join('. ');
-      speak(text);
+      speak(currentSnippet.id);
     }
-  }, [currentSnippet, voiceEnabled, speak]);
+    // Prefetch the next chapter's audio in the background
+    const nextSnippet = snippets[currentIndex + 1];
+    if (nextSnippet) prefetch(nextSnippet.id);
+  }, [currentSnippet, currentIndex, snippets, voiceEnabled, speak, prefetch]);
 
   // Stop voice + reset when switching articles
   useEffect(() => {
@@ -111,11 +112,14 @@ export function NewsPage() {
     setTotalSeconds(0);
   }, [selectedArticleId, stop]);
 
-  // When voice is turned ON mid-chapter, immediately start speaking current chapter
+  // When voice is turned ON mid-chapter, immediately start speaking the current chapter
   useEffect(() => {
     if (!voiceEnabled || !currentSnippet) return;
-    prevSnippetIdRef.current = null;
-  }, [voiceEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+    prevSnippetIdRef.current = currentSnippet.id;
+    speak(currentSnippet.id);
+  // Only re-run when voiceEnabled flips ON; ignore speak/currentSnippet changes here
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceEnabled]);
 
   // Total time counter — ticks every second while playing
   useEffect(() => {

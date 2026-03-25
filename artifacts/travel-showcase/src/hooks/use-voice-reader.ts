@@ -1,34 +1,48 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
+
+// In-memory blob URL cache so we don't re-fetch audio for chapters already seen
+const audioCache = new Map<number, string>(); // snippetId → blobURL
+
+async function fetchAudioBlobUrl(snippetId: number): Promise<string> {
+  if (audioCache.has(snippetId)) return audioCache.get(snippetId)!;
+  const res = await fetch(`/api/snippets/${snippetId}/audio`);
+  if (!res.ok) throw new Error(`TTS fetch failed: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  audioCache.set(snippetId, url);
+  return url;
+}
 
 export function useVoiceReader(enabled: boolean) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const stop = useCallback(() => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
     }
   }, []);
 
-  const speak = useCallback((text: string) => {
-    if (!enabled || typeof window === 'undefined' || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+  const speak = useCallback(async (snippetId: number) => {
+    if (!enabled) return;
+    stop();
+    try {
+      const blobUrl = await fetchAudioBlobUrl(snippetId);
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+        audioRef.current.volume = 0.85;
+      }
+      audioRef.current.src = blobUrl;
+      await audioRef.current.play();
+    } catch (err) {
+      console.warn('[voice] TTS playback error:', err);
+    }
+  }, [enabled, stop]);
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.92;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-
-    // Pick best available English voice
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v =>
-      v.lang.startsWith('en') && (
-        v.name.toLowerCase().includes('natural') ||
-        v.name.toLowerCase().includes('samantha') ||
-        v.name.toLowerCase().includes('google') ||
-        v.name.toLowerCase().includes('daniel')
-      )
-    ) || voices.find(v => v.lang.startsWith('en'));
-    if (preferred) utterance.voice = preferred;
-
-    window.speechSynthesis.speak(utterance);
+  // Prefetch audio for a snippet in the background (no playback)
+  const prefetch = useCallback((snippetId: number) => {
+    if (!enabled) return;
+    fetchAudioBlobUrl(snippetId).catch(() => {});
   }, [enabled]);
 
   useEffect(() => {
@@ -39,16 +53,5 @@ export function useVoiceReader(enabled: boolean) {
     return () => { stop(); };
   }, [stop]);
 
-  // Chrome bug: speechSynthesis silently pauses after ~15s in background tabs
-  useEffect(() => {
-    if (!enabled) return;
-    const id = setInterval(() => {
-      if (window.speechSynthesis.speaking && window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-    }, 5000);
-    return () => clearInterval(id);
-  }, [enabled]);
-
-  return { speak, stop };
+  return { speak, stop, prefetch };
 }
