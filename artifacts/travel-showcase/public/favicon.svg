@@ -1,3 +1,18 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+  <rect width="180" height="180" rx="36" fill="#1a1a2e"/>
+  <!-- newspaper body -->
+  <rect x="34" y="44" width="88" height="92" rx="6" fill="#e8c97e"/>
+  <!-- fold / second page -->
+  <rect x="54" y="52" width="80" height="84" rx="6" fill="#f5e1a4"/>
+  <!-- headline bar -->
+  <rect x="62" y="64" width="62" height="10" rx="3" fill="#1a1a2e"/>
+  <!-- text lines -->
+  <rect x="62" y="82" width="52" height="5" rx="2" fill="#6b6b8a"/>
+  <rect x="62" y="93" width="44" height="5" rx="2" fill="#6b6b8a"/>
+  <rect x="62" y="104" width="48" height="5" rx="2" fill="#6b6b8a"/>
+  <!-- image placeholder box -->
+  <rect x="62" y="116" width="28" height="20" rx="3" fill="#c9a84c"/>
+  <!-- small text next to image -->
+  <rect x="96" y="118" width="28" height="4" rx="2" fill="#6b6b8a"/>
+  <rect x="96" y="126" width="20" height="4" rx="2" fill="#6b6b8a"/>
 </svg>
