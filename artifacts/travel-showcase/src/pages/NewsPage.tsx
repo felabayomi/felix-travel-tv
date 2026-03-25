@@ -1,6 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Newspaper, ChevronLeft, ChevronRight, LayoutList, X } from 'lucide-react';
+import {
+  Loader2, Newspaper, ChevronLeft, ChevronRight, LayoutList, X,
+  SlidersHorizontal, Volume2, VolumeX
+} from 'lucide-react';
 import {
   useGetArticles,
   useGetArticleSnippets,
@@ -10,6 +13,7 @@ import {
 import type { Article } from '@workspace/api-client-react/src/generated/api.schemas';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnippetPlayer } from '@/hooks/use-snippet-player';
+import { useVoiceReader } from '@/hooks/use-voice-reader';
 import { SnippetDisplay } from '@/components/SnippetDisplay';
 import { ArticleSidebar } from '@/components/ArticleSidebar';
 import { ProgressBar } from '@/components/ProgressBar';
@@ -17,7 +21,13 @@ import { NewsAdminPanel } from '@/components/NewsAdminPanel';
 import { AmbientMusicPlayer } from '@/components/AmbientMusicPlayer';
 import { cn } from '@/lib/utils';
 
-const SNIPPET_INTERVAL = 12000;
+const TIMING_OPTIONS = [
+  { label: '5s', value: 5000 },
+  { label: '8s', value: 8000 },
+  { label: '12s', value: 12000 },
+  { label: '20s', value: 20000 },
+  { label: '30s', value: 30000 },
+];
 
 export function NewsPage() {
   const queryClient = useQueryClient();
@@ -25,6 +35,9 @@ export function NewsPage() {
 
   const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [intervalMs, setIntervalMs] = useState(12000);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
 
   // Auto-select the first article when loaded
   useEffect(() => {
@@ -38,9 +51,30 @@ export function NewsPage() {
     { query: { enabled: selectedArticleId !== null } }
   );
 
-  const { currentIndex, currentSnippet, next, prev, goTo } = useSnippetPlayer(snippets, SNIPPET_INTERVAL);
+  const { currentIndex, currentSnippet, next, prev, goTo } = useSnippetPlayer(snippets, intervalMs);
 
   const selectedArticle = articles.find(a => a.id === selectedArticleId) ?? null;
+
+  const { speak, stop } = useVoiceReader(voiceEnabled);
+
+  // Speak current chapter when it changes and voice is on
+  const prevSnippetIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!currentSnippet) return;
+    if (prevSnippetIdRef.current === currentSnippet.id) return;
+    prevSnippetIdRef.current = currentSnippet.id;
+    if (voiceEnabled) {
+      const text = [currentSnippet.headline, currentSnippet.caption, currentSnippet.explanation]
+        .filter(Boolean).join('. ');
+      speak(text);
+    }
+  }, [currentSnippet, voiceEnabled, speak]);
+
+  // Stop voice when switching articles
+  useEffect(() => {
+    stop();
+    prevSnippetIdRef.current = null;
+  }, [selectedArticleId, stop]);
 
   const deleteMutation = useDeleteArticle({
     mutation: {
@@ -60,7 +94,6 @@ export function NewsPage() {
   }, [deleteMutation]);
 
   const handleArticleAdded = useCallback(() => {
-    // Auto-select the latest article once data refreshes
     setSelectedArticleId(null);
   }, []);
 
@@ -180,12 +213,42 @@ export function NewsPage() {
                 </div>
 
                 {/* Chapter counter — top right */}
-                <div className="absolute top-5 right-16 z-20 font-mono text-sm tracking-widest text-white/40">
+                <div className="absolute top-5 right-5 z-20 font-mono text-sm tracking-widest text-white/40">
                   {String(currentIndex + 1).padStart(2, '0')} / {String(snippets.length).padStart(2, '0')}
                 </div>
 
-                {/* Prev/Next chapter buttons */}
-                <div className="absolute bottom-8 right-8 z-20 flex items-center gap-3">
+                {/* Bottom controls row */}
+                <div className="absolute bottom-8 right-8 z-20 flex items-center gap-2">
+
+                  {/* Voice toggle */}
+                  <button
+                    onClick={() => setVoiceEnabled(v => !v)}
+                    className={cn(
+                      "p-3 rounded-full backdrop-blur-md border transition-all",
+                      voiceEnabled
+                        ? "bg-primary/30 border-primary/50 text-primary"
+                        : "bg-black/30 border-white/10 text-white/60 hover:text-white hover:bg-black/60"
+                    )}
+                    title={voiceEnabled ? "Voice reader on — click to turn off" : "Turn on voice reader"}
+                  >
+                    {voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                  </button>
+
+                  {/* Settings toggle */}
+                  <button
+                    onClick={() => setSettingsOpen(v => !v)}
+                    className={cn(
+                      "p-3 rounded-full backdrop-blur-md border transition-all",
+                      settingsOpen
+                        ? "bg-primary/30 border-primary/50 text-primary"
+                        : "bg-black/30 border-white/10 text-white/60 hover:text-white hover:bg-black/60"
+                    )}
+                    title="Playback settings"
+                  >
+                    <SlidersHorizontal className="w-5 h-5" />
+                  </button>
+
+                  {/* Prev / Next */}
                   <button
                     onClick={prev}
                     className="p-3 rounded-full bg-black/30 backdrop-blur-md border border-white/10 text-white/60 hover:text-white hover:bg-black/60 transition-all"
@@ -201,6 +264,75 @@ export function NewsPage() {
                     <ChevronRight className="w-5 h-5" />
                   </button>
                 </div>
+
+                {/* Settings panel — floats above the controls */}
+                <AnimatePresence>
+                  {settingsOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                      className="absolute bottom-24 right-8 z-30 bg-black/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5 w-64 shadow-2xl"
+                    >
+                      <p className="text-xs text-white/40 uppercase tracking-widest mb-4 font-medium">Playback Settings</p>
+
+                      {/* Timing */}
+                      <div className="space-y-2">
+                        <p className="text-sm text-white/70 font-medium">Chapter duration</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {TIMING_OPTIONS.map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setIntervalMs(opt.value)}
+                              className={cn(
+                                "px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
+                                intervalMs === opt.value
+                                  ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/30"
+                                  : "bg-white/10 text-white/60 border-white/10 hover:bg-white/20 hover:text-white"
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
+                        <p className="text-sm text-white/70 font-medium">Voice reader</p>
+                        <div
+                          onClick={() => setVoiceEnabled(v => !v)}
+                          className={cn(
+                            "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
+                            voiceEnabled
+                              ? "bg-primary/20 border-primary/40 text-primary"
+                              : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
+                          )}
+                        >
+                          {voiceEnabled ? <Volume2 className="w-4 h-4 shrink-0" /> : <VolumeX className="w-4 h-4 shrink-0" />}
+                          <div>
+                            <p className="text-xs font-medium leading-tight">
+                              {voiceEnabled ? 'Voice on' : 'Voice off'}
+                            </p>
+                            <p className="text-[10px] opacity-60 leading-tight mt-0.5">
+                              {voiceEnabled ? 'Reads each chapter aloud' : 'Click to enable narration'}
+                            </p>
+                          </div>
+                          {/* Toggle pill */}
+                          <div className={cn(
+                            "ml-auto w-9 h-5 rounded-full transition-all relative shrink-0",
+                            voiceEnabled ? "bg-primary" : "bg-white/20"
+                          )}>
+                            <div className={cn(
+                              "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow",
+                              voiceEnabled ? "left-[18px]" : "left-0.5"
+                            )} />
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Chapter dot navigation */}
                 {snippets.length <= 12 && (
@@ -222,7 +354,7 @@ export function NewsPage() {
 
                 {/* Progress bar */}
                 <ProgressBar
-                  duration={SNIPPET_INTERVAL}
+                  duration={intervalMs}
                   slideKey={currentSnippet.id}
                   isPaused={false}
                 />
