@@ -1,5 +1,4 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Newspaper } from 'lucide-react';
 import type { Snippet } from '@workspace/api-client-react/src/generated/api.schemas';
 import { cn } from '@/lib/utils';
 
@@ -63,18 +62,6 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
               }}
               className="space-y-4"
             >
-              {/* Chapter badge */}
-              <motion.div
-                variants={{
-                  hidden: { opacity: 0, y: 16 },
-                  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: "easeOut" } }
-                }}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/20 border border-primary/30 backdrop-blur-md text-primary font-medium tracking-widest text-xs uppercase"
-              >
-                <Newspaper className="w-3.5 h-3.5" />
-                Chapter {chapterIndex + 1} of {totalChapters}
-              </motion.div>
-
               {/* Headline */}
               <motion.h1
                 variants={{
