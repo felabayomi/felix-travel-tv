@@ -6,6 +6,29 @@ import { ProgressBar } from '@/components/ProgressBar';
 import { SnippetDisplay } from '@/components/SnippetDisplay';
 import { AmbientMusicPlayer } from '@/components/AmbientMusicPlayer';
 
+function ESTClock() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const day = now.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/New_York' }).toUpperCase();
+  const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'America/New_York' });
+
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '11px', fontWeight: 400, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.4)' }}>
+        {day} · EST
+      </span>
+      <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '22px', fontWeight: 600, letterSpacing: '0.06em', color: '#ffffff', lineHeight: 1 }}>
+        {time}
+      </span>
+    </div>
+  );
+}
+
 interface PlaybackState {
   articleId: number | null;
   snippetIndex: number;
@@ -253,24 +276,27 @@ export function PublicDisplay() {
           style={{ background: 'linear-gradient(to right, #c8102e, #ff3333, #c8102e)' }}
         />
 
-        {/* ON AIR badge */}
-        <AnimatePresence>
-          {onAir && (
-            <motion.div
-              key="on-air-wait"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="absolute top-4 right-6 flex items-center gap-1.5 px-3 py-1 rounded-sm"
-              style={{ background: '#c8102e' }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.1em' }}>
-                ON AIR
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Top-right: ON AIR badge + EST clock */}
+        <div className="absolute top-4 right-6 flex flex-col items-end gap-3">
+          <AnimatePresence>
+            {onAir && (
+              <motion.div
+                key="on-air-wait"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-sm"
+                style={{ background: '#c8102e' }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.1em' }}>
+                  ON AIR
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <ESTClock />
+        </div>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
