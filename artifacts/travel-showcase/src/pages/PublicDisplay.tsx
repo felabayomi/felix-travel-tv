@@ -80,8 +80,8 @@ function GlobalTicker() {
     ? items.map(item => `${item.headline.toUpperCase()}  ·  ${item.caption}`).join('     ◆     ')
     : 'STANDING BY FOR BROADCAST  ·  TUNE IN FOR LIVE COVERAGE';
 
-  // Scale duration with content length so scroll speed stays ~80px/s
-  const duration = Math.max(30, Math.round(tickerText.length * 0.07));
+  // Scale duration with content length so scroll speed stays ~180px/s
+  const duration = Math.max(15, Math.round(tickerText.length * 0.04));
 
   return (
     <div
