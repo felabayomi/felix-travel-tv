@@ -13,6 +13,11 @@ interface PlaybackState {
   updatedAt: number;
 }
 
+interface TickerItem {
+  headline: string;
+  caption: string;
+}
+
 const POLL_MS = 2000;
 
 function usePlaybackSync() {
@@ -50,6 +55,76 @@ function LiveClock() {
     >
       {time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
     </span>
+  );
+}
+
+function GlobalTicker() {
+  const [items, setItems] = useState<TickerItem[]>([]);
+
+  useEffect(() => {
+    async function fetchTicker() {
+      try {
+        const res = await fetch('/api/ticker');
+        if (res.ok) {
+          const data = await res.json();
+          setItems(data);
+        }
+      } catch { /* ignore */ }
+    }
+    fetchTicker();
+    const id = setInterval(fetchTicker, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const tickerText = items.length > 0
+    ? items.map(item => `${item.headline.toUpperCase()}  ·  ${item.caption}`).join('     ◆     ')
+    : 'STANDING BY FOR BROADCAST  ·  TUNE IN FOR LIVE COVERAGE';
+
+  // Scale duration with content length so scroll speed stays ~80px/s
+  const duration = Math.max(30, Math.round(tickerText.length * 0.07));
+
+  return (
+    <div
+      className="absolute bottom-0 left-0 right-0 z-50 flex items-center overflow-hidden"
+      style={{ height: '60px', background: 'rgba(3,3,8,0.97)', borderTop: '2px solid #c8102e' }}
+    >
+      {/* Logo + label */}
+      <div
+        className="flex-shrink-0 flex items-center gap-2 h-full px-4"
+        style={{ background: '#c8102e' }}
+      >
+        <img
+          src="/ticker-logo.png"
+          alt="logo"
+          style={{ height: '40px', width: 'auto', objectFit: 'contain', display: 'block' }}
+        />
+        <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.1em' }}>
+          NEWS
+        </span>
+      </div>
+
+      {/* Seamless double-copy scroll */}
+      <div className="flex-1 overflow-hidden">
+        <div
+          className="flex whitespace-nowrap"
+          style={{ animation: `global-ticker-scroll ${duration}s linear infinite` }}
+        >
+          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '12px', color: 'rgba(255,255,255,0.8)', letterSpacing: '0.05em' }}>
+            {tickerText}
+          </span>
+          <span style={{ paddingRight: '5rem', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 500, fontSize: '12px', color: 'rgba(255,255,255,0.8)', letterSpacing: '0.05em' }}>
+            {tickerText}
+          </span>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes global-ticker-scroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
+    </div>
   );
 }
 
@@ -122,25 +197,7 @@ export function PublicDisplay() {
           </p>
         </motion.div>
 
-        {/* Bottom ticker placeholder */}
-        <div className="absolute bottom-0 left-0 right-0 flex items-center"
-          style={{ height: '60px', background: 'rgba(3,3,8,0.97)', borderTop: '2px solid #c8102e' }}>
-          <div className="flex-shrink-0 flex items-center gap-2 h-full px-4"
-            style={{ background: '#c8102e' }}>
-            <img
-              src="/ticker-logo.png"
-              alt="logo"
-              style={{ height: '38px', width: 'auto', objectFit: 'contain', display: 'block' }}
-            />
-            <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.1em' }}>
-              NEWS
-            </span>
-          </div>
-          <span className="px-6 text-white/30 text-xs tracking-widest uppercase"
-            style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
-            Standing by for broadcast
-          </span>
-        </div>
+        <GlobalTicker />
       </div>
     );
   }
@@ -234,6 +291,9 @@ export function PublicDisplay() {
           isPaused={false}
         />
       )}
+
+      {/* ── Global persistent ticker (always at bottom, never resets on slide change) ── */}
+      <GlobalTicker />
 
       <AmbientMusicPlayer />
     </main>

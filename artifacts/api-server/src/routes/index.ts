@@ -174,4 +174,16 @@ router.get("/snippets/:id/audio", async (req, res) => {
   }
 });
 
+// GET /api/ticker — all snippets' headlines + captions for the global ticker crawl
+router.get('/ticker', async (req, res) => {
+  try {
+    const rows = await db
+      .select({ headline: snippetsTable.headline, caption: snippetsTable.caption })
+      .from(snippetsTable);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 export default router;
