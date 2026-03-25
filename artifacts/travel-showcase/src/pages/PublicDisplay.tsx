@@ -164,10 +164,11 @@ export function PublicDisplay() {
 
       {/* ── Unified top HUD bar (z-40, above everything) ── */}
       <div
-        className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-6"
+        className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-8"
         style={{
-          height: '44px',
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.92) 0%, transparent 100%)',
+          paddingTop: '18px',
+          paddingBottom: '18px',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.88) 0%, transparent 100%)',
           borderTop: '3px solid #c8102e',
         }}
       >
@@ -189,7 +190,7 @@ export function PublicDisplay() {
               className="text-white/40 text-xs tracking-[0.15em] uppercase"
               style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 500 }}
             >
-              Chapter {safeIndex + 1} of {snippets.length}
+              Clip {safeIndex + 1} of {snippets.length}
             </span>
           )}
         </div>
