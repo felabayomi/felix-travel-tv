@@ -22,12 +22,12 @@ import { AmbientMusicPlayer } from '@/components/AmbientMusicPlayer';
 import { cn } from '@/lib/utils';
 
 const TIMING_OPTIONS = [
-  { label: '1s', value: 1000 },
-  { label: '2s', value: 2000 },
-  { label: '3s', value: 3000 },
-  { label: '4s', value: 4000 },
-  { label: '5s', value: 5000 },
-  { label: '8s', value: 8000 },
+  { label: '10s', value: 10000 },
+  { label: '15s', value: 15000 },
+  { label: '20s', value: 20000 },
+  { label: '30s', value: 30000 },
+  { label: '45s', value: 45000 },
+  { label: '60s', value: 60000 },
 ];
 
 export function NewsPage() {
@@ -37,7 +37,7 @@ export function NewsPage() {
   const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [intervalMs, setIntervalMs] = useState(12000);
+  const [intervalMs, setIntervalMs] = useState(10000);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
 
   // Auto-select the first article when loaded
