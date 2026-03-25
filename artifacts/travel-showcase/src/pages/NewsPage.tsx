@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Loader2, Newspaper, ChevronLeft, ChevronRight, LayoutList, X,
-  SlidersHorizontal, Volume2, VolumeX, Mic, MicOff
+  SlidersHorizontal, Mic, MicOff
 } from 'lucide-react';
 import {
   useGetArticles,
@@ -317,7 +317,6 @@ export function NewsPage() {
                               : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
                           )}
                         >
-                          {voiceEnabled ? <Volume2 className="w-4 h-4 shrink-0" /> : <VolumeX className="w-4 h-4 shrink-0" />}
                           <div>
                             <p className="text-xs font-medium leading-tight">
                               {voiceEnabled ? 'Voice on' : 'Voice off'}
