@@ -117,29 +117,31 @@ export function PublicDisplay() {
         </div>
       )}
 
-      {/* Top right: chapter counter + ON AIR badge */}
+      {/* Top right: chapter counter */}
       {snippets.length > 0 && (
-        <div className="absolute top-5 right-5 z-20 flex flex-col items-end gap-2">
+        <div className="absolute top-5 right-5 z-20">
           <span className="font-mono text-sm tracking-widest text-white/40">
             {String(safeIndex + 1).padStart(2, '0')} / {String(snippets.length).padStart(2, '0')}
           </span>
-          <AnimatePresence>
-            {onAir && (
-              <motion.span
-                key="on-air"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.3 }}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-600 text-white text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-red-600/40"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                On Air
-              </motion.span>
-            )}
-          </AnimatePresence>
         </div>
       )}
+
+      {/* ON AIR badge — always visible when live, regardless of article state */}
+      <AnimatePresence>
+        {onAir && (
+          <motion.span
+            key="on-air"
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="absolute top-5 right-5 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-600 text-white text-[11px] font-bold uppercase tracking-widest shadow-lg shadow-red-600/40"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            On Air
+          </motion.span>
+        )}
+      </AnimatePresence>
 
       {/* Dot navigation — bottom center (read only) */}
       {snippets.length > 0 && snippets.length <= 12 && (
