@@ -176,7 +176,7 @@ function Countdown({ targetTime }: { targetTime: string }) {
 }
 
 // px/s for each speed level 1–5 (react-fast-marquee speed prop)
-const TICKER_SPEEDS_PPS = [25, 50, 90, 150, 250];
+const TICKER_SPEEDS_PPS = [18, 30, 45, 65, 90];
 
 function GlobalTicker({ speed = 3 }: { speed?: number }) {
   const [items, setItems] = useState<TickerItem[]>([]);
