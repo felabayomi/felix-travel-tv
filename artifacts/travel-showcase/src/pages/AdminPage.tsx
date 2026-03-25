@@ -93,7 +93,7 @@ const PRESETS: Array<{ name: string; description: string; config: Partial<Waitin
       websiteUrl: 'globaltravelplanner.com',
       socialLinks: [
         { label: 'Twitch', url: 'twitch.tv/globaltravelplanner' },
-        { label: 'YouTube', url: 'youtube.com/CityDiscoverer' },
+        { label: 'Virtual Office', url: 'eacd.us' },
       ],
       customTickerItems: [
         'Book your next trip with City Discoverer Live',
