@@ -81,7 +81,7 @@ function GlobalTicker() {
     : 'STANDING BY FOR BROADCAST  ·  TUNE IN FOR LIVE COVERAGE';
 
   // Scale duration with content length so scroll speed stays ~180px/s
-  const duration = Math.max(8, Math.round(tickerText.length * 0.02));
+  const duration = Math.max(8, Math.round(tickerText.length * 0.017));
 
   return (
     <div
