@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import articlesRouter from "./articles";
 import playbackRouter from "./playback";
+import videosRouter from "./videos";
 import { db, snippetsTable, articlesTable, configStore } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -65,6 +66,7 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use("/articles", articlesRouter);
 router.use("/playback", playbackRouter);
+router.use("/videos", videosRouter);
 
 // PATCH /api/snippets/:id — edit snippet text fields
 router.patch("/snippets/:id", async (req, res) => {

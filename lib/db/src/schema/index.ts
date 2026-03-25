@@ -20,3 +20,4 @@
 export * from "./slides";
 export * from "./articles";
 export * from "./config";
+export * from "./videos";

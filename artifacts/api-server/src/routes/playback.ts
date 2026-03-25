@@ -1,16 +1,19 @@
 import { Router, type IRouter } from "express";
 
 export interface PlaybackState {
+  itemType: 'article' | 'video' | null;
   articleId: number | null;
   snippetIndex: number;
+  videoId: number | null;
   onAir: boolean;
   updatedAt: number;
 }
 
-// In-memory playback state — resets on server restart, which is acceptable
 export let playbackState: PlaybackState = {
+  itemType: null,
   articleId: null,
   snippetIndex: 0,
+  videoId: null,
   onAir: false,
   updatedAt: Date.now(),
 };
@@ -22,19 +25,39 @@ router.get("/", (_req, res) => {
   res.json(playbackState);
 });
 
-// PUT /api/playback
+// PUT /api/playback — set article or video as current item
 router.put("/", (req, res) => {
-  const { articleId, snippetIndex } = req.body ?? {};
-  if (typeof snippetIndex !== "number" || snippetIndex < 0) {
-    res.status(400).json({ error: "snippetIndex must be a non-negative number" });
-    return;
+  const b = req.body ?? {};
+
+  if (b.itemType === 'video') {
+    if (typeof b.videoId !== 'number') {
+      res.status(400).json({ error: "videoId must be a number" });
+      return;
+    }
+    playbackState = {
+      ...playbackState,
+      itemType: 'video',
+      videoId: b.videoId,
+      articleId: null,
+      snippetIndex: 0,
+      updatedAt: Date.now(),
+    };
+  } else {
+    // article or clear
+    if (typeof b.snippetIndex !== "number" || b.snippetIndex < 0) {
+      res.status(400).json({ error: "snippetIndex must be a non-negative number" });
+      return;
+    }
+    playbackState = {
+      ...playbackState,
+      itemType: typeof b.articleId === 'number' ? 'article' : null,
+      articleId: typeof b.articleId === "number" ? b.articleId : null,
+      snippetIndex: b.snippetIndex,
+      videoId: null,
+      updatedAt: Date.now(),
+    };
   }
-  playbackState = {
-    ...playbackState,
-    articleId: typeof articleId === "number" ? articleId : null,
-    snippetIndex,
-    updatedAt: Date.now(),
-  };
+
   res.json(playbackState);
 });
 

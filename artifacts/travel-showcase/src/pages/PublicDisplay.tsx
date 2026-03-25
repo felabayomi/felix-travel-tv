@@ -34,10 +34,20 @@ function ESTClock() {
 }
 
 interface PlaybackState {
+  itemType: 'article' | 'video' | null;
   articleId: number | null;
   snippetIndex: number;
+  videoId: number | null;
   onAir: boolean;
   updatedAt: number;
+}
+
+interface Video {
+  id: number;
+  title: string;
+  url: string;
+  maxDurationSecs: number | null;
+  loop: boolean;
 }
 
 interface TickerItem {
@@ -62,7 +72,7 @@ interface WaitingConfig {
 const POLL_MS = 2000;
 
 function usePlaybackSync() {
-  const [state, setState] = useState<PlaybackState>({ articleId: null, snippetIndex: 0, onAir: false, updatedAt: 0 });
+  const [state, setState] = useState<PlaybackState>({ itemType: null, articleId: null, snippetIndex: 0, videoId: null, onAir: false, updatedAt: 0 });
 
   useEffect(() => {
     let cancelled = false;
@@ -269,13 +279,153 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
   );
 }
 
+function getVideoEmbed(url: string, loop: boolean): { type: 'youtube' | 'vimeo' | 'direct' | 'iframe'; src: string } {
+  const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+  if (ytMatch) {
+    const vid = ytMatch[1];
+    const loopParam = loop ? `&loop=1&playlist=${vid}` : '&loop=0';
+    return { type: 'youtube', src: `https://www.youtube.com/embed/${vid}?autoplay=1${loopParam}&rel=0&modestbranding=1&controls=1` };
+  }
+  const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (vimeoMatch) {
+    const vid = vimeoMatch[1];
+    const loopParam = loop ? '&loop=1' : '&loop=0';
+    return { type: 'vimeo', src: `https://player.vimeo.com/video/${vid}?autoplay=1${loopParam}&title=0&byline=0&portrait=0&badge=0` };
+  }
+  if (/\.(mp4|webm|ogg|mov)(\?|$)/i.test(url)) {
+    return { type: 'direct', src: url };
+  }
+  return { type: 'iframe', src: url };
+}
+
+function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConfig | null }) {
+  const [video, setVideo] = useState<Video | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const startedAtRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    startedAtRef.current = Date.now();
+    setVideo(null);
+    fetch(`/api/videos/${videoId}`, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(v => {
+        if (v) {
+          setVideo(v);
+          if (v.maxDurationSecs) setRemaining(v.maxDurationSecs);
+        }
+      })
+      .catch(() => {});
+  }, [videoId]);
+
+  useEffect(() => {
+    if (!video?.maxDurationSecs) return;
+    const tick = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startedAtRef.current) / 1000);
+      const rem = Math.max(0, video.maxDurationSecs! - elapsed);
+      setRemaining(rem);
+      if (rem <= 0) {
+        clearInterval(tick);
+        fetch('/api/playback', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ articleId: null, snippetIndex: 0 }),
+        }).catch(() => {});
+      }
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [video]);
+
+  if (!video) {
+    return (
+      <div className="w-screen h-screen flex items-center justify-center" style={{ background: '#050508' }}>
+        <Loader2 className="w-10 h-10 animate-spin" style={{ color: '#c8102e', opacity: 0.5 }} />
+      </div>
+    );
+  }
+
+  const embed = getVideoEmbed(video.url, video.loop);
+
+  return (
+    <main className="relative w-screen h-screen overflow-hidden" style={{ background: '#000' }}>
+      {embed.type === 'direct' ? (
+        <video
+          key={videoId}
+          src={embed.src}
+          autoPlay
+          loop={video.loop}
+          playsInline
+          className="absolute inset-0 w-full h-full object-contain"
+          style={{ background: '#000' }}
+        />
+      ) : (
+        <iframe
+          key={videoId}
+          src={embed.src}
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full border-0"
+          style={{ background: '#000' }}
+        />
+      )}
+
+      {/* Top HUD overlay */}
+      <div
+        className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-8"
+        style={{
+          paddingTop: '18px',
+          paddingBottom: '18px',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, transparent 100%)',
+          borderTop: '3px solid #c8102e',
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <span
+            className="text-white/80 text-xs tracking-[0.18em] uppercase"
+            style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600 }}
+          >
+            {video.title}
+          </span>
+          {remaining != null && (
+            <>
+              <span className="text-white/20 text-xs">·</span>
+              <span className="text-white/40 text-xs" style={{ fontFamily: 'Oswald, sans-serif' }}>
+                {remaining > 0 ? `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')} remaining` : 'Finishing…'}
+              </span>
+            </>
+          )}
+          {video.loop && remaining == null && (
+            <>
+              <span className="text-white/20 text-xs">·</span>
+              <span className="text-white/30 text-[10px] uppercase tracking-widest" style={{ fontFamily: 'Oswald, sans-serif' }}>Loop</span>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <LiveClock />
+          <div
+            className="flex items-center gap-1.5 px-3 py-0.5 rounded-sm"
+            style={{ background: '#c8102e' }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.12em' }}>
+              ON AIR
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <GlobalTicker speed={config?.tickerSpeed ?? 3} />
+    </main>
+  );
+}
+
 export function PublicDisplay() {
-  const { articleId, snippetIndex, onAir } = usePlaybackSync();
+  const { itemType, articleId, snippetIndex, videoId, onAir } = usePlaybackSync();
   const config = useWaitingConfig();
   const { data: articles = [] } = useGetArticles();
   const { data: snippets = [], isLoading: isLoadingSnippets } = useGetArticleSnippets(
     articleId ?? 0,
-    { query: { enabled: articleId !== null } }
+    { query: { enabled: itemType === 'article' && articleId !== null } }
   );
 
   const safeIndex = Math.min(snippetIndex, Math.max(0, snippets.length - 1));
@@ -303,7 +453,7 @@ export function PublicDisplay() {
     }
   }, [snippetIndex]);
 
-  if (!articleId || !onAir) {
+  if (!onAir || (!articleId && !videoId)) {
     const hasTopics = (config?.topics?.length ?? 0) > 0;
     const hasWebsite = !!config?.websiteUrl;
     const hasSocial = (config?.socialLinks?.length ?? 0) > 0;
@@ -475,6 +625,10 @@ export function PublicDisplay() {
         <GlobalTicker speed={config?.tickerSpeed ?? 3} />
       </div>
     );
+  }
+
+  if (onAir && itemType === 'video' && videoId != null) {
+    return <VideoScreen videoId={videoId} config={config} />;
   }
 
   return (
