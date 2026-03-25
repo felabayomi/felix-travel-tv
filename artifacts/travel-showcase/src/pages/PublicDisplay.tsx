@@ -128,9 +128,9 @@ export function PublicDisplay() {
           <div className="flex-shrink-0 flex items-center gap-2 h-full px-4"
             style={{ background: '#c8102e' }}>
             <img
-              src="https://mediahost.app/api/media/serve/f8aaf8b9e07f545cae42f0fef812662d?w=600&h=400&fit=contain"
+              src="/ticker-logo.png"
               alt="logo"
-              style={{ height: '26px', width: 'auto', objectFit: 'contain', display: 'block', mixBlendMode: 'multiply' }}
+              style={{ height: '26px', width: 'auto', objectFit: 'contain', display: 'block' }}
             />
             <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.1em' }}>
               NEWS

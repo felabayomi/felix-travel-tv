@@ -168,9 +168,9 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
           style={{ background: '#c8102e' }}
         >
           <img
-            src="https://mediahost.app/api/media/serve/f8aaf8b9e07f545cae42f0fef812662d?w=600&h=400&fit=contain"
+            src="/ticker-logo.png"
             alt="logo"
-            style={{ height: '28px', width: 'auto', objectFit: 'contain', display: 'block', mixBlendMode: 'multiply' }}
+            style={{ height: '28px', width: 'auto', objectFit: 'contain', display: 'block' }}
           />
           <span
             style={{
