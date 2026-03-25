@@ -60,6 +60,15 @@ interface WaitingConfig {
 
 const POLL_MS = 2000;
 
+const CHANNEL_NAMES = [
+  'The Travel Blueprint',
+  'Plan Less Travel More',
+  'Where To Next?',
+  'Done For You Travel',
+  'The Traveler Hub',
+  'Your Travel Advisor',
+];
+
 function usePlaybackSync() {
   const [state, setState] = useState<PlaybackState>({ articleId: null, snippetIndex: 0, onAir: false, updatedAt: 0 });
 
@@ -281,6 +290,12 @@ export function PublicDisplay() {
   const currentSnippet = snippets[safeIndex] ?? null;
   const selectedArticle = articles.find(a => a.id === articleId) ?? null;
 
+  const [nameIndex, setNameIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNameIndex(i => (i + 1) % CHANNEL_NAMES.length), 4500);
+    return () => clearInterval(id);
+  }, []);
+
   const [tick, setTick] = useState(0);
   const prevIndexRef = useRef(snippetIndex);
   useEffect(() => {
@@ -350,14 +365,23 @@ export function PublicDisplay() {
                 style={{ background: '#c8102e' }}
               />
 
-              {/* Channel name */}
+              {/* Channel name — rotating */}
               <div>
-                <h1
-                  className="text-6xl text-white uppercase"
-                  style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, letterSpacing: '0.06em', lineHeight: 1 }}
-                >
-                  {channelName}
-                </h1>
+                <div className="relative overflow-hidden" style={{ minHeight: '1.1em' }}>
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.h1
+                      key={nameIndex}
+                      initial={{ opacity: 0, y: 22 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -22 }}
+                      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+                      className="text-6xl text-white uppercase"
+                      style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, letterSpacing: '0.06em', lineHeight: 1 }}
+                    >
+                      {CHANNEL_NAMES[nameIndex]}
+                    </motion.h1>
+                  </AnimatePresence>
+                </div>
                 {tagline && (
                   <p
                     className="text-white/35 text-sm uppercase tracking-widest mt-2"
