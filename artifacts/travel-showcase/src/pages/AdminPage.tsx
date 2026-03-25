@@ -512,6 +512,10 @@ function AdminDashboard() {
     updatePlayback(selectedArticleId, prev);
   }, [selectedArticleId, snippets.length, currentSnippetIndex, updatePlayback]);
 
+  // Always-current ref so timer/voice callbacks never hold a stale handleNext closure
+  const handleNextRef = useRef(handleNext);
+  useEffect(() => { handleNextRef.current = handleNext; }, [handleNext]);
+
   useEffect(() => {
     if (!voiceEnabled || !snippets[currentSnippetIndex]) return;
     if (prevIndexRef.current === currentSnippetIndex) return;
@@ -519,17 +523,21 @@ function AdminDashboard() {
     const isLastChapter = currentSnippetIndex >= snippets.length - 1;
     speak(
       snippets[currentSnippetIndex].id,
-      autoPlay && !isLastChapter ? handleNext : undefined,
+      autoPlay && !isLastChapter ? () => handleNextRef.current() : undefined,
     );
-  }, [currentSnippetIndex, snippets, voiceEnabled, speak, autoPlay, handleNext]);
+  // handleNext intentionally omitted — we use the ref to avoid restarting on every index change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSnippetIndex, snippets, voiceEnabled, speak, autoPlay]);
 
   // Timer-based auto-advance when voice is off
+  // handleNext intentionally omitted from deps — ref keeps it fresh without restarting the timer
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!autoPlay || voiceEnabled || !selectedArticleId || snippets.length === 0) return;
     if (currentSnippetIndex >= snippets.length - 1) return;
-    const timer = setTimeout(() => handleNext(), AUTO_PLAY_SECONDS * 1000);
+    const timer = setTimeout(() => handleNextRef.current(), AUTO_PLAY_SECONDS * 1000);
     return () => clearTimeout(timer);
-  }, [autoPlay, voiceEnabled, currentSnippetIndex, snippets.length, selectedArticleId, handleNext]);
+  }, [autoPlay, voiceEnabled, currentSnippetIndex, snippets.length, selectedArticleId]);
 
   const handleSelectArticle = async (article: Article) => {
     stop();
@@ -680,10 +688,10 @@ function AdminDashboard() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={handlePrev}
-                      disabled={currentSnippetIndex === 0}
+                      disabled={currentSnippetIndex === 0 || isLoadingSnippets}
                       className="p-2.5 rounded-xl border border-border text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                     >
-                      <ChevronLeft className="w-5 h-5" />
+                      {isLoadingSnippets ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronLeft className="w-5 h-5" />}
                     </button>
 
                     <div className="flex-1 text-center">
@@ -703,10 +711,10 @@ function AdminDashboard() {
 
                     <button
                       onClick={handleNext}
-                      disabled={currentSnippetIndex >= snippets.length - 1}
+                      disabled={currentSnippetIndex >= snippets.length - 1 || isLoadingSnippets}
                       className="p-2.5 rounded-xl border border-border text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                     >
-                      <ChevronRight className="w-5 h-5" />
+                      {isLoadingSnippets ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
                     </button>
 
                     {/* Auto-play toggle */}

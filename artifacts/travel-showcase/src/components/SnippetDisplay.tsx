@@ -83,8 +83,8 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
         {lowerIn && (
           <motion.div
             key={snippet.id}
-            className="absolute left-0 right-0 z-20"
-            style={{ bottom: '150px' }}
+            className="absolute left-0 z-20"
+            style={{ bottom: '150px', maxWidth: '85%' }}
             initial={{ y: '110%' }}
             animate={{ y: 0 }}
             exit={{ y: '110%' }}
@@ -124,7 +124,7 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
 
               {/* Caption */}
               <p
-                className="text-white/80 leading-snug mb-3"
+                className="text-white leading-snug mb-3"
                 style={{
                   fontFamily: 'IBM Plex Sans, sans-serif',
                   fontWeight: 400,
@@ -135,6 +135,9 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
               >
                 {snippet.caption}
               </p>
+
+              {/* Divider */}
+              <div className="mb-3" style={{ width: '100%', maxWidth: '60%', height: '1px', background: 'rgba(255,255,255,0.12)' }} />
 
               {/* Explanation */}
               <p
