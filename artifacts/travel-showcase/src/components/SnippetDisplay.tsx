@@ -84,7 +84,7 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
           <motion.div
             key={snippet.id}
             className="absolute left-0 right-0 z-20"
-            style={{ bottom: '110px' }}
+            style={{ bottom: '150px' }}
             initial={{ y: '110%' }}
             animate={{ y: 0 }}
             exit={{ y: '110%' }}
