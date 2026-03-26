@@ -1642,19 +1642,21 @@ function AdminDashboard() {
     if (prevIndexRef.current === currentSnippetIndex) return;
     prevIndexRef.current = currentSnippetIndex;
     const isLastChapter = currentSnippetIndex >= snippets.length - 1;
+    const chapterAutoplay = autoPlay || queueAutoplay;
     speak(
       snippets[currentSnippetIndex].id,
-      autoPlay && !isLastChapter ? () => handleNextRef.current() : undefined,
+      chapterAutoplay && !isLastChapter ? () => handleNextRef.current() : undefined,
     );
   // handleNext intentionally omitted — we use the ref to avoid restarting on every index change
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSnippetIndex, snippets, voiceEnabled, speak, autoPlay]);
+  }, [currentSnippetIndex, snippets, voiceEnabled, speak, autoPlay, queueAutoplay]);
 
   // Timer-based auto-advance when voice is off
   // handleNext intentionally omitted from deps — ref keeps it fresh without restarting the timer
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!autoPlay || voiceEnabled || !playingArticleId || snippets.length === 0) return;
+    const chapterAutoplay = autoPlay || queueAutoplay;
+    if (!chapterAutoplay || voiceEnabled || !playingArticleId || snippets.length === 0) return;
     if (currentSnippetIndex >= snippets.length - 1) {
       // On last chapter — advance queue after delay if queue autoplay is on
       if (queueAutoplay) {
@@ -1668,7 +1670,7 @@ function AdminDashboard() {
     }
     const timer = setTimeout(() => handleNextRef.current(), AUTO_PLAY_SECONDS * 1000);
     return () => clearTimeout(timer);
-  }, [autoPlay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, queueAutoplay, loadQueue]);
+  }, [autoPlay, queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, loadQueue]);
 
   // Reset snippet index when the playing article changes
   useEffect(() => {
