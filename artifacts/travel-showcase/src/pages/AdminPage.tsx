@@ -1541,8 +1541,6 @@ function AdminDashboard() {
       const stream = await (navigator.mediaDevices as any).getDisplayMedia({
         video: { displaySurface: 'browser' },
         audio: true,
-        preferCurrentTab: true,
-        selfBrowserSurface: 'include',
       });
       const mimeType = [
         'video/mp4;codecs=h264',
@@ -2470,7 +2468,7 @@ function AdminDashboard() {
                       <button
                         onClick={startRecording}
                         className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all border-border text-white/50 hover:text-white hover:bg-white/5"
-                        title="Record the broadcast tab — open the public display in another tab first, then select it when prompted"
+                        title="A tab picker will appear — select the public display tab (not this admin tab) and tick 'Share tab audio'"
                       >
                         <span className="w-2 h-2 rounded-full bg-red-500" />
                         Record
