@@ -360,25 +360,36 @@ router.post("/", async (req, res) => {
       publishedAt: resolvedDate,
     }).returning();
 
-    // Generate images for all snippets in parallel
-    const snippetRows = await Promise.all(
-      content.snippets.map(async (s, index) => {
-        const imageUrl = await generateImage(s.imagePrompt).catch(() => null);
-        return {
-          articleId: article.id,
-          snippetOrder: index,
-          headline: s.headline,
-          caption: s.caption,
-          explanation: s.explanation,
-          imageUrl,
-          imagePrompt: s.imagePrompt,
-        };
-      })
-    );
+    // Insert snippets immediately (no images yet) so the article appears right away
+    const snippetRows = content.snippets.map((s, index) => ({
+      articleId: article.id,
+      snippetOrder: index,
+      headline: s.headline,
+      caption: s.caption,
+      explanation: s.explanation,
+      imageUrl: null as string | null,
+      imagePrompt: s.imagePrompt,
+    }));
 
-    await db.insert(snippetsTable).values(snippetRows);
+    const insertedSnippets = await db.insert(snippetsTable).values(snippetRows).returning();
 
-    res.status(201).json(formatArticle(article, snippetRows.length));
+    res.status(201).json(formatArticle(article, insertedSnippets.length));
+
+    // Generate images in the background after responding
+    (async () => {
+      for (const snippet of insertedSnippets) {
+        try {
+          const imageUrl = await generateImage(snippet.imagePrompt ?? "");
+          if (imageUrl) {
+            await db.update(snippetsTable)
+              .set({ imageUrl })
+              .where(eq(snippetsTable.id, snippet.id));
+          }
+        } catch {
+          // ignore — image stays null
+        }
+      }
+    })();
   } catch (err) {
     req.log.error({ err }, "Failed to create article");
     res.status(422).json({ error: "Failed to process URL" });
