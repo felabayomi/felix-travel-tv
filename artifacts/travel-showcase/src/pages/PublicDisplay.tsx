@@ -756,10 +756,10 @@ export function PublicDisplay() {
               {/* Next broadcast source — shown in both countdown and standby modes */}
               {config?.nextBroadcastSource && (
                 <p
-                  className="text-white/60 text-sm uppercase tracking-widest"
-                  style={{ fontFamily: 'Oswald, sans-serif' }}
+                  className="text-sm uppercase tracking-widest"
+                  style={{ fontFamily: 'Oswald, sans-serif', color: '#c8102e' }}
                 >
-                  <span className="text-white/25 text-xs mr-2">NEXT:</span>
+                  <span className="mr-2" style={{ color: '#c8102e', opacity: 0.6 }}>NEXT:</span>
                   {config.nextBroadcastSource}
                 </p>
               )}
