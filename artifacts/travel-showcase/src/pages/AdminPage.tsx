@@ -1716,11 +1716,37 @@ function AdminDashboard() {
   useEffect(() => { playingQueueIndexRef.current = playingQueueIndex; }, [playingQueueIndex]);
   const queueLengthRef = useRef(queue.length);
   useEffect(() => { queueLengthRef.current = queue.length; }, [queue.length]);
+  const queueRef = useRef(queue);
+  useEffect(() => { queueRef.current = queue; }, [queue]);
 
   const updatePlayback = useCallback(async (articleId: number, index: number) => {
     setCurrentSnippetIndex(index);
     await setPlayback(articleId, index);
   }, []);
+
+  // Pick an interlude image: first try the NEXT article's AI-generated snippet images
+  // (full-res, same quality as chapter images), then fall back to configured URLs.
+  async function pickInterludeImage(): Promise<string | null> {
+    const nextIdx = playingQueueIndexRef.current + 1;
+    const nextItem = queueRef.current[nextIdx];
+    if (nextItem?.type === 'article' && nextItem.articleId) {
+      try {
+        const res = await fetch(`/api/articles/${nextItem.articleId}/snippets`);
+        if (res.ok) {
+          const snips: Array<{ id: number; imageUrl: string | null }> = await res.json();
+          const withImage = snips.filter(s => s.imageUrl);
+          if (withImage.length > 0) {
+            const picked = withImage[Math.floor(Math.random() * withImage.length)];
+            return picked.imageUrl!;
+          }
+        }
+      } catch { /* fall through */ }
+    }
+    // Fallback: configured interlude image URLs
+    const cfg = await fetch('/api/waiting-config').then(r => r.json()).catch(() => null);
+    const urls: string[] = cfg?.interludeImages ?? [];
+    return urls.length > 0 ? urls[Math.floor(Math.random() * urls.length)] : null;
+  }
 
   const handleNext = useCallback(async () => {
     const articleId = playingArticleIdRef.current;
@@ -1732,14 +1758,16 @@ function AdminDashboard() {
       // Last chapter done — advance queue if autoplay is on
       if (queueAutoplayRef.current) {
         const hasNextItem = playingQueueIndexRef.current < queueLengthRef.current - 1;
-        const cfg = await fetch('/api/waiting-config').then(r => r.json()).catch(() => null);
-        const interludeImages: string[] = cfg?.interludeImages ?? [];
-        if (hasNextItem && interludeImages.length > 0) {
-          const img = interludeImages[Math.floor(Math.random() * interludeImages.length)];
-          await fetch('/api/playback/queue/interlude', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageUrl: img }),
-          });
+        if (hasNextItem) {
+          const imageUrl = await pickInterludeImage();
+          if (imageUrl) {
+            await fetch('/api/playback/queue/interlude', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ imageUrl }),
+            });
+          } else {
+            await apiAdvanceQueue();
+          }
         } else {
           await apiAdvanceQueue();
         }
