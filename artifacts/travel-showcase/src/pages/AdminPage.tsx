@@ -325,7 +325,7 @@ function WaitingScreenPanel() {
         const res = await fetch('/api/waiting-config');
         if (res.ok) {
           const serverData: WaitingConfig = await res.json();
-          const serverHasData = !!(serverData.channelName || serverData.topics.length > 0 || serverData.customTickerItems.length > 0);
+          const serverHasData = !!(serverData.channelName || serverData.topics.length > 0 || serverData.customTickerItems.length > 0 || (serverData.interludeImages ?? []).length > 0);
           if (serverHasData) {
             const merged = { ...EMPTY_CONFIG, ...serverData };
             setConfig(merged);
@@ -390,8 +390,15 @@ function WaitingScreenPanel() {
   const handleSaveInterlude = async () => {
     setInterludeSaving(true);
     try {
-      localStorage.setItem(WAITING_CONFIG_KEY, JSON.stringify(config));
-      await pushToServer(config);
+      // Auto-flush any URL still in the input field before saving
+      let finalConfig = config;
+      if (newInterludeUrl.trim()) {
+        finalConfig = { ...config, interludeImages: [...(config.interludeImages ?? []), newInterludeUrl.trim()] };
+        setConfig(finalConfig);
+        setNewInterludeUrl('');
+      }
+      localStorage.setItem(WAITING_CONFIG_KEY, JSON.stringify(finalConfig));
+      await pushToServer(finalConfig);
       setInterludeSaved(true);
       setTimeout(() => setInterludeSaved(false), 2500);
     } catch { /* ignore */ }
