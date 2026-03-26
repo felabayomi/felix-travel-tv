@@ -506,21 +506,35 @@ router.post("/", async (req, res) => {
       publishedAt: resolvedDate,
     }).returning();
 
-    // Generate images for all snippets in parallel
-    const snippetRows = await Promise.all(
-      content.snippets.map(async (s, index) => {
-        const imageUrl = await generateImage(s.imagePrompt).catch(() => null);
-        return {
-          articleId: article.id,
-          snippetOrder: index,
-          headline: s.headline,
-          caption: s.caption,
-          explanation: s.explanation,
-          imageUrl,
-          imagePrompt: s.imagePrompt,
-        };
-      })
-    );
+    // Generate images sequentially to avoid rate-limiting.
+    // Parallel requests cause some to silently fail when the API is busy.
+    const snippetRows: Array<{
+      articleId: number;
+      snippetOrder: number;
+      headline: string;
+      caption: string;
+      explanation: string;
+      imageUrl: string | null;
+      imagePrompt: string;
+    }> = [];
+    for (let index = 0; index < content.snippets.length; index++) {
+      const s = content.snippets[index];
+      // Try twice before giving up so transient errors don't leave blank chapters
+      let imageUrl = await generateImage(s.imagePrompt);
+      if (!imageUrl) {
+        await new Promise(r => setTimeout(r, 1500));
+        imageUrl = await generateImage(s.imagePrompt);
+      }
+      snippetRows.push({
+        articleId: article.id,
+        snippetOrder: index,
+        headline: s.headline,
+        caption: s.caption,
+        explanation: s.explanation,
+        imageUrl,
+        imagePrompt: s.imagePrompt,
+      });
+    }
 
     await db.insert(snippetsTable).values(snippetRows);
 
