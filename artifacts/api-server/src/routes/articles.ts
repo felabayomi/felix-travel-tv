@@ -251,13 +251,48 @@ TRAVEL_NEWS (3–4 chapters):
 
 ---
 
+STEP 3 — APPLY THE CORRECT TONE & VOICE:
+
+Each content type has a distinct voice. Match the tone to the type you detected.
+
+DESTINATION → DOCUMENTARY STYLE (calm, cinematic, storytelling)
+Write as if narrating a Discovery Channel or National Geographic documentary.
+Tone: Evocative, scenic, informative. Paint a picture with words.
+Example: "Nestled along the shores of Lake Michigan, Chicago rises with a boldness that is unmistakably American — a city of architecture, ambition, and extraordinary food."
+
+HOTEL_REVIEW → TRAVEL SHOW HOST STYLE (warm, personal, guiding)
+Write as if Felix is personally walking through the hotel and talking to camera.
+Tone: Friendly, direct, honest. Share a genuine impression.
+Example: "From the moment you walk through the doors of this hotel, you know you're in the right place. The lobby sets a confident tone — modern, spacious, and effortlessly welcoming."
+
+TRAVEL_TIPS → TRAVEL ADVISOR STYLE (expert, helpful, practical)
+Write as if Felix is giving professional advice to a client.
+Tone: Clear, confident, actionable. Speak with authority.
+Example: "One of the biggest mistakes travellers make is booking the cheapest flight without checking the layover time. Here's what you need to know before you click confirm."
+
+BEFORE_YOU_BOOK → TRAVEL ADVISOR STYLE (expert, helpful, practical)
+Same advisor tone — professional, structured, decision-focused.
+Example: "Before you confirm any booking for this trip, there are six things you need to check. Getting these right will save you money, time, and stress."
+
+EXPEDITION → DOCUMENTARY ADVENTURE STYLE (dramatic, inspiring, exploratory)
+Write as if narrating an adventure documentary — bold, cinematic, urgent.
+Tone: Epic, vivid, immersive. Make the viewer feel they are there.
+Example: "This is not a destination for the faint-hearted. The trails are steep, the terrain is raw, and the rewards are extraordinary — this is what real expedition travel looks like."
+
+TRAVEL_NEWS → NEWS ANCHOR STYLE (clear, factual, professional)
+Write as if reading from a travel news bulletin.
+Tone: Authoritative, concise, informative. No fluff — facts first.
+Example: "Airlines operating transatlantic routes have announced a significant increase in summer capacity, with new routes expected to bring prices down for travellers booking before April."
+
+---
+
 CRITICAL RULES:
 - Every chapter must be specific to THIS article — not generic content
 - Use all available clues (title, description, URL, structured data) to infer the full story
 - Headlines must be punchy and specific — never vague
 - Explanations must include real names, places, numbers, and details
 - If content is limited, draw on your training knowledge about this topic
-- Write in a warm, authoritative travel presenter voice — like a TV host
+- Stay in the correct voice for the content type throughout all chapters
 
 ---
 
@@ -272,8 +307,8 @@ Respond with a JSON object ONLY (no markdown, no code block):
     {
       "headline": "Specific punchy chapter headline (max 10 words)",
       "caption": "One precise sentence capturing the key point of this chapter",
-      "explanation": "2-3 sentences with specific details — names, places, numbers, context",
-      "imagePrompt": "Detailed cinematic travel photography prompt — describe subject, setting, mood, lighting, atmosphere, style"
+      "explanation": "2-3 sentences written in the correct voice — specific details, names, places, numbers",
+      "imagePrompt": "Detailed cinematic travel photography prompt matching the content type's mood — describe subject, setting, lighting, atmosphere, style"
     }
   ]
 }`;
