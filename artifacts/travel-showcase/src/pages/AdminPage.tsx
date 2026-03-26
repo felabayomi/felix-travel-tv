@@ -1701,18 +1701,36 @@ function AdminDashboard() {
 
   // When snippet changes (via nav), update server + speak
   const prevIndexRef = useRef<{ index: number; articleId: number | null }>({ index: -1, articleId: null });
+
+  // Always-current refs so async callbacks (voice, timer) never read stale closure values
+  const currentSnippetIndexRef = useRef(currentSnippetIndex);
+  useEffect(() => { currentSnippetIndexRef.current = currentSnippetIndex; }, [currentSnippetIndex]);
+  const snippetsRef = useRef(snippets);
+  useEffect(() => { snippetsRef.current = snippets; }, [snippets]);
+  const playingArticleIdRef = useRef(playingArticleId);
+  useEffect(() => { playingArticleIdRef.current = playingArticleId; }, [playingArticleId]);
+  const queueAutoplayRef = useRef(queueAutoplay);
+  useEffect(() => { queueAutoplayRef.current = queueAutoplay; }, [queueAutoplay]);
+  const playingQueueIndexRef = useRef(playingQueueIndex);
+  useEffect(() => { playingQueueIndexRef.current = playingQueueIndex; }, [playingQueueIndex]);
+  const queueLengthRef = useRef(queue.length);
+  useEffect(() => { queueLengthRef.current = queue.length; }, [queue.length]);
+
   const updatePlayback = useCallback(async (articleId: number, index: number) => {
     setCurrentSnippetIndex(index);
     await setPlayback(articleId, index);
   }, []);
 
   const handleNext = useCallback(async () => {
-    if (!playingArticleId || snippets.length === 0) return;
-    const next = currentSnippetIndex + 1;
-    if (next >= snippets.length) {
+    const articleId = playingArticleIdRef.current;
+    const idx = currentSnippetIndexRef.current;
+    const snips = snippetsRef.current;
+    if (!articleId || snips.length === 0) return;
+    const next = idx + 1;
+    if (next >= snips.length) {
       // Last chapter done — advance queue if autoplay is on
-      if (queueAutoplay) {
-        const hasNextItem = playingQueueIndex < queue.length - 1;
+      if (queueAutoplayRef.current) {
+        const hasNextItem = playingQueueIndexRef.current < queueLengthRef.current - 1;
         const cfg = await fetch('/api/waiting-config').then(r => r.json()).catch(() => null);
         const interludeImages: string[] = cfg?.interludeImages ?? [];
         if (hasNextItem && interludeImages.length > 0) {
@@ -1721,7 +1739,6 @@ function AdminDashboard() {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ imageUrl: img }),
           });
-          // Public display handles 30s countdown then calls /queue/advance automatically
         } else {
           await apiAdvanceQueue();
         }
@@ -1729,14 +1746,17 @@ function AdminDashboard() {
       }
       return;
     }
-    updatePlayback(playingArticleId, next);
-  }, [playingArticleId, snippets.length, currentSnippetIndex, updatePlayback, queueAutoplay, loadQueue, playingQueueIndex, queue.length]);
+    updatePlayback(articleId, next);
+  }, [updatePlayback, loadQueue]);
 
   const handlePrev = useCallback(() => {
-    if (!playingArticleId || snippets.length === 0) return;
-    const prev = Math.max(currentSnippetIndex - 1, 0);
-    updatePlayback(playingArticleId, prev);
-  }, [playingArticleId, snippets.length, currentSnippetIndex, updatePlayback]);
+    const articleId = playingArticleIdRef.current;
+    const idx = currentSnippetIndexRef.current;
+    const snips = snippetsRef.current;
+    if (!articleId || snips.length === 0) return;
+    const prev = Math.max(idx - 1, 0);
+    updatePlayback(articleId, prev);
+  }, [updatePlayback]);
 
   // Always-current ref so timer/voice callbacks never hold a stale handleNext closure
   const handleNextRef = useRef(handleNext);
@@ -1755,37 +1775,14 @@ function AdminDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSnippetIndex, snippets, voiceEnabled, speak, autoPlay, queueAutoplay, playingArticleId]);
 
-  // Timer-based auto-advance when voice is off
-  // handleNext intentionally omitted from deps — ref keeps it fresh without restarting the timer
+  // Timer-based auto-advance when voice is off (handleNext reads from refs — always fresh)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const chapterAutoplay = autoPlay || queueAutoplay;
     if (!chapterAutoplay || voiceEnabled || !playingArticleId || snippets.length === 0) return;
-    if (currentSnippetIndex >= snippets.length - 1) {
-      // On last chapter — show interlude or advance queue after delay
-      if (queueAutoplay) {
-        const timer = setTimeout(async () => {
-          const hasNextItem = playingQueueIndex < queue.length - 1;
-          const cfg = await fetch('/api/waiting-config').then(r => r.json()).catch(() => null);
-          const interludeImages: string[] = cfg?.interludeImages ?? [];
-          if (hasNextItem && interludeImages.length > 0) {
-            const img = interludeImages[Math.floor(Math.random() * interludeImages.length)];
-            await fetch('/api/playback/queue/interlude', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ imageUrl: img }),
-            });
-          } else {
-            await apiAdvanceQueue();
-          }
-          await loadQueue();
-        }, AUTO_PLAY_SECONDS * 1000);
-        return () => clearTimeout(timer);
-      }
-      return;
-    }
     const timer = setTimeout(() => handleNextRef.current(), AUTO_PLAY_SECONDS * 1000);
     return () => clearTimeout(timer);
-  }, [autoPlay, queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, loadQueue, playingQueueIndex, queue.length]);
+  }, [autoPlay, queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId]);
 
   // Reset snippet index when the playing article changes
   useEffect(() => {
