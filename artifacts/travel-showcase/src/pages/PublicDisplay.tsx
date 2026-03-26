@@ -585,6 +585,10 @@ export function PublicDisplay() {
     }
   }, [snippetIndex]);
 
+  if (onAir && itemType === 'interlude' && interludeImageUrl) {
+    return <InterludeScreen imageUrl={interludeImageUrl} config={config} />;
+  }
+
   if (!onAir || (!articleId && !videoId)) {
     const hasTopics = (config?.topics?.length ?? 0) > 0;
     const hasWebsite = !!config?.websiteUrl;
@@ -757,10 +761,6 @@ export function PublicDisplay() {
         <GlobalTicker speed={config?.tickerSpeed ?? 3} />
       </div>
     );
-  }
-
-  if (onAir && itemType === 'interlude' && interludeImageUrl) {
-    return <InterludeScreen imageUrl={interludeImageUrl} config={config} />;
   }
 
   if (onAir && itemType === 'video' && videoId != null) {
