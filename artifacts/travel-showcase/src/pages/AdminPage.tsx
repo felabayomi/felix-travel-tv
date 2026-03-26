@@ -2152,6 +2152,7 @@ function AdminDashboard() {
                   <button
                     onClick={async () => {
                       if (queue.length === 0) return;
+                      setVoiceEnabled(true);
                       await apiSetQueueAutoplay(true);
                       await apiPlayQueueItem(0);
                       await loadQueue();
@@ -2168,6 +2169,8 @@ function AdminDashboard() {
                       onClick={async () => {
                         setOnAir(false);
                         setPlayingQueueIndex(-1);
+                        setVoiceEnabled(false);
+                        stop();
                         await fetch('/api/playback/queue/stop', { method: 'POST' });
                         await loadQueue();
                       }}
