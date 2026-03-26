@@ -5,7 +5,7 @@ import {
   Mic, MicOff, Lock, Eye, EyeOff, ExternalLink, Radio,
   Loader2, FileText, Link, CalendarDays, ChevronDown, ChevronUp,
   Settings2, RotateCcw, Play, Pause, Clock, Globe, Archive, ArchiveRestore, Download,
-  ListChecks, CheckSquare, Square
+  ListChecks, CheckSquare, Square, Repeat
 } from 'lucide-react';
 import {
   useGetArticles, useGetArticleSnippets, useCreateArticle,
@@ -107,12 +107,13 @@ interface QueueState {
   items: QueueItem[];
   queueIndex: number;
   autoplayQueue: boolean;
+  loopQueue: boolean;
   onAir: boolean;
 }
 
 async function fetchQueueState(): Promise<QueueState> {
   const res = await fetch('/api/playback/queue', { cache: 'no-store' });
-  if (!res.ok) return { items: [], queueIndex: -1, autoplayQueue: false, onAir: false };
+  if (!res.ok) return { items: [], queueIndex: -1, autoplayQueue: false, loopQueue: false, onAir: false };
   return res.json();
 }
 
@@ -155,6 +156,14 @@ async function apiSetQueueAutoplay(autoplayQueue: boolean): Promise<void> {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ autoplayQueue }),
+  });
+}
+
+async function apiSetQueueLoop(loopQueue: boolean): Promise<void> {
+  await fetch('/api/playback/queue/loop', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ loopQueue }),
   });
 }
 
@@ -1630,6 +1639,7 @@ function AdminDashboard() {
   // ── Broadcast Queue state ──────────────────────────────────────────────────
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [queueAutoplay, setQueueAutoplay] = useState(false);
+  const [queueLoop, setQueueLoop] = useState(false);
   const [playingQueueIndex, setPlayingQueueIndex] = useState(-1);
 
   const loadQueue = useCallback(async () => {
@@ -1637,6 +1647,7 @@ function AdminDashboard() {
     setQueue(state.items);
     setPlayingQueueIndex(state.queueIndex);
     setQueueAutoplay(state.autoplayQueue);
+    setQueueLoop(state.loopQueue);
     setOnAir(state.onAir);
   }, []);
 
@@ -2499,6 +2510,25 @@ function AdminDashboard() {
                   >
                     <Play className={cn("w-3.5 h-3.5", !queueAutoplay && "opacity-40")} />
                     Autoplay {queueAutoplay ? 'On' : 'Off'}
+                  </button>
+
+                  {/* Loop toggle */}
+                  <button
+                    onClick={async () => {
+                      const next = !queueLoop;
+                      setQueueLoop(next);
+                      await apiSetQueueLoop(next);
+                    }}
+                    title={queueLoop ? 'Loop on — queue restarts from the beginning when it finishes' : 'Loop off — queue stops after the last item'}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all",
+                      queueLoop
+                        ? "bg-blue-500/20 border-blue-500/40 text-blue-400"
+                        : "border-border text-white/50 hover:text-white hover:bg-white/5"
+                    )}
+                  >
+                    <Repeat className={cn("w-3.5 h-3.5", !queueLoop && "opacity-40")} />
+                    Loop {queueLoop ? 'On' : 'Off'}
                   </button>
 
                   {/* Play All */}

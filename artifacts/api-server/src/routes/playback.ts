@@ -15,6 +15,7 @@ export interface PlaybackState {
   interludeImageUrl: string | null;
   onAir: boolean;
   autoplayQueue: boolean;
+  loopQueue: boolean;
   queueIndex: number;
   updatedAt: number;
 }
@@ -27,6 +28,7 @@ export let playbackState: PlaybackState = {
   interludeImageUrl: null,
   onAir: false,
   autoplayQueue: false,
+  loopQueue: false,
   queueIndex: -1,
   updatedAt: Date.now(),
 };
@@ -71,22 +73,31 @@ function clearInterludeTimer() {
   }
 }
 
+function resolveNextIndex(currentIndex: number): number | null {
+  const next = currentIndex + 1;
+  if (next < broadcastQueue.length) return next;
+  if (playbackState.loopQueue && broadcastQueue.length > 0) return 0;
+  return null;
+}
+
 function scheduleInterludeAdvance() {
   clearInterludeTimer();
   interludeTimer = setTimeout(() => {
     interludeTimer = null;
-    const next = playbackState.queueIndex + 1;
-    if (playbackState.autoplayQueue && next < broadcastQueue.length) {
-      applyQueueItemAtIndex(next);
-    } else {
-      playbackState = {
-        ...playbackState,
-        itemType: null, articleId: null, videoId: null,
-        interludeImageUrl: null,
-        snippetIndex: 0, queueIndex: -1, onAir: false,
-        updatedAt: Date.now(),
-      };
+    if (playbackState.autoplayQueue) {
+      const next = resolveNextIndex(playbackState.queueIndex);
+      if (next !== null) {
+        applyQueueItemAtIndex(next);
+        return;
+      }
     }
+    playbackState = {
+      ...playbackState,
+      itemType: null, articleId: null, videoId: null,
+      interludeImageUrl: null,
+      snippetIndex: 0, queueIndex: -1, onAir: false,
+      updatedAt: Date.now(),
+    };
   }, INTERLUDE_DURATION_MS);
 }
 
@@ -145,6 +156,7 @@ router.get("/queue", (_req, res) => {
     items: broadcastQueue,
     queueIndex: playbackState.queueIndex,
     autoplayQueue: playbackState.autoplayQueue,
+    loopQueue: playbackState.loopQueue,
     onAir: playbackState.onAir,
   });
 });
@@ -223,18 +235,21 @@ router.post("/queue/interlude", (req, res) => {
 
 router.post("/queue/advance", (_req, res) => {
   clearInterludeTimer();
-  const next = playbackState.queueIndex + 1;
-  if (playbackState.autoplayQueue && next < broadcastQueue.length) {
-    applyQueueItemAtIndex(next);
-  } else {
-    playbackState = {
-      ...playbackState,
-      itemType: null, articleId: null, videoId: null,
-      interludeImageUrl: null,
-      snippetIndex: 0, queueIndex: -1, onAir: false,
-      updatedAt: Date.now(),
-    };
+  if (playbackState.autoplayQueue) {
+    const next = resolveNextIndex(playbackState.queueIndex);
+    if (next !== null) {
+      applyQueueItemAtIndex(next);
+      res.json(playbackState);
+      return;
+    }
   }
+  playbackState = {
+    ...playbackState,
+    itemType: null, articleId: null, videoId: null,
+    interludeImageUrl: null,
+    snippetIndex: 0, queueIndex: -1, onAir: false,
+    updatedAt: Date.now(),
+  };
   res.json(playbackState);
 });
 
@@ -244,6 +259,15 @@ router.patch("/queue/autoplay", (req, res) => {
     res.status(400).json({ error: "autoplayQueue must be a boolean" }); return;
   }
   playbackState = { ...playbackState, autoplayQueue, updatedAt: Date.now() };
+  res.json(playbackState);
+});
+
+router.patch("/queue/loop", (req, res) => {
+  const { loopQueue } = req.body ?? {};
+  if (typeof loopQueue !== 'boolean') {
+    res.status(400).json({ error: "loopQueue must be a boolean" }); return;
+  }
+  playbackState = { ...playbackState, loopQueue, updatedAt: Date.now() };
   res.json(playbackState);
 });
 
