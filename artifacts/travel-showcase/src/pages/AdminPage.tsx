@@ -1764,6 +1764,10 @@ function AdminDashboard() {
 
   useEffect(() => {
     if (!voiceEnabled || !snippets[currentSnippetIndex]) return;
+    // If the article just changed, only speak once currentSnippetIndex has been reset to 0.
+    // This prevents speaking a stale chapter from the previous article before the reset fires.
+    const isNewArticle = prevIndexRef.current.articleId !== playingArticleId;
+    if (isNewArticle && currentSnippetIndex !== 0) return;
     if (prevIndexRef.current.index === currentSnippetIndex && prevIndexRef.current.articleId === playingArticleId) return;
     prevIndexRef.current = { index: currentSnippetIndex, articleId: playingArticleId };
     const chapterAutoplay = autoPlay || queueAutoplay;

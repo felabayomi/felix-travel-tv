@@ -18,6 +18,11 @@ export function useVoiceReader(enabled: boolean) {
   const [isLoading, setIsLoading] = useState(false);
   const [playProgress, setPlayProgress] = useState(0); // 0–1
 
+  // Generation counter: incremented on every speak() call.
+  // After an async fetch completes, we check the generation matches;
+  // if a newer speak() has already started, we discard the stale result.
+  const genRef = useRef(0);
+
   function getAudio(): HTMLAudioElement {
     if (!audioRef.current) {
       const el = new Audio();
@@ -41,12 +46,18 @@ export function useVoiceReader(enabled: boolean) {
 
   const speak = useCallback(async (snippetId: number, onEnded?: () => void) => {
     if (!enabled) return;
+    genRef.current += 1;
+    const myGen = genRef.current;
     stop();
     setIsLoading(true);
     setPlayProgress(0);
 
     try {
       const blobUrl = await fetchAudioBlobUrl(snippetId);
+
+      // Abort if a newer speak() call has already taken over
+      if (genRef.current !== myGen) return;
+
       const el = getAudio();
 
       el.src = blobUrl;
@@ -67,6 +78,7 @@ export function useVoiceReader(enabled: boolean) {
       setIsLoading(false);
       await el.play();
     } catch (err) {
+      if (genRef.current !== myGen) return; // stale, ignore
       console.warn('[voice] TTS playback error:', err);
       setIsLoading(false);
       // If audio fails, still advance after a short delay so slideshow doesn't freeze
