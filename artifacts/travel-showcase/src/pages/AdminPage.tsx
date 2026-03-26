@@ -1371,16 +1371,16 @@ function AdminDashboard() {
     });
   };
 
-  // Auto-select first active article
+  // Auto-select first active article (but not while a video is playing)
   useEffect(() => {
-    if (activeArticles.length > 0 && selectedArticleId === null) {
+    if (activeArticles.length > 0 && selectedArticleId === null && selectedVideoId === null) {
       const first = activeArticles[0];
       setSelectedArticleId(first.id);
       setCurrentSnippetIndex(0);
       setPlayback(first.id, 0).catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [articles, selectedArticleId]);
+  }, [articles, selectedArticleId, selectedVideoId]);
 
   const { data: snippets = [], isLoading: isLoadingSnippets } = useGetArticleSnippets(
     selectedArticleId ?? 0,
@@ -1842,6 +1842,28 @@ function AdminDashboard() {
             </div>
           ) : mainTab === 'waiting' ? (
             <WaitingScreenPanel />
+          ) : selectedVideoId !== null ? (
+            <div className="flex flex-col items-center justify-center h-64 text-center gap-4">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/15 border border-primary/30">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-sm font-semibold text-primary">Video Broadcasting</span>
+              </div>
+              <p className="text-sm text-white/60 max-w-xs">
+                {videos.find(v => v.id === selectedVideoId)?.title ?? 'Video'}
+                {' '}is live on the public display.
+              </p>
+              <button
+                onClick={() => {
+                  setOnAir(false);
+                  setOnAirState(false).catch(() => {});
+                  setSelectedVideoId(null);
+                  setPlayback(null, 0).catch(() => {});
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-destructive/30 text-destructive/70 text-sm hover:bg-destructive/10 transition-all"
+              >
+                <Pause className="w-4 h-4" /> Stop Broadcast
+              </button>
+            </div>
           ) : !selectedArticle ? (
             <div className="flex flex-col items-center justify-center h-64 text-center">
               <p className="text-muted-foreground">Select an article from the left to start</p>
