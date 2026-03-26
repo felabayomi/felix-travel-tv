@@ -617,6 +617,9 @@ function WaitingScreenPanel() {
                     : <span className="text-muted-foreground/50">Pick date &amp; time…</span>
                   }
                 </span>
+                {config.broadcastTime && (
+                  <span className="text-[10px] text-muted-foreground/50 uppercase tracking-widest flex-shrink-0">Click to change</span>
+                )}
               </div>
               <input
                 type="datetime-local"
