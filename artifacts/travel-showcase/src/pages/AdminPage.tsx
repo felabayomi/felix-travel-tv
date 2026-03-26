@@ -1966,6 +1966,22 @@ function AdminDashboard() {
                       Add {selectedArticleIds.size > 0 ? selectedArticleIds.size : ''} to Queue
                     </button>
                     <button
+                      onClick={async () => {
+                        const items = activeArticles.filter(a => selectedArticleIds.has(a.id));
+                        for (const a of items) {
+                          await archiveArticle(a.id, true).catch(() => {});
+                        }
+                        queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+                        setSelectedArticleIds(new Set());
+                        setArticleSelectMode(false);
+                      }}
+                      disabled={selectedArticleIds.size === 0}
+                      className="flex items-center gap-1.5 text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg hover:bg-amber-500/30 disabled:opacity-40 transition-all font-medium"
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                      Archive {selectedArticleIds.size > 0 ? selectedArticleIds.size : ''}
+                    </button>
+                    <button
                       onClick={() => { setArticleSelectMode(false); setSelectedArticleIds(new Set()); }}
                       className="p-1.5 rounded-lg text-muted-foreground hover:text-white transition-colors"
                     >
@@ -2018,6 +2034,22 @@ function AdminDashboard() {
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Add {selectedVideoIds.size > 0 ? selectedVideoIds.size : ''} to Queue
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const items = activeVideos.filter(v => selectedVideoIds.has(v.id));
+                        for (const v of items) {
+                          await archiveVideo(v.id, true).catch(() => {});
+                        }
+                        reloadVideos();
+                        setSelectedVideoIds(new Set());
+                        setVideoSelectMode(false);
+                      }}
+                      disabled={selectedVideoIds.size === 0}
+                      className="flex items-center gap-1.5 text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg hover:bg-amber-500/30 disabled:opacity-40 transition-all font-medium"
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                      Archive {selectedVideoIds.size > 0 ? selectedVideoIds.size : ''}
                     </button>
                     <button
                       onClick={() => { setVideoSelectMode(false); setSelectedVideoIds(new Set()); }}
