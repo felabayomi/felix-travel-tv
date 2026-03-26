@@ -545,6 +545,54 @@ router.post("/", async (req, res) => {
   }
 });
 
+// POST /api/articles/:id/regenerate-images
+// Re-generates images for any snippets that are missing one (imageUrl = null).
+// Runs sequentially with one retry per snippet.
+router.post("/:id/regenerate-images", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid ID" });
+      return;
+    }
+
+    const articles = await db.select().from(articlesTable).where(eq(articlesTable.id, id));
+    if (articles.length === 0) {
+      res.status(404).json({ error: "Article not found" });
+      return;
+    }
+
+    const snippets = await db
+      .select()
+      .from(snippetsTable)
+      .where(eq(snippetsTable.articleId, id))
+      .orderBy(asc(snippetsTable.snippetOrder));
+
+    const missing = snippets.filter(s => !s.imageUrl && s.imagePrompt);
+    let regenerated = 0;
+
+    for (const snippet of missing) {
+      let imageUrl = await generateImage(snippet.imagePrompt!);
+      if (!imageUrl) {
+        await new Promise(r => setTimeout(r, 1500));
+        imageUrl = await generateImage(snippet.imagePrompt!);
+      }
+      if (imageUrl) {
+        await db
+          .update(snippetsTable)
+          .set({ imageUrl })
+          .where(eq(snippetsTable.id, snippet.id));
+        regenerated++;
+      }
+    }
+
+    res.json({ total: snippets.length, missing: missing.length, regenerated });
+  } catch (err) {
+    req.log.error({ err }, "Failed to regenerate images");
+    res.status(500).json({ error: "Failed to regenerate images" });
+  }
+});
+
 // DELETE /api/articles/:id
 router.delete("/:id", async (req, res) => {
   try {

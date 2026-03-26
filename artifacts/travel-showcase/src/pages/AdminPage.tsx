@@ -5,7 +5,7 @@ import {
   Mic, MicOff, Lock, Eye, EyeOff, ExternalLink, Radio,
   Loader2, FileText, Link, CalendarDays, ChevronDown, ChevronUp,
   Settings2, RotateCcw, Play, Pause, Clock, Globe, Archive, ArchiveRestore, Download,
-  ListChecks, CheckSquare, Square, Repeat, Search
+  ListChecks, CheckSquare, Square, Repeat, Search, Images
 } from 'lucide-react';
 import {
   useGetArticles, useGetArticleSnippets, useCreateArticle,
@@ -1779,6 +1779,7 @@ function AdminDashboard() {
   const [editingArticleId, setEditingArticleId] = useState<number | null>(null);
   const [editingVideoId, setEditingVideoId] = useState<number | null>(null);
   const [exportingArticleId, setExportingArticleId] = useState<number | null>(null);
+  const [regenImagesId, setRegenImagesId] = useState<number | null>(null);
   const [articleSearch, setArticleSearch] = useState('');
   const [videoSearch, setVideoSearch] = useState('');
   const [articleSelectMode, setArticleSelectMode] = useState(false);
@@ -2599,6 +2600,40 @@ function AdminDashboard() {
                           title="Archive article"
                         >
                           <Archive className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={async e => {
+                            e.stopPropagation();
+                            if (regenImagesId === a.id) return;
+                            setRegenImagesId(a.id);
+                            try {
+                              const res = await fetch(`/api/articles/${a.id}/regenerate-images`, { method: 'POST' });
+                              const data = await res.json();
+                              if (data.missing === 0) {
+                                console.info(`Article ${a.id}: all images already present`);
+                              } else {
+                                console.info(`Article ${a.id}: regenerated ${data.regenerated}/${data.missing} missing images`);
+                                queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+                              }
+                            } catch (err) {
+                              console.error('Regenerate images failed:', err);
+                            } finally {
+                              setRegenImagesId(null);
+                            }
+                          }}
+                          disabled={regenImagesId === a.id}
+                          className={cn(
+                            "p-1 rounded transition-all",
+                            regenImagesId === a.id
+                              ? "text-primary cursor-wait"
+                              : "text-muted-foreground hover:text-sky-400"
+                          )}
+                          title={regenImagesId === a.id ? "Regenerating images…" : "Regenerate missing images"}
+                        >
+                          {regenImagesId === a.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Images className="w-3.5 h-3.5" />
+                          }
                         </button>
                         <button
                           onClick={async e => {
