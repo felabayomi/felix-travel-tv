@@ -355,7 +355,7 @@ function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: Waiti
           </span>
           <span className="w-px h-4 bg-white/20" />
           <span style={{ fontFamily: 'Oswald, sans-serif', color: '#c8102e', fontWeight: 600, fontSize: '12px', letterSpacing: '0.2em' }}>
-            TRAVEL DEALS
+            FELIX ABAYOMI TRAVEL ADVISOR
           </span>
         </div>
         <div className="flex items-center gap-2 px-3 py-0.5 rounded-sm" style={{ background: '#c8102e' }}>
@@ -368,7 +368,14 @@ function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: Waiti
 
       {/* Center label */}
       <div className="absolute inset-0 flex flex-col items-center justify-end z-20 pb-24">
-        <div className="text-center px-8">
+        <div className="text-center px-8 flex flex-col items-center gap-2">
+          <p style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontSize: '22px', fontWeight: 700, letterSpacing: '0.08em', textShadow: '0 2px 12px rgba(0,0,0,0.7)' }}>
+            FELIX ABAYOMI TRAVEL ADVISOR
+          </p>
+          <p style={{ fontFamily: 'IBM Plex Sans, sans-serif', color: 'rgba(255,255,255,0.65)', fontSize: '13px', letterSpacing: '0.06em', fontStyle: 'italic', textShadow: '0 1px 8px rgba(0,0,0,0.6)' }}>
+            Plan smarter. Travel better. Experience more.
+          </p>
+          <div className="w-10 h-px mt-1" style={{ background: '#c8102e' }} />
           <p style={{ fontFamily: 'Oswald, sans-serif', color: '#c8102e', fontSize: '12px', letterSpacing: '0.28em', fontWeight: 600 }}>
             COMING UP NEXT IN {remaining}s
           </p>
@@ -501,6 +508,16 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Brand footer — always visible on waiting screen */}
+      <div className="absolute bottom-20 left-0 right-0 z-30 flex flex-col items-center gap-1 pointer-events-none">
+        <p style={{ fontFamily: 'Oswald, sans-serif', color: 'rgba(255,255,255,0.55)', fontSize: '13px', fontWeight: 700, letterSpacing: '0.14em' }}>
+          FELIX ABAYOMI TRAVEL ADVISOR
+        </p>
+        <p style={{ fontFamily: 'IBM Plex Sans, sans-serif', color: 'rgba(255,255,255,0.3)', fontSize: '11px', letterSpacing: '0.05em', fontStyle: 'italic' }}>
+          Plan smarter. Travel better. Experience more.
+        </p>
       </div>
 
       <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
