@@ -170,37 +170,110 @@ async function generateArticleContent(url: string, page: PageData): Promise<Arti
     page.bodyText && `Article body:\n${page.bodyText}`,
   ].filter(Boolean).join("\n\n");
 
-  const prompt = `You are a professional news editor. Your job is to read a news article and break it into 5 to 10 rich, engaging story chapters — like a visual documentary.
+  const prompt = `You are a travel content producer for Felix Travel TV — a professional travel channel that presents content in structured, episodic TV show format.
+
+Your job is to read the article below and break it into chapters following Felix Travel TV's standard episode formats.
 
 URL: ${url}
 
-${hasRichContent ? `ARTICLE CONTENT:\n${context}` : `NOTE: This article's full text could not be extracted (site may use JavaScript rendering, require login, or block bots). However, use ALL of the following partial data to infer and create meaningful, specific content about this story — do NOT give generic placeholder content:
+${hasRichContent ? `ARTICLE CONTENT:\n${context}` : `NOTE: This article's full text could not be extracted (site may use JavaScript rendering, require login, or block bots). Use ALL of the following partial data to infer and create meaningful, specific content — do NOT write generic placeholder content:
 
 ${context || `URL path clues: ${url}`}
 
-Even with limited data, create substantive, specific chapters that sound like real journalism about this actual story.`}
+Even with limited data, create substantive, specific chapters that sound like real travel journalism about this actual story.`}
 
-Your task: Break this article into exactly 5 to 10 chapters. Each chapter covers a DIFFERENT, SPECIFIC aspect of this particular story.
+---
+
+STEP 1 — DETECT THE CONTENT TYPE:
+Read the article and classify it as ONE of these types:
+
+- DESTINATION: A city, country, or region guide (e.g. "Best things to do in Tokyo")
+- HOTEL_REVIEW: A hotel, resort, or accommodation review
+- TRAVEL_TIPS: A tips, advice, or how-to article (e.g. "How to save money flying")
+- BEFORE_YOU_BOOK: A pre-trip planning or booking guide
+- EXPEDITION: An adventure, road trip, or outdoor destination feature
+- TRAVEL_NEWS: A short news item, announcement, deal alert, or industry update
+
+---
+
+STEP 2 — APPLY THE CORRECT CHAPTER STRUCTURE:
+
+Use the matching structure below. Each chapter title shown is a GUIDE — adapt it to the specific content.
+
+DESTINATION (7 chapters):
+1. Introduction — Hook the viewer; set the scene
+2. About the Destination — Key facts, geography, character of the place
+3. Best Time to Visit — Seasons, weather, events, crowds
+4. Where to Stay — Neighbourhoods, hotel types, price ranges
+5. Things to Do — Top attractions, must-see sites
+6. Food & Experiences — Local cuisine, nightlife, culture
+7. Travel Tips & Before You Book — Visas, transport, practical advice
+
+HOTEL_REVIEW (6 chapters):
+1. Introduction — First impressions; why this hotel?
+2. Location — Neighbourhood, accessibility, what's nearby
+3. Rooms & Design — Room types, interiors, views, quality
+4. Amenities & Services — Pool, spa, dining, concierge
+5. Who Is This Hotel Best For — Couples, families, business, budget
+6. Booking Tips — Best rates, when to book, what to watch out for
+
+TRAVEL_TIPS (6 chapters):
+1. Introduction — Why this tip matters
+2. The Problem — What travellers get wrong
+3. Why It Happens — Root cause or common mistake
+4. What To Do — The correct approach, step by step
+5. Pro Tips — Expert-level advice, insider tricks
+6. Summary & Action — Recap and clear call to action
+
+BEFORE_YOU_BOOK (6 chapters):
+1. Introduction — Overview of the trip or destination
+2. Trip Overview — Highlights and what to expect
+3. Flights — Best airlines, routes, timing, cost tips
+4. Hotels — Recommended stays, price ranges, location tips
+5. Transport & Activities — Getting around, must-do experiences
+6. Final Advice — Last checks before confirming the booking
+
+EXPEDITION (8 chapters):
+1. Introduction — The adventure begins; hook the viewer
+2. Location Overview — Where it is and why it's special
+3. How To Get There — Transport, access, logistics
+4. Best Time To Go — Seasons, conditions, peak vs. off-peak
+5. Where To Stay — Camps, lodges, or overnight options
+6. Things To Do — Activities, highlights, bucket list moments
+7. What To Pack — Gear, clothing, essentials
+8. Travel Tips — Safety, booking advice, final checklist
+
+TRAVEL_NEWS (3–4 chapters):
+1. The Story — What happened or what was announced
+2. Why It Matters — Impact for travellers
+3. What To Do Next — How travellers can act on this
+4. (Optional) Background — Context or history if relevant
+
+---
 
 CRITICAL RULES:
-- Every chapter must be about this SPECIFIC story/article — not generic news
-- Use all available clues (title, description, URL keywords, structured data) to infer the full story
-- Headlines must be punchy and journalistic, not vague
-- Explanations must be specific and informative, not "details are emerging"
-- If content is limited, use what you know about this topic from your training data
+- Every chapter must be specific to THIS article — not generic content
+- Use all available clues (title, description, URL, structured data) to infer the full story
+- Headlines must be punchy and specific — never vague
+- Explanations must include real names, places, numbers, and details
+- If content is limited, draw on your training knowledge about this topic
+- Write in a warm, authoritative travel presenter voice — like a TV host
+
+---
 
 Respond with a JSON object ONLY (no markdown, no code block):
 {
-  "title": "Concise journalistic headline for the full article",
+  "title": "Concise, engaging headline for the full article",
   "summary": "2-3 sentence summary of what this article is about",
-  "source": "The news outlet name (e.g. 'BBC News', 'Reuters', 'Daily Felix')",
+  "source": "The news outlet name (e.g. 'BBC Travel', 'Reuters', 'Felix Travel TV')",
   "publishedAt": "ISO 8601 date (use article date if found, otherwise: ${new Date().toISOString()})",
+  "contentType": "DESTINATION | HOTEL_REVIEW | TRAVEL_TIPS | BEFORE_YOU_BOOK | EXPEDITION | TRAVEL_NEWS",
   "snippets": [
     {
-      "headline": "Specific punchy headline (max 10 words)",
-      "caption": "One precise sentence with the key fact of this chapter",
-      "explanation": "2-3 sentences with specific context, numbers, names, and details",
-      "imagePrompt": "Detailed cinematic image prompt for this specific chapter — describe subject, setting, mood, lighting, atmosphere"
+      "headline": "Specific punchy chapter headline (max 10 words)",
+      "caption": "One precise sentence capturing the key point of this chapter",
+      "explanation": "2-3 sentences with specific details — names, places, numbers, context",
+      "imagePrompt": "Detailed cinematic travel photography prompt — describe subject, setting, mood, lighting, atmosphere, style"
     }
   ]
 }`;
@@ -215,11 +288,11 @@ Respond with a JSON object ONLY (no markdown, no code block):
   try {
     const parsed = JSON.parse(content);
     const snippets: SnippetData[] = Array.isArray(parsed.snippets)
-      ? parsed.snippets.slice(0, 10).map((s: any) => ({
-          headline: s.headline || "Breaking Development",
-          caption: s.caption || "Key development in this story.",
-          explanation: s.explanation || "Details are emerging about this significant development.",
-          imagePrompt: s.imagePrompt || "Dramatic cinematic news photograph, high contrast lighting",
+      ? parsed.snippets.slice(0, 8).map((s: any) => ({
+          headline: s.headline || "Travel Highlight",
+          caption: s.caption || "A key moment from this story.",
+          explanation: s.explanation || "More details are available about this travel story.",
+          imagePrompt: s.imagePrompt || "Cinematic travel photography, golden hour lighting, beautiful destination, high quality",
         }))
       : [];
 
@@ -228,7 +301,7 @@ Respond with a JSON object ONLY (no markdown, no code block):
     }
 
     return {
-      title: parsed.title || "Breaking News",
+      title: parsed.title || "Felix Travel TV Feature",
       summary: parsed.summary || "An important story is developing.",
       source: parsed.source || new URL(url).hostname.replace(/^www\./, ""),
       publishedAt: parsed.publishedAt || new Date().toISOString(),
