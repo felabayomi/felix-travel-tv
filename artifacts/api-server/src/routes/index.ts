@@ -114,6 +114,30 @@ router.patch("/articles/:id", async (req, res) => {
   }
 });
 
+// Proxy external images (for interlude images — bypasses hotlink protection / CORS)
+router.get("/proxy-image", async (req, res) => {
+  const url = req.query.url as string | undefined;
+  if (!url || typeof url !== 'string') { res.status(400).end(); return; }
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; NewsReaderBot/1.0)',
+        'Accept': 'image/*,*/*',
+      },
+      redirect: 'follow',
+    });
+    if (!response.ok) { res.status(response.status).end(); return; }
+    const contentType = response.headers.get('content-type') ?? 'image/jpeg';
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.send(buffer);
+  } catch {
+    res.status(502).end();
+  }
+});
+
 // Serve snippet images at /api/snippets/:id/image
 router.get("/snippets/:id/image", async (req, res) => {
   try {
