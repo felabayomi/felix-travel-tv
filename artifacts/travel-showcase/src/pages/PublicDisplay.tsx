@@ -68,6 +68,8 @@ interface WaitingConfig {
   customTickerItems: string[];
   tickerSpeed: number;
   rotatingNames: Array<{ name: string; tagline: string }>;
+  ticker2Text: string;
+  ticker2Url: string;
 }
 
 const POLL_MS = 2000;
@@ -234,7 +236,7 @@ function GlobalTicker({ speed = 3, channelName = 'Felix Travel TV' }: { speed?: 
 
   return (
     <div
-      className="absolute bottom-0 left-0 right-0 z-50 flex items-center"
+      className="absolute bottom-[40px] left-0 right-0 z-50 flex items-center"
       style={{ height: '80px', background: 'rgba(3,3,8,0.97)', borderTop: '2px solid #c8102e', overflow: 'hidden' }}
     >
       {/* Logo + label */}
@@ -285,6 +287,59 @@ function GlobalTicker({ speed = 3, channelName = 'Felix Travel TV' }: { speed?: 
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+function SecondaryTicker({ text, url, speed = 3 }: { text: string; url?: string; speed?: number }) {
+  if (!text.trim()) return null;
+
+  const pps = TICKER_SPEEDS_PPS[Math.min(Math.max(speed, 1), 5) - 1] ?? 50;
+  const displayUrl = url ? url.replace(/^https?:\/\//, '') : '';
+  const segment = displayUrl
+    ? `${text.toUpperCase()}  ·  ${displayUrl.toUpperCase()}`
+    : text.toUpperCase();
+  const CHAR_WIDTH_PX = 10;
+  const stripWidth = segment.length * CHAR_WIDTH_PX;
+  const duration = Math.max(4, stripWidth / pps);
+  const animName = `ticker2-scroll-${pps}`;
+
+  const textStyle: React.CSSProperties = {
+    fontFamily: 'IBM Plex Sans, sans-serif',
+    fontWeight: 500,
+    fontSize: '15px',
+    color: 'rgba(255,255,255,0.75)',
+    letterSpacing: '0.06em',
+    whiteSpace: 'nowrap',
+    paddingRight: '5rem',
+  };
+
+  return (
+    <div
+      className="absolute bottom-0 left-0 right-0 z-50 flex items-center"
+      style={{ height: '40px', background: 'rgba(10,18,40,0.98)', borderTop: '1px solid rgba(200,16,46,0.35)', overflow: 'hidden' }}
+    >
+      {/* Site label pill */}
+      <div
+        className="flex-shrink-0 flex items-center px-5 h-full"
+        style={{ background: '#c8102e', minWidth: '120px' }}
+      >
+        <span style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, fontSize: '11px', color: '#fff', letterSpacing: '0.14em' }}>
+          VISIT US
+        </span>
+      </div>
+
+      {/* Scrolling strip */}
+      <div style={{ flex: 1, overflow: 'hidden', height: '40px', display: 'flex', alignItems: 'center' }}>
+        <style>{`@keyframes ${animName}{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
+        <div
+          key={`${pps}-${segment.length}`}
+          style={{ display: 'inline-flex', animation: `${animName} ${duration}s linear infinite`, willChange: 'transform' }}
+        >
+          <span style={textStyle}>{segment}</span>
+          <span style={textStyle}>{segment}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -394,6 +449,7 @@ function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: Waiti
 
       {/* Ticker */}
       <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
+      <SecondaryTicker text={config?.ticker2Text ?? ''} url={config?.ticker2Url} speed={config?.tickerSpeed ?? 3} />
     </main>
   );
 }
@@ -511,6 +567,7 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
       </div>
 
       <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
+      <SecondaryTicker text={config?.ticker2Text ?? ''} url={config?.ticker2Url} speed={config?.tickerSpeed ?? 3} />
     </main>
   );
 }
@@ -723,7 +780,7 @@ export function PublicDisplay() {
         </motion.div>
 
         {/* Brand footer — always visible above the ticker */}
-        <div className="absolute bottom-20 left-0 right-0 z-30 flex flex-col items-center gap-1 pointer-events-none">
+        <div className="absolute bottom-[120px] left-0 right-0 z-30 flex flex-col items-center gap-1 pointer-events-none">
           <p style={{ fontFamily: 'Oswald, sans-serif', color: 'rgba(255,255,255,0.55)', fontSize: '13px', fontWeight: 700, letterSpacing: '0.14em' }}>
             FELIX ABAYOMI TRAVEL ADVISOR
           </p>
@@ -733,6 +790,7 @@ export function PublicDisplay() {
         </div>
 
         <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
+        <SecondaryTicker text={config?.ticker2Text ?? ''} url={config?.ticker2Url} speed={config?.tickerSpeed ?? 3} />
       </div>
     );
   }
@@ -833,6 +891,7 @@ export function PublicDisplay() {
 
       {/* ── Global persistent ticker (always at bottom, never resets on slide change) ── */}
       <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
+      <SecondaryTicker text={config?.ticker2Text ?? ''} url={config?.ticker2Url} speed={config?.tickerSpeed ?? 3} />
 
       <AmbientMusicPlayer />
 

@@ -210,6 +210,8 @@ interface WaitingConfig {
   tickerSpeed: number;
   rotatingNames: Array<{ name: string; tagline: string }>;
   interludeImages: string[];
+  ticker2Text: string;
+  ticker2Url: string;
 }
 
 const EMPTY_CONFIG: WaitingConfig = {
@@ -224,6 +226,8 @@ const EMPTY_CONFIG: WaitingConfig = {
   tickerSpeed: 3,
   rotatingNames: [],
   interludeImages: [],
+  ticker2Text: '',
+  ticker2Url: '',
 };
 
 const PRESETS: Array<{ name: string; description: string; config: Partial<WaitingConfig> }> = [
@@ -648,6 +652,35 @@ function WaitingScreenPanel() {
               value={config.websiteUrl}
               onChange={e => update('websiteUrl', e.target.value)}
               placeholder="e.g. globaltravelplanner.com"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Second Ticker Strip */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Repeat className="w-3.5 h-3.5 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Second Ticker Strip</p>
+        </div>
+        <p className="text-[11px] text-muted-foreground/50">Shown as a smaller scrolling bar below the main news ticker — great for your site name and URL.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[11px] text-muted-foreground mb-1.5 block uppercase tracking-widest">Site name / label</label>
+            <input
+              value={config.ticker2Text}
+              onChange={e => update('ticker2Text', e.target.value)}
+              placeholder="e.g. Felix Abayomi Travel Advisor"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground mb-1.5 block uppercase tracking-widest">Link / URL</label>
+            <input
+              value={config.ticker2Url}
+              onChange={e => update('ticker2Url', e.target.value)}
+              placeholder="e.g. felixabaomitravel.com"
               className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
             />
           </div>
