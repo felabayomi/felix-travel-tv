@@ -1778,6 +1778,7 @@ function AdminDashboard() {
   const [editingVideoId, setEditingVideoId] = useState<number | null>(null);
   const [exportingArticleId, setExportingArticleId] = useState<number | null>(null);
   const [articleSearch, setArticleSearch] = useState('');
+  const [videoSearch, setVideoSearch] = useState('');
   const [articleSelectMode, setArticleSelectMode] = useState(false);
   const [videoSelectMode, setVideoSelectMode] = useState(false);
   const [selectedArticleIds, setSelectedArticleIds] = useState<Set<number>>(new Set());
@@ -2051,6 +2052,17 @@ function AdminDashboard() {
   useEffect(() => { reloadVideos(); }, [reloadVideos]);
 
   const activeVideos = videos.filter(v => !v.archived);
+  const filteredVideos = videoSearch.trim()
+    ? activeVideos.filter(v => {
+        const q = videoSearch.trim().toLowerCase();
+        const domain = (() => { try { return new URL(v.url).hostname.replace('www.', ''); } catch { return ''; } })();
+        return (
+          v.title?.toLowerCase().includes(q) ||
+          (v.source ?? '').toLowerCase().includes(q) ||
+          domain.toLowerCase().includes(q)
+        );
+      })
+    : activeVideos;
 
   const publicUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
 
@@ -2275,29 +2287,44 @@ function AdminDashboard() {
           </div>
 
           {/* Search bar */}
-          {sidebarTab === 'articles' && (
+          {(sidebarTab === 'articles' || sidebarTab === 'videos') && (
             <div className="px-3 pb-2 pt-1 border-b border-border">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50 pointer-events-none" />
-                <input
-                  type="text"
-                  value={articleSearch}
-                  onChange={e => setArticleSearch(e.target.value)}
-                  placeholder="Search by title, source, date…"
-                  className="w-full bg-white/5 border border-border rounded-lg pl-8 pr-7 py-1.5 text-xs text-white placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 transition-colors"
-                />
-                {articleSearch && (
+                {sidebarTab === 'articles' ? (
+                  <input
+                    type="text"
+                    value={articleSearch}
+                    onChange={e => setArticleSearch(e.target.value)}
+                    placeholder="Search by title, source, date…"
+                    className="w-full bg-white/5 border border-border rounded-lg pl-8 pr-7 py-1.5 text-xs text-white placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 transition-colors"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={videoSearch}
+                    onChange={e => setVideoSearch(e.target.value)}
+                    placeholder="Search by title, source, domain…"
+                    className="w-full bg-white/5 border border-border rounded-lg pl-8 pr-7 py-1.5 text-xs text-white placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 transition-colors"
+                  />
+                )}
+                {(sidebarTab === 'articles' ? articleSearch : videoSearch) && (
                   <button
-                    onClick={() => setArticleSearch('')}
+                    onClick={() => sidebarTab === 'articles' ? setArticleSearch('') : setVideoSearch('')}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-white transition-colors"
                   >
                     <X className="w-3 h-3" />
                   </button>
                 )}
               </div>
-              {articleSearch.trim() && (
+              {sidebarTab === 'articles' && articleSearch.trim() && (
                 <p className="text-[10px] text-muted-foreground/40 mt-1 pl-1">
                   {filteredArticles.length} of {activeArticles.length} articles
+                </p>
+              )}
+              {sidebarTab === 'videos' && videoSearch.trim() && (
+                <p className="text-[10px] text-muted-foreground/40 mt-1 pl-1">
+                  {filteredVideos.length} of {activeVideos.length} videos
                 </p>
               )}
             </div>
@@ -2311,8 +2338,14 @@ function AdminDashboard() {
                 <p className="text-xs text-muted-foreground">No videos yet</p>
                 <p className="text-[11px] text-muted-foreground/50 mt-1">Add a YouTube, Vimeo, or direct video URL</p>
               </div>
+            ) : filteredVideos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                <Search className="w-6 h-6 text-muted-foreground/25 mb-2" />
+                <p className="text-xs text-muted-foreground/60">No videos match "{videoSearch}"</p>
+                <button onClick={() => setVideoSearch('')} className="mt-2 text-xs text-primary underline underline-offset-2">Clear search</button>
+              </div>
             ) : (
-              activeVideos.map(video => {
+              filteredVideos.map(video => {
                 const isPlaying = video.id === playingVideoId && onAir;
                 const isEditingV = editingVideoId === video.id;
                 return (
