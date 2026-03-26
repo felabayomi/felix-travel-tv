@@ -307,6 +307,8 @@ function WaitingScreenPanel() {
   const [rotNamesSaved, setRotNamesSaved] = useState(false);
   const [interludeSaving, setInterludeSaving] = useState(false);
   const [interludeSaved, setInterludeSaved] = useState(false);
+  const [ticker2Saving, setTicker2Saving] = useState(false);
+  const [ticker2Saved, setTicker2Saved] = useState(false);
   const [newRotatingName, setNewRotatingName] = useState('');
   const [newRotatingTagline, setNewRotatingTagline] = useState('');
   const [newTopic, setNewTopic] = useState('');
@@ -417,6 +419,17 @@ function WaitingScreenPanel() {
       setTimeout(() => setInterludeSaved(false), 2500);
     } catch { /* ignore */ }
     setInterludeSaving(false);
+  };
+
+  const handleSaveTicker2 = async () => {
+    setTicker2Saving(true);
+    try {
+      localStorage.setItem(WAITING_CONFIG_KEY, JSON.stringify(config));
+      await pushToServer(config);
+      setTicker2Saved(true);
+      setTimeout(() => setTicker2Saved(false), 2500);
+    } catch { /* ignore */ }
+    setTicker2Saving(false);
   };
 
   const addTopic = () => {
@@ -684,6 +697,21 @@ function WaitingScreenPanel() {
               className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
             />
           </div>
+        </div>
+        <div className="flex justify-end pt-1 border-t border-border/40">
+          <button
+            onClick={handleSaveTicker2}
+            disabled={ticker2Saving}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style={{
+              background: ticker2Saved ? 'rgba(34,197,94,0.15)' : 'rgba(200,16,46,0.15)',
+              color: ticker2Saved ? '#22c55e' : '#c8102e',
+              border: ticker2Saved ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(200,16,46,0.3)',
+            }}
+          >
+            {ticker2Saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : ticker2Saved ? <Check className="w-3.5 h-3.5" /> : null}
+            {ticker2Saved ? 'Saved!' : 'Save Second Ticker'}
+          </button>
         </div>
       </div>
 
