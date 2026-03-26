@@ -510,16 +510,6 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
         </div>
       </div>
 
-      {/* Brand footer — always visible on waiting screen */}
-      <div className="absolute bottom-20 left-0 right-0 z-30 flex flex-col items-center gap-1 pointer-events-none">
-        <p style={{ fontFamily: 'Oswald, sans-serif', color: 'rgba(255,255,255,0.55)', fontSize: '13px', fontWeight: 700, letterSpacing: '0.14em' }}>
-          FELIX ABAYOMI TRAVEL ADVISOR
-        </p>
-        <p style={{ fontFamily: 'IBM Plex Sans, sans-serif', color: 'rgba(255,255,255,0.3)', fontSize: '11px', letterSpacing: '0.05em', fontStyle: 'italic' }}>
-          Plan smarter. Travel better. Experience more.
-        </p>
-      </div>
-
       <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
     </main>
   );
@@ -731,6 +721,16 @@ export function PublicDisplay() {
             )}
           </div>
         </motion.div>
+
+        {/* Brand footer — always visible above the ticker */}
+        <div className="absolute bottom-20 left-0 right-0 z-30 flex flex-col items-center gap-1 pointer-events-none">
+          <p style={{ fontFamily: 'Oswald, sans-serif', color: 'rgba(255,255,255,0.55)', fontSize: '13px', fontWeight: 700, letterSpacing: '0.14em' }}>
+            FELIX ABAYOMI TRAVEL ADVISOR
+          </p>
+          <p style={{ fontFamily: 'IBM Plex Sans, sans-serif', color: 'rgba(255,255,255,0.3)', fontSize: '11px', letterSpacing: '0.05em', fontStyle: 'italic' }}>
+            Plan smarter. Travel better. Experience more.
+          </p>
+        </div>
 
         <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
       </div>
