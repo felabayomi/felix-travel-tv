@@ -2015,23 +2015,20 @@ function AdminDashboard() {
   useEffect(() => { speakRef.current = speak; }, [speak]);
 
   useEffect(() => {
-    console.log('[voice-effect] fired', { voiceEnabled, idx: currentSnippetIndex, articleId: playingArticleId, prev: prevIndexRef.current, token: voiceRestartToken, snippetId: snippets[currentSnippetIndex]?.id });
-    if (!voiceEnabled || !snippets[currentSnippetIndex]) { console.log('[voice-effect] early-return: voiceEnabled=', voiceEnabled, 'snippet=', snippets[currentSnippetIndex]); return; }
+    if (!voiceEnabled || !snippets[currentSnippetIndex]) return;
     // If a genuinely different article is now playing, wait until snippet index resets to 0.
     // null means "fresh reset" — allow any chapter index to proceed.
     const isNewArticle = prevIndexRef.current.articleId !== null && prevIndexRef.current.articleId !== playingArticleId;
-    if (isNewArticle && currentSnippetIndex !== 0) { console.log('[voice-effect] early-return: new article but idx', currentSnippetIndex); return; }
+    if (isNewArticle && currentSnippetIndex !== 0) return;
     // Skip if we already started speaking this exact snippet for this article.
     if (
       prevIndexRef.current.index === currentSnippetIndex &&
       prevIndexRef.current.articleId === playingArticleId
-    ) { console.log('[voice-effect] early-return: already spoken idx', currentSnippetIndex); return; }
+    ) return;
     prevIndexRef.current = { index: currentSnippetIndex, articleId: playingArticleId };
-    console.log('[voice-effect] SPEAKING snippet', snippets[currentSnippetIndex].id, 'autoplay=', queueAutoplayRef.current);
     // Always attach onEnded; it checks queueAutoplayRef at the moment it fires
     // so autoplay can be toggled on/off between the speak() call and when it ends.
     speakRef.current(snippets[currentSnippetIndex].id, () => {
-      console.log('[voice-effect] onEnded fired for snippet', snippets[currentSnippetIndex]?.id, 'autoplay=', queueAutoplayRef.current);
       if (queueAutoplayRef.current) advanceRef.current();
     });
   // queueAutoplay is intentionally NOT in deps — accessed via ref so toggling it

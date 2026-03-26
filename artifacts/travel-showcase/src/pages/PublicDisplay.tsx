@@ -400,21 +400,11 @@ const INTERLUDE_DURATION = 30;
 
 function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: WaitingConfig | null }) {
   const [remaining, setRemaining] = useState(INTERLUDE_DURATION);
-  const advancedRef = useRef(false);
 
   useEffect(() => {
-    advancedRef.current = false;
     setRemaining(INTERLUDE_DURATION);
     const tick = setInterval(() => {
-      setRemaining(prev => {
-        const next = prev - 1;
-        if (next <= 0 && !advancedRef.current) {
-          advancedRef.current = true;
-          clearInterval(tick);
-          fetch('/api/playback/queue/advance', { method: 'POST' }).catch(() => {});
-        }
-        return Math.max(0, next);
-      });
+      setRemaining(prev => Math.max(0, prev - 1));
     }, 1000);
     return () => clearInterval(tick);
   }, [imageUrl]);
