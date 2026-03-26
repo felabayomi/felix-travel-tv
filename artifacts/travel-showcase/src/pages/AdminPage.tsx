@@ -2607,8 +2607,35 @@ function AdminDashboard() {
                     <Play className="w-4 h-4" /> Play All
                   </button>
 
-                  {/* Stop */}
+                  {/* Pause / Resume / Stop */}
                   {onAir && (
+                    <button
+                      onClick={async () => {
+                        stop();
+                        setOnAir(false);
+                        await fetch('/api/playback/queue/pause', { method: 'POST' });
+                      }}
+                      title="Pause — keeps your place in the queue"
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl border border-yellow-500/40 text-yellow-400 text-sm hover:bg-yellow-500/10 transition-all"
+                    >
+                      <Pause className="w-4 h-4" /> Pause
+                    </button>
+                  )}
+                  {!onAir && playingQueueIndex >= 0 && (
+                    <button
+                      onClick={async () => {
+                        setVoiceEnabled(true);
+                        await apiSetQueueAutoplay(true);
+                        await apiPlayQueueItem(playingQueueIndex);
+                        await loadQueue();
+                      }}
+                      title="Resume from where you paused"
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl border border-green-500/40 text-green-400 text-sm hover:bg-green-500/10 transition-all"
+                    >
+                      <Play className="w-4 h-4" /> Resume
+                    </button>
+                  )}
+                  {(onAir || playingQueueIndex >= 0) && (
                     <button
                       onClick={async () => {
                         setOnAir(false);
@@ -2618,9 +2645,10 @@ function AdminDashboard() {
                         await fetch('/api/playback/queue/stop', { method: 'POST' });
                         await loadQueue();
                       }}
+                      title="Stop and clear queue position"
                       className="flex items-center gap-2 px-4 py-2 rounded-xl border border-destructive/30 text-destructive/70 text-sm hover:bg-destructive/10 transition-all"
                     >
-                      <Pause className="w-4 h-4" /> Stop
+                      <X className="w-4 h-4" /> Stop
                     </button>
                   )}
                 </div>

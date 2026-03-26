@@ -213,6 +213,13 @@ router.post("/queue/stop", (_req, res) => {
   res.json(playbackState);
 });
 
+// Pause — keeps queue position/article intact, just turns off onAir and kills the timer
+router.post("/queue/pause", (_req, res) => {
+  clearInterludeTimer();
+  playbackState = { ...playbackState, onAir: false, updatedAt: Date.now() };
+  res.json(playbackState);
+});
+
 // Set an interlude (still image) between queue items — server auto-advances after 30s
 router.post("/queue/interlude", (req, res) => {
   const { imageUrl } = req.body ?? {};
