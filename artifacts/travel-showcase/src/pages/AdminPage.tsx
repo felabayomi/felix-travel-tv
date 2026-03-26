@@ -93,6 +93,68 @@ async function setOnAirState(onAir: boolean) {
   });
 }
 
+// ─── Queue API helpers ─────────────────────────────────────────────────────
+interface QueueItem {
+  type: 'article' | 'video';
+  articleId?: number | null;
+  videoId?: number | null;
+  title: string;
+}
+
+interface QueueState {
+  items: QueueItem[];
+  queueIndex: number;
+  autoplayQueue: boolean;
+}
+
+async function fetchQueueState(): Promise<QueueState> {
+  const res = await fetch('/api/playback/queue', { cache: 'no-store' });
+  if (!res.ok) return { items: [], queueIndex: -1, autoplayQueue: false };
+  return res.json();
+}
+
+async function apiAddToQueue(item: QueueItem): Promise<QueueItem[]> {
+  const res = await fetch('/api/playback/queue/item', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(item),
+  });
+  if (!res.ok) throw new Error('Failed to add to queue');
+  const data = await res.json();
+  return data.items;
+}
+
+async function apiRemoveFromQueue(index: number): Promise<QueueItem[]> {
+  const res = await fetch(`/api/playback/queue/item/${index}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to remove from queue');
+  const data = await res.json();
+  return data.items;
+}
+
+async function apiReorderQueue(items: QueueItem[]): Promise<void> {
+  await fetch('/api/playback/queue', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+}
+
+async function apiPlayQueueItem(index: number): Promise<void> {
+  await fetch(`/api/playback/queue/play/${index}`, { method: 'POST' });
+}
+
+async function apiAdvanceQueue(): Promise<void> {
+  await fetch('/api/playback/queue/advance', { method: 'POST' });
+}
+
+async function apiSetQueueAutoplay(autoplayQueue: boolean): Promise<void> {
+  await fetch('/api/playback/queue/autoplay', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ autoplayQueue }),
+  });
+}
+
 async function patchSnippet(id: number, fields: { headline?: string; caption?: string; explanation?: string }) {
   const res = await fetch(`/api/snippets/${id}`, {
     method: 'PATCH',
@@ -1324,7 +1386,6 @@ function AdminDashboard() {
   const [showAddVideoDrawer, setShowAddVideoDrawer] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<'articles' | 'videos'>('articles');
   const [videos, setVideos] = useState<VideoItem[]>([]);
-  const [selectedVideoId, setSelectedVideoId] = useState<number | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [autoPlay, setAutoPlay] = useState(false);
   const [onAir, setOnAir] = useState(false);
@@ -1334,6 +1395,32 @@ function AdminDashboard() {
   const [articleOrder, setArticleOrder] = useState<number[]>(() => {
     try { return JSON.parse(localStorage.getItem('newsreader_article_order') ?? '[]'); } catch { return []; }
   });
+
+  // ── Broadcast Queue state ──────────────────────────────────────────────────
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [queueAutoplay, setQueueAutoplay] = useState(false);
+  const [playingQueueIndex, setPlayingQueueIndex] = useState(-1);
+
+  const loadQueue = useCallback(async () => {
+    const state = await fetchQueueState();
+    setQueue(state.items);
+    setPlayingQueueIndex(state.queueIndex);
+    setQueueAutoplay(state.autoplayQueue);
+    setOnAir(state.queueIndex >= 0);
+  }, []);
+
+  useEffect(() => { loadQueue(); }, [loadQueue]);
+
+  // Poll queue state every 2 s so admin stays in sync with public display advances
+  useEffect(() => {
+    const id = setInterval(loadQueue, 2000);
+    return () => clearInterval(id);
+  }, [loadQueue]);
+
+  // Derived: which article / video is currently playing from the queue
+  const playingQueueItem = queue[playingQueueIndex] ?? null;
+  const playingArticleId = playingQueueItem?.type === 'article' ? (playingQueueItem.articleId ?? null) : null;
+  const playingVideoId   = playingQueueItem?.type === 'video'   ? (playingQueueItem.videoId   ?? null) : null;
 
   // Keep order in sync as articles load or change
   useEffect(() => {
@@ -1371,29 +1458,16 @@ function AdminDashboard() {
     });
   };
 
-  // Auto-select first active article (but not while a video is playing)
-  useEffect(() => {
-    if (activeArticles.length > 0 && selectedArticleId === null && selectedVideoId === null) {
-      const first = activeArticles[0];
-      setSelectedArticleId(first.id);
-      setCurrentSnippetIndex(0);
-      setPlayback(first.id, 0).catch(() => {});
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [articles, selectedArticleId, selectedVideoId]);
-
+  // Snippets for the currently playing article from the queue
   const { data: snippets = [], isLoading: isLoadingSnippets } = useGetArticleSnippets(
-    selectedArticleId ?? 0,
-    { query: { enabled: selectedArticleId !== null } }
+    playingArticleId ?? 0,
+    { query: { enabled: playingArticleId !== null } }
   );
 
   const deleteMutation = useDeleteArticle({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
-        setSelectedArticleId(null);
-        setCurrentSnippetIndex(0);
-        setPlayback(null, 0).catch(() => {});
       }
     }
   });
@@ -1407,17 +1481,25 @@ function AdminDashboard() {
     await setPlayback(articleId, index);
   }, []);
 
-  const handleNext = useCallback(() => {
-    if (!selectedArticleId || snippets.length === 0) return;
-    const next = Math.min(currentSnippetIndex + 1, snippets.length - 1);
-    updatePlayback(selectedArticleId, next);
-  }, [selectedArticleId, snippets.length, currentSnippetIndex, updatePlayback]);
+  const handleNext = useCallback(async () => {
+    if (!playingArticleId || snippets.length === 0) return;
+    const next = currentSnippetIndex + 1;
+    if (next >= snippets.length) {
+      // Last chapter done — advance queue if autoplay is on
+      if (queueAutoplay) {
+        await apiAdvanceQueue();
+        await loadQueue();
+      }
+      return;
+    }
+    updatePlayback(playingArticleId, next);
+  }, [playingArticleId, snippets.length, currentSnippetIndex, updatePlayback, queueAutoplay, loadQueue]);
 
   const handlePrev = useCallback(() => {
-    if (!selectedArticleId || snippets.length === 0) return;
+    if (!playingArticleId || snippets.length === 0) return;
     const prev = Math.max(currentSnippetIndex - 1, 0);
-    updatePlayback(selectedArticleId, prev);
-  }, [selectedArticleId, snippets.length, currentSnippetIndex, updatePlayback]);
+    updatePlayback(playingArticleId, prev);
+  }, [playingArticleId, snippets.length, currentSnippetIndex, updatePlayback]);
 
   // Always-current ref so timer/voice callbacks never hold a stale handleNext closure
   const handleNextRef = useRef(handleNext);
@@ -1440,23 +1522,31 @@ function AdminDashboard() {
   // handleNext intentionally omitted from deps — ref keeps it fresh without restarting the timer
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!autoPlay || voiceEnabled || !selectedArticleId || snippets.length === 0) return;
-    if (currentSnippetIndex >= snippets.length - 1) return;
+    if (!autoPlay || voiceEnabled || !playingArticleId || snippets.length === 0) return;
+    if (currentSnippetIndex >= snippets.length - 1) {
+      // On last chapter — advance queue after delay if queue autoplay is on
+      if (queueAutoplay) {
+        const timer = setTimeout(async () => {
+          await apiAdvanceQueue();
+          await loadQueue();
+        }, AUTO_PLAY_SECONDS * 1000);
+        return () => clearTimeout(timer);
+      }
+      return;
+    }
     const timer = setTimeout(() => handleNextRef.current(), AUTO_PLAY_SECONDS * 1000);
     return () => clearTimeout(timer);
-  }, [autoPlay, voiceEnabled, currentSnippetIndex, snippets.length, selectedArticleId]);
+  }, [autoPlay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, queueAutoplay, loadQueue]);
 
-  const handleSelectArticle = async (article: Article) => {
-    stop();
-    prevIndexRef.current = -1;
-    setSelectedArticleId(article.id);
+  // Reset snippet index when the playing article changes
+  useEffect(() => {
     setCurrentSnippetIndex(0);
-    await setPlayback(article.id, 0);
-  };
+    prevIndexRef.current = -1;
+  }, [playingArticleId]);
 
   const handleSelectChapter = (index: number) => {
-    if (!selectedArticleId) return;
-    updatePlayback(selectedArticleId, index);
+    if (!playingArticleId) return;
+    updatePlayback(playingArticleId, index);
   };
 
   const handleArticleSaved = (updated: Article) => {
@@ -1468,6 +1558,7 @@ function AdminDashboard() {
   const selectedArticle = selectedArticleId != null
     ? { ...articles.find(a => a.id === selectedArticleId), ...articleOverrides[selectedArticleId] } as Article | undefined
     : undefined;
+  void selectedArticle; // used in meta editor when shown
 
   const reloadVideos = useCallback(() => {
     fetchVideos().then(vs => setVideos(vs.filter(v => !v.archived)));
@@ -1476,16 +1567,6 @@ function AdminDashboard() {
   useEffect(() => { reloadVideos(); }, [reloadVideos]);
 
   const activeVideos = videos.filter(v => !v.archived);
-
-  const handleSelectVideo = async (video: VideoItem) => {
-    setSelectedVideoId(video.id);
-    setSelectedArticleId(null);
-    await setVideoPlayback(video.id);
-    if (!onAir) {
-      setOnAir(true);
-      setOnAirState(true).catch(() => {});
-    }
-  };
 
   const publicUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
 
@@ -1592,23 +1673,21 @@ function AdminDashboard() {
               </div>
             ) : (
               activeVideos.map(video => {
-                const isSelected = video.id === selectedVideoId;
+                const isPlaying = video.id === playingVideoId && onAir;
                 return (
                   <div key={video.id} className={cn(
                     "group flex items-start gap-1.5 p-3 rounded-xl border transition-all",
-                    isSelected && onAir
+                    isPlaying
                       ? "bg-primary/20 border-primary/50 text-white"
-                      : isSelected
-                      ? "bg-primary/10 border-primary/30 text-white"
                       : "border-transparent hover:bg-white/5 text-white/60 hover:text-white/80"
                   )}>
-                    <button onClick={() => handleSelectVideo(video)} className="flex-1 min-w-0 text-left">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        {isSelected && onAir
+                        {isPlaying
                           ? <span className="flex items-center gap-1 text-[10px] font-bold text-primary shrink-0 uppercase tracking-wider">
                               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />LIVE
                             </span>
-                          : <Play className="w-3 h-3 text-primary shrink-0" />
+                          : <Play className="w-3 h-3 text-primary/60 shrink-0" />
                         }
                         <p className="text-sm font-medium leading-snug line-clamp-2">{video.title}</p>
                       </div>
@@ -1619,30 +1698,29 @@ function AdminDashboard() {
                         }
                         {video.loop ? ' · Loop' : ''}
                       </p>
-                    </button>
+                    </div>
                     <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
-                      {isSelected && onAir && (
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            setOnAir(false);
-                            setOnAirState(false).catch(() => {});
-                            setSelectedVideoId(null);
-                            setPlayback(null, 0).catch(() => {});
-                          }}
-                          className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
-                          title="Stop broadcast"
-                        >
-                          <Pause className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      {/* Add to queue */}
+                      <button
+                        onClick={async e => {
+                          e.stopPropagation();
+                          const newItems = await apiAddToQueue({
+                            type: 'video',
+                            videoId: video.id,
+                            title: video.title,
+                          });
+                          setQueue(newItems);
+                          setMainTab('broadcast');
+                        }}
+                        className="p-1 rounded text-muted-foreground hover:text-primary transition-all"
+                        title="Add to queue"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={e => {
                           e.stopPropagation();
-                          archiveVideo(video.id, true).then(() => {
-                            reloadVideos();
-                            if (selectedVideoId === video.id) { setSelectedVideoId(null); setPlayback(null, 0).catch(() => {}); }
-                          });
+                          archiveVideo(video.id, true).then(() => { reloadVideos(); });
                         }}
                         className="p-1 rounded text-muted-foreground hover:text-amber-400 transition-all"
                         title="Archive video"
@@ -1652,10 +1730,7 @@ function AdminDashboard() {
                       <button
                         onClick={e => {
                           e.stopPropagation();
-                          deleteVideo(video.id).then(() => {
-                            reloadVideos();
-                            if (selectedVideoId === video.id) { setSelectedVideoId(null); setPlayback(null, 0).catch(() => {}); }
-                          });
+                          deleteVideo(video.id).then(() => { reloadVideos(); });
                         }}
                         className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
                         title="Delete video"
@@ -1709,24 +1784,40 @@ function AdminDashboard() {
                         <ChevronDown className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <button onClick={() => handleSelectArticle(a as Article)} className="flex-1 min-w-0 text-left">
+                    <button onClick={() => setSelectedArticleId(a.id)} className="flex-1 min-w-0 text-left">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">
                         {a.source || 'Unknown'} · {new Date(a.publishedAt).toLocaleDateString()}
                       </p>
                       <p className="text-sm font-medium leading-snug line-clamp-2">{a.title}</p>
                       {isSelected && snippets.length > 0 && (
                         <p className="text-[10px] text-primary/60 mt-1">
-                          {snippets.length} chapters · Chapter {currentSnippetIndex + 1} on air
+                          {snippets.length} chapters
                         </p>
                       )}
                     </button>
                     <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                      {/* Add to queue */}
+                      <button
+                        onClick={async e => {
+                          e.stopPropagation();
+                          const newItems = await apiAddToQueue({
+                            type: 'article',
+                            articleId: a.id,
+                            title: a.title,
+                          });
+                          setQueue(newItems);
+                          setMainTab('broadcast');
+                        }}
+                        className="p-1 rounded text-muted-foreground hover:text-primary transition-all"
+                        title="Add to queue"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={e => {
                           e.stopPropagation();
                           archiveArticle(a.id, true).then(() => {
                             queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
-                            if (selectedArticleId === a.id) { setSelectedArticleId(null); setPlayback(null, 0).catch(() => {}); }
                           });
                         }}
                         className="p-1 rounded text-muted-foreground hover:text-amber-400 transition-all"
@@ -1842,46 +1933,197 @@ function AdminDashboard() {
             </div>
           ) : mainTab === 'waiting' ? (
             <WaitingScreenPanel />
-          ) : selectedVideoId !== null ? (
-            <div className="flex flex-col items-center justify-center h-64 text-center gap-4">
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/15 border border-primary/30">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-sm font-semibold text-primary">Video Broadcasting</span>
-              </div>
-              <p className="text-sm text-white/60 max-w-xs">
-                {videos.find(v => v.id === selectedVideoId)?.title ?? 'Video'}
-                {' '}is live on the public display.
-              </p>
-              <button
-                onClick={() => {
-                  setOnAir(false);
-                  setOnAirState(false).catch(() => {});
-                  setSelectedVideoId(null);
-                  setPlayback(null, 0).catch(() => {});
-                }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-destructive/30 text-destructive/70 text-sm hover:bg-destructive/10 transition-all"
-              >
-                <Pause className="w-4 h-4" /> Stop Broadcast
-              </button>
-            </div>
-          ) : !selectedArticle ? (
-            <div className="flex flex-col items-center justify-center h-64 text-center">
-              <p className="text-muted-foreground">Select an article from the left to start</p>
-              <button onClick={() => setShowAddDrawer(true)}
-                className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary text-sm hover:bg-primary/20 transition-all"
-              >
-                <Plus className="w-4 h-4" /> Add your first article
-              </button>
-            </div>
           ) : (
-            <>
-              {/* Article meta + playback controls */}
-              <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-                {/* Article metadata editor */}
-                <ArticleMetaEditor article={selectedArticle} onSaved={handleArticleSaved} />
+            /* ── Broadcast Queue Panel ─────────────────────────────── */
+            <div className="space-y-4">
 
-                <div className="border-t border-border pt-4">
-                  {/* Playback controls */}
+              {/* Queue header + controls */}
+              <div className="bg-card border border-border rounded-2xl p-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Radio className="w-4 h-4 text-primary shrink-0" />
+                    <span className="text-sm font-semibold">Broadcast Queue</span>
+                    <span className="text-xs text-muted-foreground">({queue.length} item{queue.length !== 1 ? 's' : ''})</span>
+                    {onAir && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-primary uppercase tracking-wider ml-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> ON AIR
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Autoplay toggle */}
+                  <button
+                    onClick={async () => {
+                      const next = !queueAutoplay;
+                      setQueueAutoplay(next);
+                      await apiSetQueueAutoplay(next);
+                    }}
+                    title={queueAutoplay ? 'Autoplay on — queue advances automatically' : 'Autoplay off — manually choose what plays next'}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all",
+                      queueAutoplay
+                        ? "bg-green-500/20 border-green-500/40 text-green-400"
+                        : "border-border text-white/50 hover:text-white hover:bg-white/5"
+                    )}
+                  >
+                    <Play className={cn("w-3.5 h-3.5", !queueAutoplay && "opacity-40")} />
+                    Autoplay {queueAutoplay ? 'On' : 'Off'}
+                  </button>
+
+                  {/* Play All */}
+                  <button
+                    onClick={async () => {
+                      if (queue.length === 0) return;
+                      await apiSetQueueAutoplay(true);
+                      await apiPlayQueueItem(0);
+                      await loadQueue();
+                    }}
+                    disabled={queue.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-all"
+                  >
+                    <Play className="w-4 h-4" /> Play All
+                  </button>
+
+                  {/* Stop */}
+                  {onAir && (
+                    <button
+                      onClick={async () => {
+                        setOnAir(false);
+                        setPlayingQueueIndex(-1);
+                        await Promise.all([
+                          setOnAirState(false),
+                          setPlayback(null, 0),
+                        ]);
+                        await loadQueue();
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl border border-destructive/30 text-destructive/70 text-sm hover:bg-destructive/10 transition-all"
+                    >
+                      <Pause className="w-4 h-4" /> Stop
+                    </button>
+                  )}
+                </div>
+
+                {queue.length === 0 && (
+                  <p className="text-xs text-muted-foreground/60 mt-3 pl-6">
+                    Hover an article or video in the sidebar and click <span className="text-primary font-semibold">+</span> to add it here.
+                  </p>
+                )}
+              </div>
+
+              {/* Queue list */}
+              {queue.length > 0 && (
+                <div className="space-y-2">
+                  {queue.map((item, idx) => {
+                    const isActive = idx === playingQueueIndex && onAir;
+                    return (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "group flex items-center gap-3 p-4 rounded-xl border transition-all",
+                          isActive
+                            ? "bg-primary/12 border-primary/35"
+                            : "border-border bg-card/20 hover:bg-card/40"
+                        )}
+                      >
+                        {/* Position / live dot */}
+                        <div className="w-5 shrink-0 text-center">
+                          {isActive
+                            ? <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
+                            : <span className="text-xs text-muted-foreground/40">{idx + 1}</span>
+                          }
+                        </div>
+
+                        {/* Type icon */}
+                        {item.type === 'article'
+                          ? <FileText className="w-4 h-4 shrink-0 text-blue-400/70" />
+                          : <Play className="w-4 h-4 shrink-0 text-purple-400/70" />
+                        }
+
+                        {/* Title + status */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium line-clamp-1 text-white/85">{item.title}</p>
+                          <p className="text-[10px] uppercase tracking-wide mt-0.5">
+                            <span className="text-muted-foreground">{item.type === 'article' ? 'Article' : 'Video'}</span>
+                            {isActive && <span className="ml-2 text-primary font-semibold">● LIVE</span>}
+                          </p>
+                        </div>
+
+                        {/* Reorder + remove (on hover) */}
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={async () => {
+                              if (idx === 0) return;
+                              const newQ = [...queue];
+                              [newQ[idx - 1], newQ[idx]] = [newQ[idx], newQ[idx - 1]];
+                              setQueue(newQ);
+                              await apiReorderQueue(newQ);
+                            }}
+                            disabled={idx === 0}
+                            className="p-1.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 transition-colors"
+                            title="Move up"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (idx === queue.length - 1) return;
+                              const newQ = [...queue];
+                              [newQ[idx], newQ[idx + 1]] = [newQ[idx + 1], newQ[idx]];
+                              setQueue(newQ);
+                              await apiReorderQueue(newQ);
+                            }}
+                            disabled={idx === queue.length - 1}
+                            className="p-1.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 transition-colors"
+                            title="Move down"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const newItems = await apiRemoveFromQueue(idx);
+                              setQueue(newItems);
+                              await loadQueue();
+                            }}
+                            className="p-1.5 rounded text-muted-foreground hover:text-destructive transition-colors"
+                            title="Remove from queue"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Play button */}
+                        <button
+                          onClick={async () => {
+                            await apiPlayQueueItem(idx);
+                            await loadQueue();
+                          }}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
+                            isActive
+                              ? "bg-primary/20 border-primary/40 text-primary"
+                              : "border-border text-white/50 hover:text-white hover:bg-white/10 hover:border-white/20"
+                          )}
+                        >
+                          <Play className="w-3 h-3" />
+                          {isActive ? 'Playing' : 'Play'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Article chapter controls — shown when an article is playing */}
+              {playingArticleId !== null && onAir && (
+                <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <FileText className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm font-semibold text-white/80">Chapter Controls</span>
+                    <span className="text-xs text-muted-foreground">
+                      — {playingQueueItem?.title}
+                    </span>
+                  </div>
+
                   <div className="flex items-center gap-3">
                     <button
                       onClick={handlePrev}
@@ -1897,7 +2139,7 @@ function AdminDashboard() {
                       ) : currentSnippet ? (
                         <div>
                           <p className="text-xs text-muted-foreground mb-0.5">
-                            Chapter {currentSnippetIndex + 1} of {snippets.length} · On Air
+                            Chapter {currentSnippetIndex + 1} of {snippets.length}
                           </p>
                           <p className="text-sm font-semibold text-white line-clamp-1">{currentSnippet.headline}</p>
                         </div>
@@ -1908,26 +2150,24 @@ function AdminDashboard() {
 
                     <button
                       onClick={handleNext}
-                      disabled={currentSnippetIndex >= snippets.length - 1 || isLoadingSnippets}
+                      disabled={isLoadingSnippets}
                       className="p-2.5 rounded-xl border border-border text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                     >
                       {isLoadingSnippets ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
                     </button>
 
-                    {/* Auto-play toggle */}
                     <button
                       onClick={() => {
-                        if (!autoPlay && selectedArticleId) {
-                          // Starting: restart from chapter 1
+                        if (!autoPlay && playingArticleId) {
                           stop();
                           prevIndexRef.current = -1;
-                          updatePlayback(selectedArticleId, 0);
+                          updatePlayback(playingArticleId, 0);
                         }
                         setAutoPlay(v => !v);
                       }}
-                      title={autoPlay ? `Auto-advancing every ${AUTO_PLAY_SECONDS}s (or after audio ends)` : 'Auto-play off — click to enable'}
+                      title={autoPlay ? `Auto-advancing every ${AUTO_PLAY_SECONDS}s` : 'Auto-play chapters off'}
                       className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all",
+                        "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all",
                         autoPlay
                           ? "bg-green-500/20 border-green-500/40 text-green-400"
                           : "border-border text-white/50 hover:text-white hover:bg-white/5"
@@ -1937,62 +2177,44 @@ function AdminDashboard() {
                       {autoPlay ? 'Auto' : 'Manual'}
                     </button>
 
-                    {/* Voice toggle */}
                     <button
                       onClick={() => { setVoiceEnabled(v => !v); if (voiceEnabled) stop(); }}
                       className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all",
+                        "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all",
                         voiceEnabled
                           ? "bg-primary/20 border-primary/40 text-primary"
                           : "border-border text-white/50 hover:text-white hover:bg-white/5"
                       )}
                     >
                       {isVoiceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : voiceEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-                      {voiceEnabled ? 'Voice On' : 'Voice Off'}
+                      {voiceEnabled ? 'Voice' : 'Voice'}
                     </button>
-
-                    <a href={publicUrl} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm text-white/50 hover:text-white hover:bg-white/5 transition-all"
-                    >
-                      <ExternalLink className="w-4 h-4" /> Preview Display
-                    </a>
                   </div>
+
+                  {/* Chapter list */}
+                  {snippets.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-border">
+                      <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">
+                        Chapters ({snippets.length}) · Click to jump
+                      </p>
+                      <div className="space-y-1.5">
+                        {snippets.map((snippet, i) => (
+                          <SnippetRow
+                            key={snippet.id}
+                            snippet={snippet}
+                            index={i}
+                            totalChapters={snippets.length}
+                            isOnAir={i === currentSnippetIndex}
+                            onSelect={() => handleSelectChapter(i)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
-              {/* Chapter list */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium px-1">
-                    Chapters ({snippets.length})
-                  </p>
-                  <p className="text-[11px] text-muted-foreground/50">Click chapter to put on air · Click edit icon to modify text</p>
-                </div>
-
-                {isLoadingSnippets ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary/40" />
-                  </div>
-                ) : snippets.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground text-sm">
-                    No chapters found for this article.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {snippets.map((snippet, i) => (
-                      <SnippetRow
-                        key={snippet.id}
-                        snippet={snippet}
-                        index={i}
-                        totalChapters={snippets.length}
-                        isOnAir={i === currentSnippetIndex}
-                        onSelect={() => handleSelectChapter(i)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
+            </div>
           )}
           </div>
         </main>

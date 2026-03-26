@@ -325,11 +325,7 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
       setRemaining(rem);
       if (rem <= 0) {
         clearInterval(tick);
-        fetch('/api/playback', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ articleId: null, snippetIndex: 0 }),
-        }).catch(() => {});
+        fetch('/api/playback/queue/advance', { method: 'POST' }).catch(() => {});
       }
     }, 1000);
     return () => clearInterval(tick);
