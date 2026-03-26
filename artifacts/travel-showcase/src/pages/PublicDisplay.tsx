@@ -284,13 +284,13 @@ function getVideoEmbed(url: string, loop: boolean): { type: 'youtube' | 'vimeo' 
   if (ytMatch) {
     const vid = ytMatch[1];
     const loopParam = loop ? `&loop=1&playlist=${vid}` : '&loop=0';
-    return { type: 'youtube', src: `https://www.youtube.com/embed/${vid}?autoplay=1${loopParam}&rel=0&modestbranding=1&controls=1` };
+    return { type: 'youtube', src: `https://www.youtube.com/embed/${vid}?autoplay=1&mute=1${loopParam}&rel=0&modestbranding=1&controls=1&enablejsapi=1` };
   }
   const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
   if (vimeoMatch) {
     const vid = vimeoMatch[1];
     const loopParam = loop ? '&loop=1' : '&loop=0';
-    return { type: 'vimeo', src: `https://player.vimeo.com/video/${vid}?autoplay=1${loopParam}&title=0&byline=0&portrait=0&badge=0` };
+    return { type: 'vimeo', src: `https://player.vimeo.com/video/${vid}?autoplay=1&muted=1${loopParam}&title=0&byline=0&portrait=0&badge=0` };
   }
   if (/\.(mp4|webm|ogg|mov)(\?|$)/i.test(url)) {
     return { type: 'direct', src: url };
