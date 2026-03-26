@@ -1802,7 +1802,12 @@ function AdminDashboard() {
     // Going backwards would reset the chapter during an interlude (server holds 0
     // while the local state still reflects the last chapter of the finished article).
     // New-article resets are already handled by the playingArticleId-change effect.
+    //
+    // IMPORTANT: When autoplay is active (voice or timed), the admin's updatePlayback()
+    // is the sole driver of snippetIndex. Do NOT let server polling advance it here —
+    // the server's fallback timer could fire mid-speech and truncate voice via this path.
     setCurrentSnippetIndex(prev => {
+      if (autoPlayRef.current || queueAutoplayRef.current) return prev;
       if (state.snippetIndex > prev) return state.snippetIndex;
       return prev;
     });
@@ -1899,6 +1904,8 @@ function AdminDashboard() {
   useEffect(() => { playingArticleIdRef.current = playingArticleId; }, [playingArticleId]);
   const queueAutoplayRef = useRef(queueAutoplay);
   useEffect(() => { queueAutoplayRef.current = queueAutoplay; }, [queueAutoplay]);
+  const autoPlayRef = useRef(autoPlay);
+  useEffect(() => { autoPlayRef.current = autoPlay; }, [autoPlay]);
   const playingQueueIndexRef = useRef(playingQueueIndex);
   useEffect(() => { playingQueueIndexRef.current = playingQueueIndex; }, [playingQueueIndex]);
   const queueLengthRef = useRef(queue.length);

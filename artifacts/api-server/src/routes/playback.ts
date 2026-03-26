@@ -63,7 +63,7 @@ function resolveNextIndex(currentIndex: number): number | null {
 // When the admin signals an advance (via PATCH /queue/snippet), the server
 // resets its timer so voice-driven pacing takes priority when admin is open.
 
-const SNIPPET_ADVANCE_MS = 60_000; // 60 s per snippet (server fallback when admin tab is gone)
+const SNIPPET_ADVANCE_MS = 300_000; // 5 min per snippet (server fallback only — admin voice drives normally)
 let snippetTimer: ReturnType<typeof setTimeout> | null = null;
 let snippetScheduledForArticleId: number | null = null;
 let snippetTotalCount: number | null = null;
