@@ -788,9 +788,9 @@ export function PublicDisplay() {
               {hasSocial && (
                 <div className={`space-y-1.5 ${hasTopics ? '' : 'text-center'}`}>
                   {config?.socialLinks.map((link, i) => (
-                    <p key={i} className="text-white/75 text-xs" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
+                    <p key={i} className="text-xs" style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}>
                       <span className="text-white/50 mr-1">{link.label}:</span>
-                      {link.url}
+                      <span style={{ color: '#4a9eff' }}>{link.url}</span>
                     </p>
                   ))}
                 </div>
