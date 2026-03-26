@@ -347,7 +347,7 @@ Respond with a JSON object ONLY (no markdown, no code block):
       "headline": "Specific punchy chapter headline (max 10 words)",
       "caption": "One precise sentence capturing the key planning insight of this chapter",
       "explanation": "Written in the correct voice and depth for the content type — practical travel advice with real names, places, costs, and tips. Not a description. Not Wikipedia. A travel advisor talking to a real traveller.",
-      "imagePrompt": "Detailed cinematic travel photography prompt matching the content type's mood — describe subject, setting, lighting, atmosphere, style"
+      "imagePrompt": "Image prompt using the correct visual style for this content type (see guide below). Must be specific to this chapter's subject — describe the exact scene, location, people, mood, lighting, and photographic style. Do NOT use generic descriptions.\n\nVISUAL STYLE GUIDE:\n- DESTINATION chapters: 'destination documentary photography of [specific place], natural lighting, realistic travel photography, National Geographic style, travel documentary, cinematic composition, street life, high detail, 4k'\n- EXPEDITION chapters: 'adventure documentary photography, [specific terrain or location], dramatic natural lighting, raw wilderness, expedition travel, Discovery Channel style, cinematic, high detail, 4k'\n- HOTEL_REVIEW chapters: 'luxury travel photography of [specific hotel feature], golden hour lighting, architecture, pool or suite interior, travel magazine style, cinematic lighting, high detail, 4k'\n- TRAVEL_TIPS and BEFORE_YOU_BOOK chapters: 'travel show photography, [specific scene e.g. traveller at airport / planning with laptop / packing suitcase], soft documentary lighting, travel advisor style, realistic, high detail'\n- TRAVEL_NEWS chapters: 'cinematic travel news photography, [specific subject], professional photojournalism, travel industry, editorial style, high detail'"
     }
   ]
 }`;
@@ -403,7 +403,7 @@ async function generateImage(prompt: string): Promise<string | null> {
   try {
     const response = await openai.images.generate({
       model: "gpt-image-1",
-      prompt: `Photorealistic, cinematic, high quality news photography: ${prompt}`,
+      prompt: `High quality, photorealistic travel photography. No text, no logos, no watermarks. ${prompt}`,
       size: "1024x1024",
     });
     const b64 = response.data?.[0]?.b64_json;

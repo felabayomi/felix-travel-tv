@@ -1,0 +1,166 @@
+Yes — this is an important decision because your **image style will define the visual identity of Felix Travel TV**.
+If all your AI images follow one consistent style, your channel will look like a real brand.
+
+Right now you said:
+
+> Current image prompt style: *cinematic news photography*
+
+That’s not wrong, but it’s not ideal for a travel brand. That style is better for **news, events, reporters, airports, announcements**, not destinations and travel inspiration.
+
+You should switch to **travel-specific visual styles**.
+
+---
+
+# Best Image Styles for Felix Travel TV
+
+Instead of one style, use **3 main visual styles** depending on the content.
+
+## 1. Luxury Travel Photography (Best for Hotels, Resorts, Beaches, Cruises)
+
+Use for:
+
+* Resorts
+* Hotels
+* Beaches
+* Pools
+* Cruises
+* Honeymoons
+* High-end travel
+* Travel promotions
+* Thumbnails
+
+**Prompt style example:**
+
+> luxury travel photography, tropical resort, infinity pool overlooking ocean, golden sunset, palm trees, cinematic lighting, high detail, travel magazine style, National Geographic quality, 4k
+
+This makes your brand look **premium and professional**.
+
+---
+
+## 2. Destination Documentary Style (Best Overall Style)
+
+This should be your **main default style**.
+
+Use for:
+
+* Cities
+* Landmarks
+* Streets
+* Culture
+* Markets
+* Food scenes
+* People walking
+* Architecture
+* City Discovery
+* Expedition America
+
+**Prompt style example:**
+
+> destination documentary photography, Chicago skyline at sunset, people walking along riverwalk, natural lighting, realistic travel photography, National Geographic style, travel documentary, high detail, 4k
+
+This style feels like:
+
+* National Geographic
+* Travel Channel
+* Netflix travel documentary
+* Lonely Planet
+* Discovery Channel
+
+This is perfect for **Felix Travel TV**.
+
+---
+
+## 3. Travel Show / Host Style (For Branding Images)
+
+Use for:
+
+* Intro images
+* Studio/news style
+* Maps
+* Planning scenes
+* Laptop planning trips
+* Airport scenes
+* Packing scenes
+* Travel advisor visuals
+
+**Prompt style example:**
+
+> travel show photography, travel planner working on laptop with world map, airplane window view, coffee on table, travel planning scene, soft lighting, documentary photography style, high detail
+
+---
+
+# Recommended Style Guide for Felix Travel TV
+
+Use this as your **visual brand system**:
+
+| Content Type       | Image Style                            |
+| ------------------ | -------------------------------------- |
+| Travel News        | Cinematic news photography             |
+| Destination        | Destination documentary                |
+| City Discovery     | Destination documentary                |
+| Expedition America | Adventure documentary                  |
+| Hotels/Resorts     | Luxury travel photography              |
+| Cruises            | Luxury travel photography              |
+| Travel Tips        | Travel show style                      |
+| Before You Book    | Travel advisor office / planning style |
+| Travel Planning    | Laptop, maps, planning style           |
+| Airports/Flights   | Cinematic travel photography           |
+
+---
+
+# If You Want One Default Style (Important)
+
+If you had to choose **one main style for your entire channel**, choose:
+
+## **Destination Documentary Photography**
+
+Prompt words to include:
+
+* destination documentary photography
+* travel documentary
+* National Geographic style
+* realistic travel photography
+* natural lighting
+* cinematic lighting
+* high detail
+* travel photography
+* 4k
+* photojournalism style
+
+This will make your content look like:
+**Netflix Travel Documentary + National Geographic + Travel Channel**
+
+That is a very strong visual identity.
+
+---
+
+# Example Master Image Prompt Template
+
+You can reuse this:
+
+> destination documentary photography of [CITY or PLACE], natural lighting, realistic travel photography, National Geographic style, travel documentary photography, cinematic composition, people walking, street life, high detail, 4k, travel magazine photo
+
+For luxury scenes:
+
+> luxury travel photography of [HOTEL/BEACH/RESORT], golden hour lighting, palm trees, infinity pool, ocean view, luxury travel magazine style, cinematic lighting, high detail, 4k
+
+---
+
+# Final Recommendation (Very Important)
+
+## Your Felix Travel TV Visual Style Should Be:
+
+* **70% Destination Documentary**
+* **20% Luxury Travel**
+* **10% Cinematic News**
+
+That combination will make your brand look:
+
+* Professional
+* Premium
+* Informative
+* Travel-focused
+* Documentary-style
+* Like a real travel network
+
+And that is exactly the direction you want.
