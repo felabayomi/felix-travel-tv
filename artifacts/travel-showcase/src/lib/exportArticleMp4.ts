@@ -180,10 +180,10 @@ export async function exportArticleToMp4(
     'video/webm',
   ].find(t => MediaRecorder.isTypeSupported(t)) ?? 'video/webm';
 
-  const stream = canvas.captureStream(30);
+  const stream = canvas.captureStream(1);
   const recorder = new MediaRecorder(stream, {
     mimeType,
-    videoBitsPerSecond: 4_000_000,
+    videoBitsPerSecond: 2_000_000,
   });
 
   const chunks: Blob[] = [];
