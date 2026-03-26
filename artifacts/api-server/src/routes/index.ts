@@ -21,6 +21,7 @@ interface WaitingConfig {
   customTickerItems: string[];
   tickerSpeed: number;
   rotatingNames: Array<{ name: string; tagline: string }>;
+  interludeImages: string[];
 }
 
 const WAITING_CONFIG_KEY = 'waiting_config';
@@ -36,6 +37,7 @@ let waitingConfig: WaitingConfig = {
   customTickerItems: [],
   tickerSpeed: 3,
   rotatingNames: [],
+  interludeImages: [],
 };
 
 // Load persisted config from DB on startup
@@ -275,6 +277,9 @@ router.put('/waiting-config', async (req, res) => {
       ? b.rotatingNames.filter((t: unknown) => t !== null && typeof t === 'object' && 'name' in (t as object))
           .map((t: unknown) => ({ name: String((t as { name: string }).name), tagline: String((t as { tagline?: string }).tagline ?? '') }))
       : waitingConfig.rotatingNames,
+    interludeImages: Array.isArray(b.interludeImages)
+      ? b.interludeImages.filter((t: unknown) => typeof t === 'string')
+      : waitingConfig.interludeImages,
   };
   await persistWaitingConfig();
   res.json(waitingConfig);

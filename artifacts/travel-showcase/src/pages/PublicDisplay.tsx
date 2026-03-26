@@ -34,10 +34,11 @@ function ESTClock() {
 }
 
 interface PlaybackState {
-  itemType: 'article' | 'video' | null;
+  itemType: 'article' | 'video' | 'interlude' | null;
   articleId: number | null;
   snippetIndex: number;
   videoId: number | null;
+  interludeImageUrl: string | null;
   onAir: boolean;
   updatedAt: number;
 }
@@ -72,7 +73,7 @@ interface WaitingConfig {
 const POLL_MS = 2000;
 
 function usePlaybackSync() {
-  const [state, setState] = useState<PlaybackState>({ itemType: null, articleId: null, snippetIndex: 0, videoId: null, onAir: false, updatedAt: 0 });
+  const [state, setState] = useState<PlaybackState>({ itemType: null, articleId: null, snippetIndex: 0, videoId: null, interludeImageUrl: null, onAir: false, updatedAt: 0 });
 
   useEffect(() => {
     let cancelled = false;
@@ -298,6 +299,89 @@ function getVideoEmbed(url: string, loop: boolean): { type: 'youtube' | 'vimeo' 
   return { type: 'iframe', src: url };
 }
 
+const INTERLUDE_DURATION = 30;
+
+function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: WaitingConfig | null }) {
+  const [remaining, setRemaining] = useState(INTERLUDE_DURATION);
+  const advancedRef = useRef(false);
+
+  useEffect(() => {
+    advancedRef.current = false;
+    setRemaining(INTERLUDE_DURATION);
+    const tick = setInterval(() => {
+      setRemaining(prev => {
+        const next = prev - 1;
+        if (next <= 0 && !advancedRef.current) {
+          advancedRef.current = true;
+          clearInterval(tick);
+          fetch('/api/playback/queue/advance', { method: 'POST' }).catch(() => {});
+        }
+        return Math.max(0, next);
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [imageUrl]);
+
+  const pct = (remaining / INTERLUDE_DURATION) * 100;
+  const channelName = config?.channelName || 'News Reader';
+
+  return (
+    <main className="relative w-screen h-screen overflow-hidden" style={{ background: '#050508' }}>
+      {/* Background image */}
+      <img
+        src={imageUrl}
+        alt="Travel deal"
+        className="absolute inset-0 w-full h-full object-cover"
+        style={{ opacity: 0.55 }}
+      />
+      {/* Dark gradient overlay */}
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(5,5,8,0.75) 0%, rgba(5,5,8,0.3) 40%, rgba(5,5,8,0.8) 100%)' }} />
+
+      {/* Top bar */}
+      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-8 py-4"
+        style={{ borderTop: '3px solid #c8102e', background: 'rgba(5,5,8,0.8)' }}>
+        <div className="flex items-center gap-3">
+          <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '15px', letterSpacing: '0.12em' }}>
+            {channelName.toUpperCase()}
+          </span>
+          <span className="w-px h-4 bg-white/20" />
+          <span style={{ fontFamily: 'Oswald, sans-serif', color: '#c8102e', fontWeight: 600, fontSize: '12px', letterSpacing: '0.2em' }}>
+            TRAVEL DEALS
+          </span>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-0.5 rounded-sm" style={{ background: '#c8102e' }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+          <span style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.12em' }}>
+            ON AIR
+          </span>
+        </div>
+      </div>
+
+      {/* Center label */}
+      <div className="absolute inset-0 flex flex-col items-center justify-end z-20 pb-24">
+        <div className="text-center px-8">
+          <p style={{ fontFamily: 'Oswald, sans-serif', color: '#c8102e', fontSize: '12px', letterSpacing: '0.28em', fontWeight: 600 }}>
+            COMING UP NEXT IN {remaining}s
+          </p>
+        </div>
+      </div>
+
+      {/* Countdown bar */}
+      <div className="absolute bottom-0 left-0 right-0 z-40" style={{ height: '4px', background: 'rgba(255,255,255,0.1)' }}>
+        <motion.div
+          className="h-full"
+          style={{ background: '#c8102e', width: `${pct}%` }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.9, ease: 'linear' }}
+        />
+      </div>
+
+      {/* Ticker */}
+      <GlobalTicker speed={config?.tickerSpeed ?? 3} />
+    </main>
+  );
+}
+
 function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConfig | null }) {
   const [video, setVideo] = useState<Video | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -416,7 +500,7 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
 }
 
 export function PublicDisplay() {
-  const { itemType, articleId, snippetIndex, videoId, onAir } = usePlaybackSync();
+  const { itemType, articleId, snippetIndex, videoId, interludeImageUrl, onAir } = usePlaybackSync();
   const config = useWaitingConfig();
   const { data: articles = [] } = useGetArticles();
   const { data: snippets = [], isLoading: isLoadingSnippets } = useGetArticleSnippets(
@@ -673,6 +757,10 @@ export function PublicDisplay() {
         <GlobalTicker speed={config?.tickerSpeed ?? 3} />
       </div>
     );
+  }
+
+  if (onAir && itemType === 'interlude' && interludeImageUrl) {
+    return <InterludeScreen imageUrl={interludeImageUrl} config={config} />;
   }
 
   if (onAir && itemType === 'video' && videoId != null) {

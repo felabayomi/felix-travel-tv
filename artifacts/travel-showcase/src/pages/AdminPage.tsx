@@ -199,6 +199,7 @@ interface WaitingConfig {
   customTickerItems: string[];
   tickerSpeed: number;
   rotatingNames: Array<{ name: string; tagline: string }>;
+  interludeImages: string[];
 }
 
 const EMPTY_CONFIG: WaitingConfig = {
@@ -212,6 +213,7 @@ const EMPTY_CONFIG: WaitingConfig = {
   customTickerItems: [],
   tickerSpeed: 3,
   rotatingNames: [],
+  interludeImages: [],
 };
 
 const PRESETS: Array<{ name: string; description: string; config: Partial<WaitingConfig> }> = [
@@ -295,6 +297,7 @@ function WaitingScreenPanel() {
   const [newSocialLabel, setNewSocialLabel] = useState('');
   const [newSocialUrl, setNewSocialUrl] = useState('');
   const [newTickerItem, setNewTickerItem] = useState('');
+  const [newInterludeUrl, setNewInterludeUrl] = useState('');
   const [liveTickerItems, setLiveTickerItems] = useState<{ headline: string; caption: string; isCustom?: boolean }[]>([]);
   const [editingCustomIdx, setEditingCustomIdx] = useState<number | null>(null);
   const [editCustomText, setEditCustomText] = useState('');
@@ -818,6 +821,57 @@ function WaitingScreenPanel() {
           >
             {tickerSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : tickerSaved ? <Check className="w-3.5 h-3.5" /> : null}
             {tickerSaved ? 'Ticker Saved!' : 'Save Ticker Settings'}
+          </button>
+        </div>
+      </div>
+
+      {/* Interlude Images */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+        <div>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Interlude Images</p>
+          <p className="text-[11px] text-muted-foreground/50 mt-1">Shown as full-screen still images between articles during queue autoplay — 30 seconds each, picked at random.</p>
+        </div>
+
+        {(config.interludeImages ?? []).length > 0 && (
+          <div className="space-y-1.5">
+            {(config.interludeImages ?? []).map((url, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                <span className="text-[#c8102e] text-xs font-mono shrink-0">{i + 1}</span>
+                <span className="flex-1 text-xs text-white/70 truncate font-mono">{url}</span>
+                <button
+                  onClick={() => update('interludeImages', (config.interludeImages ?? []).filter((_, idx) => idx !== i))}
+                  className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <input
+            value={newInterludeUrl}
+            onChange={e => setNewInterludeUrl(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && newInterludeUrl.trim()) {
+                update('interludeImages', [...(config.interludeImages ?? []), newInterludeUrl.trim()]);
+                setNewInterludeUrl('');
+              }
+            }}
+            placeholder="https://example.com/travel-deal.jpg"
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+          />
+          <button
+            onClick={() => {
+              if (!newInterludeUrl.trim()) return;
+              update('interludeImages', [...(config.interludeImages ?? []), newInterludeUrl.trim()]);
+              setNewInterludeUrl('');
+            }}
+            disabled={!newInterludeUrl.trim()}
+            className="px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 disabled:opacity-40 transition-all"
+          >
+            <Plus className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -1622,13 +1676,25 @@ function AdminDashboard() {
     if (next >= snippets.length) {
       // Last chapter done — advance queue if autoplay is on
       if (queueAutoplay) {
-        await apiAdvanceQueue();
+        const hasNextItem = playingQueueIndex < queue.length - 1;
+        const cfg = await fetch('/api/waiting-config').then(r => r.json()).catch(() => null);
+        const interludeImages: string[] = cfg?.interludeImages ?? [];
+        if (hasNextItem && interludeImages.length > 0) {
+          const img = interludeImages[Math.floor(Math.random() * interludeImages.length)];
+          await fetch('/api/playback/queue/interlude', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageUrl: img }),
+          });
+          // Public display handles 30s countdown then calls /queue/advance automatically
+        } else {
+          await apiAdvanceQueue();
+        }
         await loadQueue();
       }
       return;
     }
     updatePlayback(playingArticleId, next);
-  }, [playingArticleId, snippets.length, currentSnippetIndex, updatePlayback, queueAutoplay, loadQueue]);
+  }, [playingArticleId, snippets.length, currentSnippetIndex, updatePlayback, queueAutoplay, loadQueue, playingQueueIndex, queue.length]);
 
   const handlePrev = useCallback(() => {
     if (!playingArticleId || snippets.length === 0) return;
@@ -1660,10 +1726,21 @@ function AdminDashboard() {
     const chapterAutoplay = autoPlay || queueAutoplay;
     if (!chapterAutoplay || voiceEnabled || !playingArticleId || snippets.length === 0) return;
     if (currentSnippetIndex >= snippets.length - 1) {
-      // On last chapter — advance queue after delay if queue autoplay is on
+      // On last chapter — show interlude or advance queue after delay
       if (queueAutoplay) {
         const timer = setTimeout(async () => {
-          await apiAdvanceQueue();
+          const hasNextItem = playingQueueIndex < queue.length - 1;
+          const cfg = await fetch('/api/waiting-config').then(r => r.json()).catch(() => null);
+          const interludeImages: string[] = cfg?.interludeImages ?? [];
+          if (hasNextItem && interludeImages.length > 0) {
+            const img = interludeImages[Math.floor(Math.random() * interludeImages.length)];
+            await fetch('/api/playback/queue/interlude', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ imageUrl: img }),
+            });
+          } else {
+            await apiAdvanceQueue();
+          }
           await loadQueue();
         }, AUTO_PLAY_SECONDS * 1000);
         return () => clearTimeout(timer);
@@ -1672,7 +1749,7 @@ function AdminDashboard() {
     }
     const timer = setTimeout(() => handleNextRef.current(), AUTO_PLAY_SECONDS * 1000);
     return () => clearTimeout(timer);
-  }, [autoPlay, queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, loadQueue]);
+  }, [autoPlay, queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, loadQueue, playingQueueIndex, queue.length]);
 
   // Reset snippet index when the playing article changes
   useEffect(() => {

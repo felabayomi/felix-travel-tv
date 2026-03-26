@@ -8,10 +8,11 @@ export interface QueueItem {
 }
 
 export interface PlaybackState {
-  itemType: 'article' | 'video' | null;
+  itemType: 'article' | 'video' | 'interlude' | null;
   articleId: number | null;
   snippetIndex: number;
   videoId: number | null;
+  interludeImageUrl: string | null;
   onAir: boolean;
   autoplayQueue: boolean;
   queueIndex: number;
@@ -23,6 +24,7 @@ export let playbackState: PlaybackState = {
   articleId: null,
   snippetIndex: 0,
   videoId: null,
+  interludeImageUrl: null,
   onAir: false,
   autoplayQueue: false,
   queueIndex: -1,
@@ -162,7 +164,27 @@ router.post("/queue/stop", (_req, res) => {
     itemType: null,
     articleId: null,
     videoId: null,
+    interludeImageUrl: null,
     snippetIndex: 0,
+    updatedAt: Date.now(),
+  };
+  res.json(playbackState);
+});
+
+// Set an interlude (still image) between queue items — public display handles countdown + advance
+router.post("/queue/interlude", (req, res) => {
+  const { imageUrl } = req.body ?? {};
+  if (typeof imageUrl !== 'string' || !imageUrl.trim()) {
+    res.status(400).json({ error: "imageUrl required" }); return;
+  }
+  playbackState = {
+    ...playbackState,
+    itemType: 'interlude',
+    interludeImageUrl: imageUrl.trim(),
+    articleId: null,
+    videoId: null,
+    snippetIndex: 0,
+    onAir: true,
     updatedAt: Date.now(),
   };
   res.json(playbackState);
@@ -176,6 +198,7 @@ router.post("/queue/advance", (_req, res) => {
     playbackState = {
       ...playbackState,
       itemType: null, articleId: null, videoId: null,
+      interludeImageUrl: null,
       snippetIndex: 0, queueIndex: -1, onAir: false,
       updatedAt: Date.now(),
     };
