@@ -610,7 +610,12 @@ function WaitingScreenPanel() {
               </button>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground/50 mt-1.5">Viewers see a live countdown timer on the waiting screen.</p>
+          {config.broadcastTime && new Date(config.broadcastTime).getTime() < Date.now() && (
+            <p className="text-[11px] text-destructive mt-1.5">⚠ This time has already passed — viewers will see "Broadcast starting shortly". Update to a future time.</p>
+          )}
+          {!(config.broadcastTime && new Date(config.broadcastTime).getTime() < Date.now()) && (
+            <p className="text-[11px] text-muted-foreground/50 mt-1.5">Viewers see a live countdown timer on the waiting screen.</p>
+          )}
         </div>
       </div>
 

@@ -153,12 +153,20 @@ function Countdown({ targetTime }: { targetTime: string }) {
 
   if (remaining <= 0) {
     return (
-      <p
-        className="text-white/40 text-sm uppercase tracking-widest"
-        style={{ fontFamily: 'Oswald, sans-serif' }}
-      >
-        Broadcast starting shortly
-      </p>
+      <div>
+        <p
+          className="text-white/25 text-xs uppercase tracking-widest mb-1"
+          style={{ fontFamily: 'Oswald, sans-serif' }}
+        >
+          Scheduled time has passed
+        </p>
+        <p
+          className="text-white/50 text-sm uppercase tracking-widest"
+          style={{ fontFamily: 'Oswald, sans-serif' }}
+        >
+          Broadcast starting shortly
+        </p>
+      </div>
     );
   }
 
