@@ -1906,10 +1906,12 @@ function AdminDashboard() {
   // When the admin tab becomes visible again, immediately resync from the server
   // and reset the "already spoken" guard so voice restarts for the current chapter.
   // (Browsers block audio in background tabs, so voice is always silent while away.)
+  // IMPORTANT: preserve the current article ID so that when voice effect fires for the
+  // next chapter advance, isNewArticle stays false and the chain isn't broken.
   useEffect(() => {
     const handleVisible = () => {
       if (document.visibilityState === 'visible') {
-        prevIndexRef.current = { index: -1, articleId: null };
+        prevIndexRef.current = { index: -1, articleId: playingArticleIdRef.current };
         void loadQueue();
       }
     };
@@ -2013,19 +2015,23 @@ function AdminDashboard() {
   useEffect(() => { speakRef.current = speak; }, [speak]);
 
   useEffect(() => {
-    if (!voiceEnabled || !snippets[currentSnippetIndex]) return;
-    // If the article just changed, wait until snippet index resets to 0.
-    const isNewArticle = prevIndexRef.current.articleId !== playingArticleId;
-    if (isNewArticle && currentSnippetIndex !== 0) return;
+    console.log('[voice-effect] fired', { voiceEnabled, idx: currentSnippetIndex, articleId: playingArticleId, prev: prevIndexRef.current, token: voiceRestartToken, snippetId: snippets[currentSnippetIndex]?.id });
+    if (!voiceEnabled || !snippets[currentSnippetIndex]) { console.log('[voice-effect] early-return: voiceEnabled=', voiceEnabled, 'snippet=', snippets[currentSnippetIndex]); return; }
+    // If a genuinely different article is now playing, wait until snippet index resets to 0.
+    // null means "fresh reset" — allow any chapter index to proceed.
+    const isNewArticle = prevIndexRef.current.articleId !== null && prevIndexRef.current.articleId !== playingArticleId;
+    if (isNewArticle && currentSnippetIndex !== 0) { console.log('[voice-effect] early-return: new article but idx', currentSnippetIndex); return; }
     // Skip if we already started speaking this exact snippet for this article.
     if (
       prevIndexRef.current.index === currentSnippetIndex &&
       prevIndexRef.current.articleId === playingArticleId
-    ) return;
+    ) { console.log('[voice-effect] early-return: already spoken idx', currentSnippetIndex); return; }
     prevIndexRef.current = { index: currentSnippetIndex, articleId: playingArticleId };
+    console.log('[voice-effect] SPEAKING snippet', snippets[currentSnippetIndex].id, 'autoplay=', queueAutoplayRef.current);
     // Always attach onEnded; it checks queueAutoplayRef at the moment it fires
     // so autoplay can be toggled on/off between the speak() call and when it ends.
     speakRef.current(snippets[currentSnippetIndex].id, () => {
+      console.log('[voice-effect] onEnded fired for snippet', snippets[currentSnippetIndex]?.id, 'autoplay=', queueAutoplayRef.current);
       if (queueAutoplayRef.current) advanceRef.current();
     });
   // queueAutoplay is intentionally NOT in deps — accessed via ref so toggling it
@@ -3032,7 +3038,8 @@ function AdminDashboard() {
                           // Turning autoplay ON: reset the "already spoken" guard and
                           // bump voiceRestartToken so the voice effect re-fires even if
                           // currentSnippetIndex didn't change (e.g. still at chapter 0).
-                          prevIndexRef.current = { index: -1, articleId: null };
+                          // Preserve article ID so isNewArticle stays false on next advance.
+                          prevIndexRef.current = { index: -1, articleId: playingArticleIdRef.current };
                           setVoiceRestartToken(t => t + 1);
                         }
                       }}
