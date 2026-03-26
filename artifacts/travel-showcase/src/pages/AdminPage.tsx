@@ -595,36 +595,36 @@ function WaitingScreenPanel() {
         <div>
           <label className="text-[11px] text-muted-foreground mb-1.5 block uppercase tracking-widest">Scheduled Start Time (optional)</label>
           <div className="flex items-center gap-2">
-            {/* Styled picker button — clicking opens the native calendar + time picker */}
-            <label
-              className="flex-1 flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-background cursor-pointer hover:border-primary/60 transition-colors group"
-            >
-              <CalendarDays className="w-4 h-4 text-primary flex-shrink-0" />
-              <span className="flex-1 text-sm">
-                {config.broadcastTime
-                  ? (() => {
-                      const d = new Date(config.broadcastTime);
-                      return (
-                        <>
-                          <span className="text-white font-medium">
-                            {d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                          <span className="text-primary ml-2 font-semibold">
-                            {d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </>
-                      );
-                    })()
-                  : <span className="text-muted-foreground/50">Pick date &amp; time…</span>
-                }
-              </span>
+            {/* Styled picker button — the invisible datetime input sits on top so clicks open the native calendar */}
+            <div className="relative flex-1">
+              <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-background pointer-events-none">
+                <CalendarDays className="w-4 h-4 text-primary flex-shrink-0" />
+                <span className="flex-1 text-sm">
+                  {config.broadcastTime
+                    ? (() => {
+                        const d = new Date(config.broadcastTime);
+                        return (
+                          <>
+                            <span className="text-white font-medium">
+                              {d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                            <span className="text-primary ml-2 font-semibold">
+                              {d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </>
+                        );
+                      })()
+                    : <span className="text-muted-foreground/50">Pick date &amp; time…</span>
+                  }
+                </span>
+              </div>
               <input
                 type="datetime-local"
                 value={config.broadcastTime}
                 onChange={e => update('broadcastTime', e.target.value)}
-                className="sr-only"
+                style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
               />
-            </label>
+            </div>
             {config.broadcastTime && (
               <button
                 onClick={() => update('broadcastTime', '')}
