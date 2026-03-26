@@ -189,7 +189,7 @@ function Countdown({ targetTime }: { targetTime: string }) {
 // px/s for each speed level 1–5 (react-fast-marquee speed prop)
 const TICKER_SPEEDS_PPS = [20, 35, 50, 72, 100];
 
-function GlobalTicker({ speed = 3 }: { speed?: number }) {
+function GlobalTicker({ speed = 3, channelName = 'Felix Travel TV' }: { speed?: number; channelName?: string }) {
   const [items, setItems] = useState<TickerItem[]>([]);
   const lastJsonRef = useRef<string>('');
 
@@ -247,14 +247,23 @@ function GlobalTicker({ speed = 3 }: { speed?: number }) {
           alt="logo"
           style={{ height: '72px', width: 'auto', objectFit: 'contain', display: 'block' }}
         />
-        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
-          <span style={{ fontFamily: 'Oswald, sans-serif', color: '#D4880A', fontWeight: 700, fontSize: '12px', letterSpacing: '0.12em' }}>
-            REAL-TIME
-          </span>
-          <span style={{ fontFamily: 'Oswald, sans-serif', color: '#1A4B8C', fontWeight: 700, fontSize: '13px', letterSpacing: '0.08em' }}>
-            TRAVEL ADVISOR
-          </span>
-        </div>
+        {(() => {
+          const words = channelName.trim().split(/\s+/);
+          const line1 = words[0] ?? '';
+          const line2 = words.slice(1).join(' ');
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+              <span style={{ fontFamily: 'Oswald, sans-serif', color: '#D4880A', fontWeight: 700, fontSize: '12px', letterSpacing: '0.12em' }}>
+                {line1.toUpperCase()}
+              </span>
+              {line2 && (
+                <span style={{ fontFamily: 'Oswald, sans-serif', color: '#1A4B8C', fontWeight: 700, fontSize: '13px', letterSpacing: '0.08em' }}>
+                  {line2.toUpperCase()}
+                </span>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* CSS scroll strip */}
@@ -377,7 +386,7 @@ function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: Waiti
       </div>
 
       {/* Ticker */}
-      <GlobalTicker speed={config?.tickerSpeed ?? 3} />
+      <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
     </main>
   );
 }
@@ -494,7 +503,7 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
         </div>
       </div>
 
-      <GlobalTicker speed={config?.tickerSpeed ?? 3} />
+      <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
     </main>
   );
 }
@@ -706,7 +715,7 @@ export function PublicDisplay() {
           </div>
         </motion.div>
 
-        <GlobalTicker speed={config?.tickerSpeed ?? 3} />
+        <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
       </div>
     );
   }
@@ -806,7 +815,7 @@ export function PublicDisplay() {
       )}
 
       {/* ── Global persistent ticker (always at bottom, never resets on slide change) ── */}
-      <GlobalTicker speed={config?.tickerSpeed ?? 3} />
+      <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
 
       <AmbientMusicPlayer />
 
