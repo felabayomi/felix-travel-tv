@@ -327,14 +327,13 @@ function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: Waiti
 
   return (
     <main className="relative w-screen h-screen overflow-hidden" style={{ background: '#050508' }}>
-      {/* Background image */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <img
-          src={imageUrl}
-          alt="Travel deal"
-          style={{ opacity: 0.95, display: 'block', maxWidth: '100%', maxHeight: '100%' }}
-        />
-      </div>
+      {/* Background image — fills screen like article images */}
+      <img
+        src={imageUrl}
+        alt="Travel deal"
+        className="absolute inset-0 w-full h-full object-cover"
+        style={{ opacity: 0.95 }}
+      />
       {/* Dark gradient overlay */}
       <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(5,5,8,0.75) 0%, rgba(5,5,8,0.3) 40%, rgba(5,5,8,0.8) 100%)' }} />
 

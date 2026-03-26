@@ -1610,6 +1610,7 @@ function AdminDashboard() {
   const [onAir, setOnAir] = useState(false);
   const [mainTab, setMainTab] = useState<'broadcast' | 'waiting' | 'archive'>('broadcast');
   const AUTO_PLAY_SECONDS = 15;
+  const VOICE_FALLBACK_SECONDS = 90; // safety timer when voice is on but tab is hidden/audio fails
   const [articleOverrides, setArticleOverrides] = useState<Record<number, Partial<Article>>>({});
   const [articleOrder, setArticleOrder] = useState<number[]>(() => {
     try { return JSON.parse(localStorage.getItem('newsreader_article_order') ?? '[]'); } catch { return []; }
@@ -1779,12 +1780,17 @@ function AdminDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSnippetIndex, snippets, voiceEnabled, speak, autoPlay, queueAutoplay, playingArticleId]);
 
-  // Timer-based auto-advance when voice is off (handleNext reads from refs — always fresh)
+  // Auto-advance timer.
+  // When voice is OFF: advances after AUTO_PLAY_SECONDS (normal chapter pacing).
+  // When voice is ON: also runs as a safety net (VOICE_FALLBACK_SECONDS) in case the
+  // browser blocks audio on a background tab or the TTS callback never fires.
+  // handleNext reads from refs so it always sees the latest state when it fires.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const chapterAutoplay = autoPlay || queueAutoplay;
-    if (!chapterAutoplay || voiceEnabled || !playingArticleId || snippets.length === 0) return;
-    const timer = setTimeout(() => handleNextRef.current(), AUTO_PLAY_SECONDS * 1000);
+    if (!chapterAutoplay || !playingArticleId || snippets.length === 0) return;
+    const delay = voiceEnabled ? VOICE_FALLBACK_SECONDS * 1000 : AUTO_PLAY_SECONDS * 1000;
+    const timer = setTimeout(() => handleNextRef.current(), delay);
     return () => clearTimeout(timer);
   }, [autoPlay, queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId]);
 
