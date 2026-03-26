@@ -211,8 +211,7 @@ interface WaitingConfig {
   tickerSpeed: number;
   rotatingNames: Array<{ name: string; tagline: string }>;
   interludeImages: string[];
-  ticker2Text: string;
-  ticker2Url: string;
+  ticker2Items: Array<{ text: string; url: string }>;
 }
 
 const EMPTY_CONFIG: WaitingConfig = {
@@ -227,8 +226,7 @@ const EMPTY_CONFIG: WaitingConfig = {
   tickerSpeed: 3,
   rotatingNames: [],
   interludeImages: [],
-  ticker2Text: '',
-  ticker2Url: '',
+  ticker2Items: [],
 };
 
 const PRESETS: Array<{ name: string; description: string; config: Partial<WaitingConfig> }> = [
@@ -315,6 +313,8 @@ function WaitingScreenPanel() {
   const [newTopic, setNewTopic] = useState('');
   const [newSocialLabel, setNewSocialLabel] = useState('');
   const [newSocialUrl, setNewSocialUrl] = useState('');
+  const [newTicker2Text, setNewTicker2Text] = useState('');
+  const [newTicker2Url, setNewTicker2Url] = useState('');
   const [newTickerItem, setNewTickerItem] = useState('');
   const [newInterludeUrl, setNewInterludeUrl] = useState('');
   const [liveTickerItems, setLiveTickerItems] = useState<{ headline: string; caption: string; isCustom?: boolean }[]>([]);
@@ -444,6 +444,13 @@ function WaitingScreenPanel() {
     update('socialLinks', [...config.socialLinks, { label: newSocialLabel.trim(), url: newSocialUrl.trim() }]);
     setNewSocialLabel('');
     setNewSocialUrl('');
+  };
+
+  const addTicker2Item = () => {
+    if (!newTicker2Text.trim()) return;
+    update('ticker2Items', [...(config.ticker2Items ?? []), { text: newTicker2Text.trim(), url: newTicker2Url.trim() }]);
+    setNewTicker2Text('');
+    setNewTicker2Url('');
   };
 
   const addTickerItem = () => {
@@ -678,26 +685,45 @@ function WaitingScreenPanel() {
           <Repeat className="w-3.5 h-3.5 text-muted-foreground" />
           <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">Second Ticker Strip</p>
         </div>
-        <p className="text-[11px] text-muted-foreground/50">Shown as a smaller scrolling bar below the main news ticker — great for your site name and URL.</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-[11px] text-muted-foreground mb-1.5 block uppercase tracking-widest">Site name / label</label>
-            <input
-              value={config.ticker2Text}
-              onChange={e => update('ticker2Text', e.target.value)}
-              placeholder="e.g. Felix Abayomi Travel Advisor"
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
-            />
+        <p className="text-[11px] text-muted-foreground/50">Scrolling bar below the main news ticker. Add multiple entries — they all scroll through in sequence.</p>
+        {(config.ticker2Items ?? []).length > 0 && (
+          <div className="space-y-1.5">
+            {(config.ticker2Items ?? []).map((item, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border">
+                <span className="text-sm text-white font-medium truncate flex-1">{item.text}</span>
+                {item.url && (<span className="text-xs text-muted-foreground/60 truncate max-w-[140px]">{item.url.replace(/^https?:\/\//, '')}</span>)}
+                <button
+                  onClick={() => update('ticker2Items', (config.ticker2Items ?? []).filter((_, idx) => idx !== i))}
+                  className="text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
           </div>
-          <div>
-            <label className="text-[11px] text-muted-foreground mb-1.5 block uppercase tracking-widest">Link / URL</label>
-            <input
-              value={config.ticker2Url}
-              onChange={e => update('ticker2Url', e.target.value)}
-              placeholder="e.g. felixabaomitravel.com"
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
-            />
-          </div>
+        )}
+        <div className="flex gap-2">
+          <input
+            value={newTicker2Text}
+            onChange={e => setNewTicker2Text(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addTicker2Item()}
+            placeholder="Label / text"
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+          />
+          <input
+            value={newTicker2Url}
+            onChange={e => setNewTicker2Url(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addTicker2Item()}
+            placeholder="URL (optional)"
+            className="w-40 bg-background border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/60"
+          />
+          <button
+            onClick={addTicker2Item}
+            disabled={!newTicker2Text.trim()}
+            className="px-3 py-2 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 disabled:opacity-40 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
         </div>
         <div className="flex justify-end pt-1 border-t border-border/40">
           <button

@@ -68,8 +68,7 @@ interface WaitingConfig {
   customTickerItems: string[];
   tickerSpeed: number;
   rotatingNames: Array<{ name: string; tagline: string }>;
-  ticker2Text: string;
-  ticker2Url: string;
+  ticker2Items: Array<{ text: string; url: string }>;
 }
 
 const POLL_MS = 2000;
@@ -291,14 +290,19 @@ function GlobalTicker({ speed = 3, channelName = 'Felix Travel TV' }: { speed?: 
   );
 }
 
-function SecondaryTicker({ text, url, speed = 3 }: { text: string; url?: string; speed?: number }) {
-  if (!text.trim()) return null;
+function SecondaryTicker({ items, speed = 3 }: { items: Array<{ text: string; url?: string }>; speed?: number }) {
+  const validItems = (items ?? []).filter(i => i.text?.trim());
+  if (validItems.length === 0) return null;
 
   const pps = TICKER_SPEEDS_PPS[Math.min(Math.max(speed, 1), 5) - 1] ?? 50;
-  const displayUrl = url ? url.replace(/^https?:\/\//, '') : '';
-  const segment = displayUrl
-    ? `${text.toUpperCase()}  ·  ${displayUrl.toUpperCase()}`
-    : text.toUpperCase();
+  // Build one continuous scrolling string: "TEXT  ·  URL  •  TEXT2  ·  URL2  •  ..."
+  const parts = validItems.map(i => {
+    const displayUrl = i.url ? i.url.replace(/^https?:\/\//, '') : '';
+    return displayUrl
+      ? `${i.text.toUpperCase()}  ·  ${displayUrl.toUpperCase()}`
+      : i.text.toUpperCase();
+  });
+  const segment = parts.join('  •  ');
   const CHAR_WIDTH_PX = 10;
   const stripWidth = segment.length * CHAR_WIDTH_PX;
   const duration = Math.max(4, stripWidth / pps);
@@ -458,7 +462,7 @@ function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: Waiti
 
       {/* Ticker */}
       <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
-      <SecondaryTicker text={config?.ticker2Text ?? ''} url={config?.ticker2Url} speed={config?.tickerSpeed ?? 3} />
+      <SecondaryTicker items={config?.ticker2Items ?? []} speed={config?.tickerSpeed ?? 3} />
     </main>
   );
 }
@@ -576,7 +580,7 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
       </div>
 
       <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
-      <SecondaryTicker text={config?.ticker2Text ?? ''} url={config?.ticker2Url} speed={config?.tickerSpeed ?? 3} />
+      <SecondaryTicker items={config?.ticker2Items ?? []} speed={config?.tickerSpeed ?? 3} />
     </main>
   );
 }
@@ -799,7 +803,7 @@ export function PublicDisplay() {
         </div>
 
         <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
-        <SecondaryTicker text={config?.ticker2Text ?? ''} url={config?.ticker2Url} speed={config?.tickerSpeed ?? 3} />
+        <SecondaryTicker items={config?.ticker2Items ?? []} speed={config?.tickerSpeed ?? 3} />
       </div>
     );
   }
@@ -900,7 +904,7 @@ export function PublicDisplay() {
 
       {/* ── Global persistent ticker (always at bottom, never resets on slide change) ── */}
       <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
-      <SecondaryTicker text={config?.ticker2Text ?? ''} url={config?.ticker2Url} speed={config?.tickerSpeed ?? 3} />
+      <SecondaryTicker items={config?.ticker2Items ?? []} speed={config?.tickerSpeed ?? 3} />
 
       <AmbientMusicPlayer />
 

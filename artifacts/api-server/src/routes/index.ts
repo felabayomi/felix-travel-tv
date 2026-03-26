@@ -22,8 +22,7 @@ interface WaitingConfig {
   tickerSpeed: number;
   rotatingNames: Array<{ name: string; tagline: string }>;
   interludeImages: string[];
-  ticker2Text: string;
-  ticker2Url: string;
+  ticker2Items: Array<{ text: string; url: string }>;
 }
 
 const WAITING_CONFIG_KEY = 'waiting_config';
@@ -40,8 +39,7 @@ let waitingConfig: WaitingConfig = {
   tickerSpeed: 3,
   rotatingNames: [],
   interludeImages: [],
-  ticker2Text: '',
-  ticker2Url: '',
+  ticker2Items: [],
 };
 
 // Load persisted config from DB on startup
@@ -308,8 +306,10 @@ router.put('/waiting-config', async (req, res) => {
     interludeImages: Array.isArray(b.interludeImages)
       ? b.interludeImages.filter((t: unknown) => typeof t === 'string')
       : waitingConfig.interludeImages,
-    ticker2Text: typeof b.ticker2Text === 'string' ? b.ticker2Text : waitingConfig.ticker2Text,
-    ticker2Url: typeof b.ticker2Url === 'string' ? b.ticker2Url : waitingConfig.ticker2Url,
+    ticker2Items: Array.isArray(b.ticker2Items)
+      ? b.ticker2Items.filter((t: unknown) => t !== null && typeof t === 'object' && 'text' in (t as object))
+          .map((t: unknown) => ({ text: String((t as { text: string }).text), url: String((t as { url?: string }).url ?? '') }))
+      : waitingConfig.ticker2Items,
   };
   await persistWaitingConfig();
   res.json(waitingConfig);
