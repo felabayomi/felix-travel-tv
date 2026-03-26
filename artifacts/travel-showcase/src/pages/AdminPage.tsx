@@ -2360,7 +2360,7 @@ function AdminDashboard() {
                       )}
                     >
                       {isVoiceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : voiceEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-                      {voiceEnabled ? 'Voice' : 'Voice'}
+                      {voiceEnabled ? 'Voice On' : 'Voice Off'}
                     </button>
                   </div>
 
