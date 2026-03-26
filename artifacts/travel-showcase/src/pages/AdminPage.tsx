@@ -43,6 +43,7 @@ interface VideoItem {
   id: number;
   title: string;
   url: string;
+  source: string | null;
   maxDurationSecs: number | null;
   loop: boolean;
   archived: boolean;
@@ -55,7 +56,7 @@ async function fetchVideos(): Promise<VideoItem[]> {
   return res.json();
 }
 
-async function createVideo(data: { title: string; url: string; maxDurationSecs?: number | null; loop?: boolean }) {
+async function createVideo(data: { title: string; url: string; source?: string; maxDurationSecs?: number | null; loop?: boolean }) {
   const res = await fetch('/api/videos', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -77,7 +78,7 @@ async function deleteVideo(id: number) {
   await fetch(`/api/videos/${id}`, { method: 'DELETE' });
 }
 
-async function patchVideo(id: number, fields: Partial<Pick<VideoItem, 'title' | 'maxDurationSecs' | 'loop'>>) {
+async function patchVideo(id: number, fields: Partial<Pick<VideoItem, 'title' | 'source' | 'maxDurationSecs' | 'loop'>>) {
   const res = await fetch(`/api/videos/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -203,6 +204,7 @@ interface WaitingConfig {
   channelName: string;
   tagline: string;
   broadcastTime: string;
+  nextBroadcastSource: string;
   topics: string[];
   websiteLabel: string;
   websiteUrl: string;
@@ -218,6 +220,7 @@ const EMPTY_CONFIG: WaitingConfig = {
   channelName: '',
   tagline: '',
   broadcastTime: '',
+  nextBroadcastSource: '',
   topics: [],
   websiteLabel: '',
   websiteUrl: '',
@@ -308,7 +311,15 @@ function WaitingScreenPanel() {
   const [interludeSaved, setInterludeSaved] = useState(false);
   const [ticker2Saving, setTicker2Saving] = useState(false);
   const [ticker2Saved, setTicker2Saved] = useState(false);
+  const [sources, setSources] = useState<string[]>([]);
   const [newRotatingName, setNewRotatingName] = useState('');
+
+  useEffect(() => {
+    fetch('/api/sources', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : [])
+      .then((list: string[]) => setSources(list))
+      .catch(() => {});
+  }, []);
   const [newRotatingTagline, setNewRotatingTagline] = useState('');
   const [newTopic, setNewTopic] = useState('');
   const [newSocialLabel, setNewSocialLabel] = useState('');
@@ -616,6 +627,30 @@ function WaitingScreenPanel() {
           {!(config.broadcastTime && new Date(config.broadcastTime).getTime() < Date.now()) && (
             <p className="text-[11px] text-muted-foreground/50 mt-1.5">Viewers see a live countdown timer on the waiting screen.</p>
           )}
+        </div>
+        <div>
+          <label className="text-[11px] text-muted-foreground mb-1.5 block uppercase tracking-widest">Which Broadcast? (optional)</label>
+          <div className="flex items-center gap-2">
+            <select
+              value={config.nextBroadcastSource}
+              onChange={e => update('nextBroadcastSource', e.target.value)}
+              className="flex-1 rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/60 [color-scheme:dark]"
+            >
+              <option value="">— None —</option>
+              {sources.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            {config.nextBroadcastSource && (
+              <button
+                onClick={() => update('nextBroadcastSource', '')}
+                className="flex-shrink-0 px-3 py-2 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-all text-xs"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground/50 mt-1.5">Shows on the countdown screen. Add a source name to articles or videos to populate this list.</p>
         </div>
       </div>
 
@@ -1500,6 +1535,7 @@ function SidebarVideoEditor({ video, onClose, onSaved }: {
   onSaved: () => void;
 }) {
   const [title, setTitle] = useState(video.title);
+  const [source, setSource] = useState(video.source ?? '');
   const [maxMins, setMaxMins] = useState(() => video.maxDurationSecs ? String(Math.floor(video.maxDurationSecs / 60)) : '');
   const [maxSecs, setMaxSecs] = useState(() => video.maxDurationSecs ? String(video.maxDurationSecs % 60) : '');
   const [loop, setLoop] = useState(video.loop);
@@ -1511,7 +1547,7 @@ function SidebarVideoEditor({ video, onClose, onSaved }: {
       const mins = parseInt(maxMins || '0', 10) || 0;
       const secs = parseInt(maxSecs || '0', 10) || 0;
       const maxDurationSecs = mins * 60 + secs || null;
-      await patchVideo(video.id, { title, maxDurationSecs: maxDurationSecs ?? undefined, loop });
+      await patchVideo(video.id, { title, source: source.trim() || null, maxDurationSecs: maxDurationSecs ?? undefined, loop });
       onSaved();
       onClose();
     } catch { /* ignore */ }
@@ -1522,6 +1558,10 @@ function SidebarVideoEditor({ video, onClose, onSaved }: {
     <div className="px-3 pb-3 space-y-2 border-t border-primary/20 pt-2.5">
       <input value={title} onChange={e => setTitle(e.target.value)}
         placeholder="Video title"
+        className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-primary transition-all"
+      />
+      <input value={source} onChange={e => setSource(e.target.value)}
+        placeholder="Source name (e.g. Felix Travel TV)"
         className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-primary transition-all"
       />
       <div className="flex gap-2 items-center">
@@ -1566,6 +1606,7 @@ function SidebarVideoEditor({ video, onClose, onSaved }: {
 function AddVideoDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
+  const [source, setSource] = useState('');
   const [maxMins, setMaxMins] = useState('');
   const [maxSecs, setMaxSecs] = useState('');
   const [loop, setLoop] = useState(false);
@@ -1584,6 +1625,7 @@ function AddVideoDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: ()
       await createVideo({
         title: title.trim(),
         url: url.trim(),
+        source: source.trim() || undefined,
         maxDurationSecs: totalSecs > 0 ? totalSecs : null,
         loop,
       });
@@ -1632,6 +1674,17 @@ function AddVideoDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: ()
               className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground/40"
             />
             <p className="text-[11px] text-muted-foreground/50">Supports YouTube, Vimeo, and direct .mp4/.webm URLs</p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Radio className="w-3.5 h-3.5" /> Source (optional)
+            </label>
+            <input
+              type="text" placeholder="e.g. Felix Travel TV"
+              value={source} onChange={e => setSource(e.target.value)} disabled={saving}
+              className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground/40"
+            />
+            <p className="text-[11px] text-muted-foreground/50">Used in the countdown screen "Which broadcast" selector.</p>
           </div>
           <div className="space-y-1.5">
             <label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">

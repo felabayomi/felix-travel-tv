@@ -3,7 +3,7 @@ import healthRouter from "./health";
 import articlesRouter from "./articles";
 import playbackRouter from "./playback";
 import videosRouter from "./videos";
-import { db, snippetsTable, articlesTable, configStore } from "@workspace/db";
+import { db, snippetsTable, articlesTable, videosTable, configStore } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 // In-memory TTS cache: snippetId → mp3 Buffer
@@ -14,6 +14,7 @@ interface WaitingConfig {
   channelName: string;
   tagline: string;
   broadcastTime: string | null;
+  nextBroadcastSource: string;
   topics: string[];
   websiteLabel: string;
   websiteUrl: string;
@@ -31,6 +32,7 @@ let waitingConfig: WaitingConfig = {
   channelName: '',
   tagline: '',
   broadcastTime: null,
+  nextBroadcastSource: '',
   topics: [],
   websiteLabel: '',
   websiteUrl: '',
@@ -275,6 +277,19 @@ router.get('/ticker', async (req, res) => {
   }
 });
 
+// GET /api/sources — all unique source names from articles + videos
+router.get('/sources', async (_req, res) => {
+  try {
+    const articles = await db.select({ source: articlesTable.source }).from(articlesTable);
+    const videos = await db.select({ source: videosTable.source }).from(videosTable);
+    const all = [...articles.map(r => r.source), ...videos.map(r => r.source)];
+    const unique = [...new Set(all.filter((s): s is string => typeof s === 'string' && s.trim().length > 0))].sort();
+    res.json(unique);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // GET /api/waiting-config
 router.get('/waiting-config', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -289,6 +304,7 @@ router.put('/waiting-config', async (req, res) => {
     channelName: typeof b.channelName === 'string' ? b.channelName : waitingConfig.channelName,
     tagline: typeof b.tagline === 'string' ? b.tagline : waitingConfig.tagline,
     broadcastTime: 'broadcastTime' in b ? (b.broadcastTime || null) : waitingConfig.broadcastTime,
+    nextBroadcastSource: typeof b.nextBroadcastSource === 'string' ? b.nextBroadcastSource : waitingConfig.nextBroadcastSource,
     topics: Array.isArray(b.topics) ? b.topics.filter((t: unknown) => typeof t === 'string') : waitingConfig.topics,
     websiteLabel: typeof b.websiteLabel === 'string' ? b.websiteLabel : waitingConfig.websiteLabel,
     websiteUrl: typeof b.websiteUrl === 'string' ? b.websiteUrl : waitingConfig.websiteUrl,

@@ -6,6 +6,7 @@ export const videosTable = pgTable("videos", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   url: text("url").notNull(),
+  source: text("source"),
   maxDurationSecs: integer("max_duration_secs"),
   loop: boolean("loop").notNull().default(false),
   archived: boolean("archived").notNull().default(false),

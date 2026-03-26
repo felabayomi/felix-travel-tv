@@ -61,6 +61,7 @@ interface WaitingConfig {
   channelName: string;
   tagline: string;
   broadcastTime: string | null;
+  nextBroadcastSource: string;
   topics: string[];
   websiteLabel: string;
   websiteUrl: string;
@@ -739,7 +740,18 @@ export function PublicDisplay() {
 
               {/* Countdown */}
               {hasCountdown && config?.broadcastTime && (
-                <Countdown targetTime={config.broadcastTime} />
+                <div className="space-y-2">
+                  <Countdown targetTime={config.broadcastTime} />
+                  {config.nextBroadcastSource && (
+                    <p
+                      className="text-white/50 text-sm uppercase tracking-widest"
+                      style={{ fontFamily: 'Oswald, sans-serif' }}
+                    >
+                      <span className="text-white/25 text-xs mr-2">NEXT:</span>
+                      {config.nextBroadcastSource}
+                    </p>
+                  )}
+                </div>
               )}
 
               {/* Standby text when no countdown */}
