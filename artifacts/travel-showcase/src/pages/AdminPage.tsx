@@ -1805,6 +1805,20 @@ function AdminDashboard() {
   const queueRef = useRef(queue);
   useEffect(() => { queueRef.current = queue; }, [queue]);
 
+  // When the admin tab becomes visible again, immediately resync from the server
+  // and reset the "already spoken" guard so voice restarts for the current chapter.
+  // (Browsers block audio in background tabs, so voice is always silent while away.)
+  useEffect(() => {
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') {
+        prevIndexRef.current = { index: -1, articleId: null };
+        void loadQueue();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisible);
+    return () => document.removeEventListener('visibilitychange', handleVisible);
+  }, [loadQueue]);
+
   const updatePlayback = useCallback(async (articleId: number, index: number) => {
     setCurrentSnippetIndex(index);
     await setPlayback(articleId, index);
