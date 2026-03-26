@@ -206,8 +206,8 @@ Respond with a JSON object ONLY (no markdown, no code block):
 }`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.2",
-    max_completion_tokens: 8192,
+    model: "gpt-4o",
+    max_tokens: 8192,
     messages: [{ role: "user", content: prompt }],
   });
 
