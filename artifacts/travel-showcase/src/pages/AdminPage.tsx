@@ -5,7 +5,7 @@ import {
   Mic, MicOff, Lock, Eye, EyeOff, ExternalLink, Radio,
   Loader2, FileText, Link, CalendarDays, ChevronDown, ChevronUp,
   Settings2, RotateCcw, Play, Pause, Clock, Globe, Archive, ArchiveRestore, Download,
-  ListChecks, CheckSquare, Square, Repeat
+  ListChecks, CheckSquare, Square, Repeat, Search
 } from 'lucide-react';
 import {
   useGetArticles, useGetArticleSnippets, useCreateArticle,
@@ -1777,6 +1777,7 @@ function AdminDashboard() {
   const [editingArticleId, setEditingArticleId] = useState<number | null>(null);
   const [editingVideoId, setEditingVideoId] = useState<number | null>(null);
   const [exportingArticleId, setExportingArticleId] = useState<number | null>(null);
+  const [articleSearch, setArticleSearch] = useState('');
   const [articleSelectMode, setArticleSelectMode] = useState(false);
   const [videoSelectMode, setVideoSelectMode] = useState(false);
   const [selectedArticleIds, setSelectedArticleIds] = useState<Set<number>>(new Set());
@@ -1838,6 +1839,20 @@ function AdminDashboard() {
     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
   });
   const activeArticles = sortedArticles.filter(a => !a.archived);
+  const filteredArticles = articleSearch.trim()
+    ? activeArticles.filter(a => {
+        const q = articleSearch.trim().toLowerCase();
+        const domain = (() => { try { return new URL(a.url).hostname.replace('www.', ''); } catch { return ''; } })();
+        const dateStr = a.publishedAt ? new Date(a.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toLowerCase() : '';
+        return (
+          a.title?.toLowerCase().includes(q) ||
+          (a.source ?? '').toLowerCase().includes(q) ||
+          (a.summary ?? '').toLowerCase().includes(q) ||
+          domain.toLowerCase().includes(q) ||
+          dateStr.includes(q)
+        );
+      })
+    : activeArticles;
   const archivedArticles = articles.filter(a => a.archived).sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
   );
@@ -2259,6 +2274,35 @@ function AdminDashboard() {
             </div>
           </div>
 
+          {/* Search bar */}
+          {sidebarTab === 'articles' && (
+            <div className="px-3 pb-2 pt-1 border-b border-border">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50 pointer-events-none" />
+                <input
+                  type="text"
+                  value={articleSearch}
+                  onChange={e => setArticleSearch(e.target.value)}
+                  placeholder="Search by title, source, date…"
+                  className="w-full bg-white/5 border border-border rounded-lg pl-8 pr-7 py-1.5 text-xs text-white placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 transition-colors"
+                />
+                {articleSearch && (
+                  <button
+                    onClick={() => setArticleSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-white transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+              {articleSearch.trim() && (
+                <p className="text-[10px] text-muted-foreground/40 mt-1 pl-1">
+                  {filteredArticles.length} of {activeArticles.length} articles
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto p-3 space-y-1">
           {sidebarTab === 'videos' ? (
             activeVideos.length === 0 ? (
@@ -2390,8 +2434,14 @@ function AdminDashboard() {
                 All articles archived.{' '}
                 <button onClick={() => setMainTab('archive')} className="text-primary underline underline-offset-2">View archive</button>
               </p>
+            ) : filteredArticles.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                <Search className="w-6 h-6 text-muted-foreground/25 mb-2" />
+                <p className="text-xs text-muted-foreground/60">No articles match "{articleSearch}"</p>
+                <button onClick={() => setArticleSearch('')} className="mt-2 text-xs text-primary underline underline-offset-2">Clear search</button>
+              </div>
             ) : (
-              activeArticles.map((article, listIdx) => {
+              filteredArticles.map((article, listIdx) => {
                 const a = { ...article, ...articleOverrides[article.id] };
                 const isSelected = a.id === selectedArticleId;
                 const isEditing = editingArticleId === a.id;
@@ -2436,7 +2486,7 @@ function AdminDashboard() {
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); moveArticle(a.id, 1); }}
-                          disabled={listIdx === activeArticles.length - 1}
+                          disabled={listIdx === filteredArticles.length - 1}
                           className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
                           title="Move down"
                         >
