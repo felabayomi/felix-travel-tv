@@ -1240,6 +1240,133 @@ function ArticleMetaEditor({ article, onSaved }: { article: Article; onSaved: (a
   );
 }
 
+// ─── Sidebar inline editors ────────────────────────────────────────────────
+function SidebarArticleEditor({ article, onClose, onSaved }: {
+  article: Article;
+  onClose: () => void;
+  onSaved: (a: Article) => void;
+}) {
+  const [title, setTitle] = useState(article.title);
+  const [source, setSource] = useState(article.source ?? '');
+  const [date, setDate] = useState(() => toDateInput(article.publishedAt));
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updated = await patchArticle(article.id, {
+        title,
+        source,
+        publishedAt: date ? new Date(date).toISOString() : undefined,
+      });
+      onSaved(updated);
+      onClose();
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  return (
+    <div className="px-3 pb-3 space-y-2 border-t border-primary/20 pt-2.5">
+      <input value={title} onChange={e => setTitle(e.target.value)}
+        placeholder="Article title"
+        className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-primary transition-all"
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <input value={source} onChange={e => setSource(e.target.value)}
+          placeholder="Source"
+          className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-primary transition-all"
+        />
+        <input type="date" value={date} onChange={e => setDate(e.target.value)}
+          className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-primary transition-all text-foreground"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex-1 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/80 disabled:opacity-50 transition-all"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button
+          onClick={onClose}
+          className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-white hover:border-white/30 transition-all"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SidebarVideoEditor({ video, onClose, onSaved }: {
+  video: VideoItem;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [title, setTitle] = useState(video.title);
+  const [maxMins, setMaxMins] = useState(() => video.maxDurationSecs ? String(Math.floor(video.maxDurationSecs / 60)) : '');
+  const [maxSecs, setMaxSecs] = useState(() => video.maxDurationSecs ? String(video.maxDurationSecs % 60) : '');
+  const [loop, setLoop] = useState(video.loop);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const mins = parseInt(maxMins || '0', 10) || 0;
+      const secs = parseInt(maxSecs || '0', 10) || 0;
+      const maxDurationSecs = mins * 60 + secs || null;
+      await patchVideo(video.id, { title, maxDurationSecs: maxDurationSecs ?? undefined, loop });
+      onSaved();
+      onClose();
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  return (
+    <div className="px-3 pb-3 space-y-2 border-t border-primary/20 pt-2.5">
+      <input value={title} onChange={e => setTitle(e.target.value)}
+        placeholder="Video title"
+        className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-primary transition-all"
+      />
+      <div className="flex gap-2 items-center">
+        <span className="text-xs text-muted-foreground shrink-0">Max duration</span>
+        <input value={maxMins} onChange={e => setMaxMins(e.target.value)}
+          placeholder="0" type="number" min="0"
+          className="w-14 bg-background border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-primary transition-all"
+        />
+        <span className="text-xs text-muted-foreground">m</span>
+        <input value={maxSecs} onChange={e => setMaxSecs(e.target.value)}
+          placeholder="0" type="number" min="0" max="59"
+          className="w-14 bg-background border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-primary transition-all"
+        />
+        <span className="text-xs text-muted-foreground">s</span>
+      </div>
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <input type="checkbox" checked={loop} onChange={e => setLoop(e.target.checked)}
+          className="accent-primary w-3.5 h-3.5"
+        />
+        <span className="text-xs text-muted-foreground">Loop video</span>
+      </label>
+      <div className="flex gap-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex-1 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/80 disabled:opacity-50 transition-all"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button
+          onClick={onClose}
+          className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-white hover:border-white/30 transition-all"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Add Video Drawer ──────────────────────────────────────────────────────
 function AddVideoDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const [title, setTitle] = useState('');
@@ -1395,6 +1522,10 @@ function AdminDashboard() {
   const [articleOrder, setArticleOrder] = useState<number[]>(() => {
     try { return JSON.parse(localStorage.getItem('newsreader_article_order') ?? '[]'); } catch { return []; }
   });
+
+  // ── Inline sidebar editing ─────────────────────────────────────────────────
+  const [editingArticleId, setEditingArticleId] = useState<number | null>(null);
+  const [editingVideoId, setEditingVideoId] = useState<number | null>(null);
 
   // ── Broadcast Queue state ──────────────────────────────────────────────────
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -1674,70 +1805,92 @@ function AdminDashboard() {
             ) : (
               activeVideos.map(video => {
                 const isPlaying = video.id === playingVideoId && onAir;
+                const isEditingV = editingVideoId === video.id;
                 return (
                   <div key={video.id} className={cn(
-                    "group flex items-start gap-1.5 p-3 rounded-xl border transition-all",
-                    isPlaying
-                      ? "bg-primary/20 border-primary/50 text-white"
-                      : "border-transparent hover:bg-white/5 text-white/60 hover:text-white/80"
+                    "rounded-xl border transition-all",
+                    isEditingV
+                      ? "border-primary/40 bg-primary/5"
+                      : isPlaying
+                        ? "bg-primary/20 border-primary/50"
+                        : "border-transparent hover:bg-white/5"
                   )}>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        {isPlaying
-                          ? <span className="flex items-center gap-1 text-[10px] font-bold text-primary shrink-0 uppercase tracking-wider">
-                              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />LIVE
-                            </span>
-                          : <Play className="w-3 h-3 text-primary/60 shrink-0" />
-                        }
-                        <p className="text-sm font-medium leading-snug line-clamp-2">{video.title}</p>
+                    <div className={cn("group flex items-start gap-1.5 p-3 transition-all",
+                      isPlaying || isEditingV ? "text-white" : "text-white/60 hover:text-white/80"
+                    )}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          {isPlaying
+                            ? <span className="flex items-center gap-1 text-[10px] font-bold text-primary shrink-0 uppercase tracking-wider">
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />LIVE
+                              </span>
+                            : <Play className="w-3 h-3 text-primary/60 shrink-0" />
+                          }
+                          <p className="text-sm font-medium leading-snug line-clamp-2">{video.title}</p>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          {video.maxDurationSecs
+                            ? `Max ${Math.floor(video.maxDurationSecs / 60)}m ${video.maxDurationSecs % 60}s`
+                            : 'No time limit'
+                          }
+                          {video.loop ? ' · Loop' : ''}
+                        </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        {video.maxDurationSecs
-                          ? `Max ${Math.floor(video.maxDurationSecs / 60)}m ${video.maxDurationSecs % 60}s`
-                          : 'No time limit'
-                        }
-                        {video.loop ? ' · Loop' : ''}
-                      </p>
+                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                        <button
+                          onClick={async e => {
+                            e.stopPropagation();
+                            const newItems = await apiAddToQueue({ type: 'video', videoId: video.id, title: video.title });
+                            setQueue(newItems);
+                            setMainTab('broadcast');
+                          }}
+                          className="p-1 rounded text-muted-foreground hover:text-primary transition-all"
+                          title="Add to queue"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            setEditingVideoId(prev => prev === video.id ? null : video.id);
+                          }}
+                          className={cn(
+                            "p-1 rounded transition-all",
+                            isEditingV ? "text-primary" : "text-muted-foreground hover:text-white"
+                          )}
+                          title="Edit video"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            archiveVideo(video.id, true).then(() => { reloadVideos(); });
+                          }}
+                          className="p-1 rounded text-muted-foreground hover:text-amber-400 transition-all"
+                          title="Archive video"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            deleteVideo(video.id).then(() => { reloadVideos(); });
+                          }}
+                          className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
+                          title="Delete video"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
-                      {/* Add to queue */}
-                      <button
-                        onClick={async e => {
-                          e.stopPropagation();
-                          const newItems = await apiAddToQueue({
-                            type: 'video',
-                            videoId: video.id,
-                            title: video.title,
-                          });
-                          setQueue(newItems);
-                          setMainTab('broadcast');
-                        }}
-                        className="p-1 rounded text-muted-foreground hover:text-primary transition-all"
-                        title="Add to queue"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          archiveVideo(video.id, true).then(() => { reloadVideos(); });
-                        }}
-                        className="p-1 rounded text-muted-foreground hover:text-amber-400 transition-all"
-                        title="Archive video"
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          deleteVideo(video.id).then(() => { reloadVideos(); });
-                        }}
-                        className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
-                        title="Delete video"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {isEditingV && (
+                      <SidebarVideoEditor
+                        video={video}
+                        onClose={() => setEditingVideoId(null)}
+                        onSaved={() => reloadVideos()}
+                      />
+                    )}
                   </div>
                 );
               })
@@ -1758,82 +1911,104 @@ function AdminDashboard() {
               activeArticles.map((article, listIdx) => {
                 const a = { ...article, ...articleOverrides[article.id] };
                 const isSelected = a.id === selectedArticleId;
+                const isEditing = editingArticleId === a.id;
                 return (
                   <div key={a.id} className={cn(
-                    "group flex items-start gap-1.5 p-3 rounded-xl cursor-pointer transition-all border",
-                    isSelected
-                      ? "bg-primary/10 border-primary/30 text-white"
-                      : "border-transparent hover:bg-white/5 text-white/60 hover:text-white/80"
+                    "rounded-xl border transition-all",
+                    isEditing
+                      ? "border-primary/40 bg-primary/5"
+                      : isSelected
+                        ? "bg-primary/10 border-primary/30"
+                        : "border-transparent hover:bg-white/5"
                   )}>
-                    {/* Reorder buttons */}
-                    <div className="flex flex-col gap-0.5 pt-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={e => { e.stopPropagation(); moveArticle(a.id, -1); }}
-                        disabled={listIdx === 0}
-                        className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-                        title="Move up"
-                      >
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={e => { e.stopPropagation(); moveArticle(a.id, 1); }}
-                        disabled={listIdx === activeArticles.length - 1}
-                        className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-                        title="Move down"
-                      >
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <button onClick={() => setSelectedArticleId(a.id)} className="flex-1 min-w-0 text-left">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">
-                        {a.source || 'Unknown'} · {new Date(a.publishedAt).toLocaleDateString()}
-                      </p>
-                      <p className="text-sm font-medium leading-snug line-clamp-2">{a.title}</p>
-                      {isSelected && snippets.length > 0 && (
-                        <p className="text-[10px] text-primary/60 mt-1">
-                          {snippets.length} chapters
+                    {/* Row */}
+                    <div className={cn("group flex items-start gap-1.5 p-3 cursor-pointer transition-all",
+                      isSelected || isEditing ? "text-white" : "text-white/60 hover:text-white/80"
+                    )}>
+                      {/* Reorder buttons */}
+                      <div className="flex flex-col gap-0.5 pt-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={e => { e.stopPropagation(); moveArticle(a.id, -1); }}
+                          disabled={listIdx === 0}
+                          className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                          title="Move up"
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); moveArticle(a.id, 1); }}
+                          disabled={listIdx === activeArticles.length - 1}
+                          className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                          title="Move down"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <button onClick={() => setSelectedArticleId(a.id)} className="flex-1 min-w-0 text-left">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">
+                          {a.source || 'Unknown'} · {new Date(a.publishedAt).toLocaleDateString()}
                         </p>
-                      )}
-                    </button>
-                    <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
-                      {/* Add to queue */}
-                      <button
-                        onClick={async e => {
-                          e.stopPropagation();
-                          const newItems = await apiAddToQueue({
-                            type: 'article',
-                            articleId: a.id,
-                            title: a.title,
-                          });
-                          setQueue(newItems);
-                          setMainTab('broadcast');
-                        }}
-                        className="p-1 rounded text-muted-foreground hover:text-primary transition-all"
-                        title="Add to queue"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
+                        <p className="text-sm font-medium leading-snug line-clamp-2">{a.title}</p>
                       </button>
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          archiveArticle(a.id, true).then(() => {
-                            queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
-                          });
-                        }}
-                        className="p-1 rounded text-muted-foreground hover:text-amber-400 transition-all"
-                        title="Archive article"
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={e => { e.stopPropagation(); deleteMutation.mutate({ id: a.id }); }}
-                        disabled={deleteMutation.isPending}
-                        className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
-                        title="Delete article"
-                      >
-                        {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                      </button>
+                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                        <button
+                          onClick={async e => {
+                            e.stopPropagation();
+                            const newItems = await apiAddToQueue({ type: 'article', articleId: a.id, title: a.title });
+                            setQueue(newItems);
+                            setMainTab('broadcast');
+                          }}
+                          className="p-1 rounded text-muted-foreground hover:text-primary transition-all"
+                          title="Add to queue"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            setEditingArticleId(prev => prev === a.id ? null : a.id);
+                          }}
+                          className={cn(
+                            "p-1 rounded transition-all",
+                            isEditing ? "text-primary" : "text-muted-foreground hover:text-white"
+                          )}
+                          title="Edit article"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            archiveArticle(a.id, true).then(() => {
+                              queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+                            });
+                          }}
+                          className="p-1 rounded text-muted-foreground hover:text-amber-400 transition-all"
+                          title="Archive article"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteMutation.mutate({ id: a.id }); }}
+                          disabled={deleteMutation.isPending}
+                          className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
+                          title="Delete article"
+                        >
+                          {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
+                    {/* Inline edit panel */}
+                    {isEditing && (
+                      <SidebarArticleEditor
+                        article={a}
+                        onClose={() => setEditingArticleId(null)}
+                        onSaved={updated => {
+                          setArticleOverrides(prev => ({ ...prev, [updated.id]: updated }));
+                          queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+                        }}
+                      />
+                    )}
                   </div>
                 );
               })
