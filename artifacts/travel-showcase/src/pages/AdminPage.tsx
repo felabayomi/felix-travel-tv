@@ -4,7 +4,8 @@ import {
   ChevronLeft, ChevronRight, Plus, Trash2, Edit3, Check, X,
   Mic, MicOff, Lock, Eye, EyeOff, ExternalLink, Radio,
   Loader2, FileText, Link, CalendarDays, ChevronDown, ChevronUp,
-  Settings2, RotateCcw, Play, Pause, Clock, Globe, Archive, ArchiveRestore, Download
+  Settings2, RotateCcw, Play, Pause, Clock, Globe, Archive, ArchiveRestore, Download,
+  ListChecks, CheckSquare, Square
 } from 'lucide-react';
 import {
   useGetArticles, useGetArticleSnippets, useCreateArticle,
@@ -1620,6 +1621,10 @@ function AdminDashboard() {
   const [editingArticleId, setEditingArticleId] = useState<number | null>(null);
   const [editingVideoId, setEditingVideoId] = useState<number | null>(null);
   const [exportingArticleId, setExportingArticleId] = useState<number | null>(null);
+  const [articleSelectMode, setArticleSelectMode] = useState(false);
+  const [videoSelectMode, setVideoSelectMode] = useState(false);
+  const [selectedArticleIds, setSelectedArticleIds] = useState<Set<number>>(new Set());
+  const [selectedVideoIds, setSelectedVideoIds] = useState<Set<number>>(new Set());
   const [exportProgress, setExportProgress] = useState(0);
 
   // ── Broadcast Queue state ──────────────────────────────────────────────────
@@ -1928,21 +1933,116 @@ function AdminDashboard() {
                 )}
               </button>
             </div>
-            <div className="px-3 py-2 flex justify-end">
+            <div className="px-3 py-2 flex items-center gap-2 justify-end">
               {sidebarTab === 'articles' ? (
-                <button
-                  onClick={() => setShowAddDrawer(true)}
-                  className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-all font-medium"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Article
-                </button>
+                articleSelectMode ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        const allIds = new Set(activeArticles.map(a => a.id));
+                        const allSelected = activeArticles.every(a => selectedArticleIds.has(a.id));
+                        setSelectedArticleIds(allSelected ? new Set() : allIds);
+                      }}
+                      className="text-xs text-muted-foreground hover:text-white transition-colors px-1"
+                    >
+                      {activeArticles.every(a => selectedArticleIds.has(a.id)) ? 'None' : 'All'}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const items = activeArticles.filter(a => selectedArticleIds.has(a.id));
+                        let latest: QueueItem[] = queue;
+                        for (const a of items) {
+                          latest = await apiAddToQueue({ type: 'article', articleId: a.id, title: a.title });
+                        }
+                        setQueue(latest);
+                        setSelectedArticleIds(new Set());
+                        setArticleSelectMode(false);
+                        setMainTab('broadcast');
+                      }}
+                      disabled={selectedArticleIds.size === 0}
+                      className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 disabled:opacity-40 transition-all font-medium"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add {selectedArticleIds.size > 0 ? selectedArticleIds.size : ''} to Queue
+                    </button>
+                    <button
+                      onClick={() => { setArticleSelectMode(false); setSelectedArticleIds(new Set()); }}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-white transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setArticleSelectMode(true)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-white border border-border px-2.5 py-1.5 rounded-lg transition-all"
+                      title="Select multiple to queue"
+                    >
+                      <ListChecks className="w-3.5 h-3.5" /> Select
+                    </button>
+                    <button
+                      onClick={() => setShowAddDrawer(true)}
+                      className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-all font-medium"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Article
+                    </button>
+                  </>
+                )
               ) : (
-                <button
-                  onClick={() => setShowAddVideoDrawer(true)}
-                  className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-all font-medium"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Video
-                </button>
+                videoSelectMode ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        const allSelected = activeVideos.every(v => selectedVideoIds.has(v.id));
+                        setSelectedVideoIds(allSelected ? new Set() : new Set(activeVideos.map(v => v.id)));
+                      }}
+                      className="text-xs text-muted-foreground hover:text-white transition-colors px-1"
+                    >
+                      {activeVideos.every(v => selectedVideoIds.has(v.id)) ? 'None' : 'All'}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const items = activeVideos.filter(v => selectedVideoIds.has(v.id));
+                        let latest: QueueItem[] = queue;
+                        for (const v of items) {
+                          latest = await apiAddToQueue({ type: 'video', videoId: v.id, title: v.title });
+                        }
+                        setQueue(latest);
+                        setSelectedVideoIds(new Set());
+                        setVideoSelectMode(false);
+                        setMainTab('broadcast');
+                      }}
+                      disabled={selectedVideoIds.size === 0}
+                      className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 disabled:opacity-40 transition-all font-medium"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add {selectedVideoIds.size > 0 ? selectedVideoIds.size : ''} to Queue
+                    </button>
+                    <button
+                      onClick={() => { setVideoSelectMode(false); setSelectedVideoIds(new Set()); }}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-white transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setVideoSelectMode(true)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-white border border-border px-2.5 py-1.5 rounded-lg transition-all"
+                      title="Select multiple to queue"
+                    >
+                      <ListChecks className="w-3.5 h-3.5" /> Select
+                    </button>
+                    <button
+                      onClick={() => setShowAddVideoDrawer(true)}
+                      className="flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-all font-medium"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Video
+                    </button>
+                  </>
+                )
               )}
             </div>
           </div>
@@ -1968,9 +2068,25 @@ function AdminDashboard() {
                         ? "bg-primary/20 border-primary/50"
                         : "border-transparent hover:bg-white/5"
                   )}>
-                    <div className={cn("group flex items-start gap-1.5 p-3 transition-all",
-                      isPlaying || isEditingV ? "text-white" : "text-white/60 hover:text-white/80"
-                    )}>
+                    <div
+                      className={cn("group flex items-start gap-1.5 p-3 transition-all",
+                        isPlaying || isEditingV ? "text-white" : "text-white/60 hover:text-white/80",
+                        videoSelectMode && "cursor-pointer"
+                      )}
+                      onClick={videoSelectMode ? () => setSelectedVideoIds(prev => {
+                        const next = new Set(prev);
+                        next.has(video.id) ? next.delete(video.id) : next.add(video.id);
+                        return next;
+                      }) : undefined}
+                    >
+                      {videoSelectMode && (
+                        <div className="shrink-0 pt-0.5">
+                          {selectedVideoIds.has(video.id)
+                            ? <CheckSquare className="w-4 h-4 text-primary" />
+                            : <Square className="w-4 h-4 text-muted-foreground/50" />
+                          }
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           {isPlaying
@@ -1989,7 +2105,7 @@ function AdminDashboard() {
                           {video.loop ? ' · Loop' : ''}
                         </p>
                       </div>
-                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                      {!videoSelectMode && <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
                         <button
                           onClick={async e => {
                             e.stopPropagation();
@@ -2035,7 +2151,7 @@ function AdminDashboard() {
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </div>
+                      </div>}
                     </div>
                     {isEditingV && (
                       <SidebarVideoEditor
@@ -2075,9 +2191,25 @@ function AdminDashboard() {
                         : "border-transparent hover:bg-white/5"
                   )}>
                     {/* Row */}
-                    <div className={cn("group flex items-start gap-1.5 p-3 cursor-pointer transition-all",
-                      isSelected || isEditing ? "text-white" : "text-white/60 hover:text-white/80"
-                    )}>
+                    <div
+                      className={cn("group flex items-start gap-1.5 p-3 transition-all",
+                        isSelected || isEditing ? "text-white" : "text-white/60 hover:text-white/80",
+                        articleSelectMode ? "cursor-pointer" : "cursor-pointer"
+                      )}
+                      onClick={articleSelectMode ? () => setSelectedArticleIds(prev => {
+                        const next = new Set(prev);
+                        next.has(a.id) ? next.delete(a.id) : next.add(a.id);
+                        return next;
+                      }) : undefined}
+                    >
+                      {articleSelectMode && (
+                        <div className="shrink-0 pt-0.5">
+                          {selectedArticleIds.has(a.id)
+                            ? <CheckSquare className="w-4 h-4 text-primary" />
+                            : <Square className="w-4 h-4 text-muted-foreground/50" />
+                          }
+                        </div>
+                      )}
                       {/* Reorder buttons */}
                       <div className="flex flex-col gap-0.5 pt-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
@@ -2097,13 +2229,13 @@ function AdminDashboard() {
                           <ChevronDown className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      <button onClick={() => setSelectedArticleId(a.id)} className="flex-1 min-w-0 text-left">
+                      <div className="flex-1 min-w-0">
                         <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">
                           {a.source || 'Unknown'} · {new Date(a.publishedAt).toLocaleDateString()}
                         </p>
                         <p className="text-sm font-medium leading-snug line-clamp-2">{a.title}</p>
-                      </button>
-                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                      </div>
+                      {!articleSelectMode && <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
                         <button
                           onClick={async e => {
                             e.stopPropagation();
@@ -2184,7 +2316,7 @@ function AdminDashboard() {
                         >
                           {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                         </button>
-                      </div>
+                      </div>}
                     </div>
                     {/* Inline edit panel */}
                     {isEditing && (
