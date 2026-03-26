@@ -1531,6 +1531,58 @@ function AdminDashboard() {
   const [exportingArticleId, setExportingArticleId] = useState<number | null>(null);
   const [exportProgress, setExportProgress] = useState(0);
 
+  // ── Tab recording ─────────────────────────────────────────────────────────
+  const [isRecording, setIsRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recChunksRef = useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await (navigator.mediaDevices as any).getDisplayMedia({
+        video: { displaySurface: 'browser' },
+        audio: true,
+        preferCurrentTab: true,
+        selfBrowserSurface: 'include',
+      });
+      const mimeType = [
+        'video/mp4;codecs=h264',
+        'video/mp4',
+        'video/webm;codecs=h264',
+        'video/webm;codecs=vp9',
+        'video/webm',
+      ].find(t => MediaRecorder.isTypeSupported(t)) ?? 'video/webm';
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4_000_000 });
+      recChunksRef.current = [];
+      recorder.ondataavailable = e => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+        const blob = new Blob(recChunksRef.current, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `broadcast_recording.${ext}`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        setIsRecording(false);
+        recorderRef.current = null;
+      };
+      stream.getVideoTracks()[0].onended = () => {
+        if (recorder.state !== 'inactive') recorder.stop();
+      };
+      recorderRef.current = recorder;
+      recorder.start(200);
+      setIsRecording(true);
+    } catch {
+      // User cancelled or browser unsupported
+    }
+  };
+
+  const stopRecording = () => recorderRef.current?.stop();
+
   // ── Broadcast Queue state ──────────────────────────────────────────────────
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [queueAutoplay, setQueueAutoplay] = useState(false);
@@ -2405,6 +2457,25 @@ function AdminDashboard() {
                       {isVoiceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : voiceEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
                       {voiceEnabled ? 'Voice On' : 'Voice Off'}
                     </button>
+
+                    {isRecording ? (
+                      <button
+                        onClick={stopRecording}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all bg-red-600/30 border-red-500/50 text-red-400"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                        Stop & Save
+                      </button>
+                    ) : (
+                      <button
+                        onClick={startRecording}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all border-border text-white/50 hover:text-white hover:bg-white/5"
+                        title="Record the broadcast tab — open the public display in another tab first, then select it when prompted"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-red-500" />
+                        Record
+                      </button>
+                    )}
                   </div>
 
                   {/* Chapter list */}
