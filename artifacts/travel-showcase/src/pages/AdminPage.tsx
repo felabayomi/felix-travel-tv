@@ -1711,10 +1711,12 @@ function AdminDashboard() {
     setQueueAutoplay(state.autoplayQueue);
     setQueueLoop(state.loopQueue);
     setOnAir(state.onAir);
-    // Sync snippet index from server so advances driven by the server-side timer
-    // (when the admin tab is throttled in the background) are reflected locally.
+    // Sync snippet index from server — only forward, never backwards.
+    // Going backwards would reset the chapter during an interlude (server holds 0
+    // while the local state still reflects the last chapter of the finished article).
+    // New-article resets are already handled by the playingArticleId-change effect.
     setCurrentSnippetIndex(prev => {
-      if (state.snippetIndex !== prev) return state.snippetIndex;
+      if (state.snippetIndex > prev) return state.snippetIndex;
       return prev;
     });
   }, [setCurrentSnippetIndex]);
