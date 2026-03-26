@@ -1920,9 +1920,16 @@ function AdminDashboard() {
     return () => document.removeEventListener('visibilitychange', handleVisible);
   }, [loadQueue]);
 
-  const updatePlayback = useCallback(async (articleId: number, index: number) => {
+  const updatePlayback = useCallback(async (_articleId: number, index: number) => {
     setCurrentSnippetIndex(index);
-    await setPlayback(articleId, index);
+    // Use the dedicated snippet-advance endpoint so the server resets its fallback timer.
+    // PUT /api/playback updates state but does NOT reset the 18s server timer, causing
+    // double-advances that skip snippets when the admin is actively driving playback.
+    await fetch('/api/playback/queue/snippet', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snippetIndex: index }),
+    });
   }, []);
 
   // Pick an interlude image: first try the NEXT article's AI-generated snippet images
