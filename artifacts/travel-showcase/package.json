@@ -75,6 +75,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "mp4-muxer": "^5.2.2",
     "react-fast-marquee": "^1.6.5"
   }
 }

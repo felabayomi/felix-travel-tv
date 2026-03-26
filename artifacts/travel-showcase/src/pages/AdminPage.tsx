@@ -4,7 +4,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Trash2, Edit3, Check, X,
   Mic, MicOff, Lock, Eye, EyeOff, ExternalLink, Radio,
   Loader2, FileText, Link, CalendarDays, ChevronDown, ChevronUp,
-  Settings2, RotateCcw, Play, Pause, Clock, Globe, Archive, ArchiveRestore
+  Settings2, RotateCcw, Play, Pause, Clock, Globe, Archive, ArchiveRestore, Download
 } from 'lucide-react';
 import {
   useGetArticles, useGetArticleSnippets, useCreateArticle,
@@ -14,6 +14,7 @@ import type { Article, Snippet } from '@workspace/api-client-react/src/generated
 import { useQueryClient } from '@tanstack/react-query';
 import { useVoiceReader } from '@/hooks/use-voice-reader';
 import { cn } from '@/lib/utils';
+import { exportArticleToMp4 } from '@/lib/exportArticleMp4';
 
 const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN ?? '1234';
 const AUTH_KEY = 'newsreader_admin_auth';
@@ -1527,6 +1528,8 @@ function AdminDashboard() {
   // ── Inline sidebar editing ─────────────────────────────────────────────────
   const [editingArticleId, setEditingArticleId] = useState<number | null>(null);
   const [editingVideoId, setEditingVideoId] = useState<number | null>(null);
+  const [exportingArticleId, setExportingArticleId] = useState<number | null>(null);
+  const [exportProgress, setExportProgress] = useState(0);
 
   // ── Broadcast Queue state ──────────────────────────────────────────────────
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -1990,6 +1993,41 @@ function AdminDashboard() {
                           title="Archive article"
                         >
                           <Archive className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={async e => {
+                            e.stopPropagation();
+                            if (exportingArticleId === a.id) return;
+                            setExportingArticleId(a.id);
+                            setExportProgress(0);
+                            try {
+                              const res = await fetch(`/api/articles/${a.id}/snippets`);
+                              const snippets = await res.json();
+                              await exportArticleToMp4(
+                                { title: a.title, source: a.source || 'News', publishedAt: a.publishedAt },
+                                snippets,
+                                pct => setExportProgress(pct)
+                              );
+                            } catch (err) {
+                              console.error('Export failed:', err);
+                            } finally {
+                              setExportingArticleId(null);
+                              setExportProgress(0);
+                            }
+                          }}
+                          disabled={exportingArticleId !== null}
+                          className={cn(
+                            "p-1 rounded transition-all",
+                            exportingArticleId === a.id
+                              ? "text-primary cursor-wait"
+                              : "text-muted-foreground hover:text-green-400"
+                          )}
+                          title={exportingArticleId === a.id ? `Exporting… ${exportProgress}%` : "Export as MP4"}
+                        >
+                          {exportingArticleId === a.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Download className="w-3.5 h-3.5" />
+                          }
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); deleteMutation.mutate({ id: a.id }); }}
