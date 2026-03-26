@@ -1481,6 +1481,10 @@ function AdminDashboard() {
     setSelectedVideoId(video.id);
     setSelectedArticleId(null);
     await setVideoPlayback(video.id);
+    if (!onAir) {
+      setOnAir(true);
+      setOnAirState(true).catch(() => {});
+    }
   };
 
   const publicUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
@@ -1592,13 +1596,20 @@ function AdminDashboard() {
                 return (
                   <div key={video.id} className={cn(
                     "group flex items-start gap-1.5 p-3 rounded-xl border transition-all",
-                    isSelected
+                    isSelected && onAir
+                      ? "bg-primary/20 border-primary/50 text-white"
+                      : isSelected
                       ? "bg-primary/10 border-primary/30 text-white"
                       : "border-transparent hover:bg-white/5 text-white/60 hover:text-white/80"
                   )}>
                     <button onClick={() => handleSelectVideo(video)} className="flex-1 min-w-0 text-left">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <Play className="w-3 h-3 text-primary shrink-0" />
+                        {isSelected && onAir
+                          ? <span className="flex items-center gap-1 text-[10px] font-bold text-primary shrink-0 uppercase tracking-wider">
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />LIVE
+                            </span>
+                          : <Play className="w-3 h-3 text-primary shrink-0" />
+                        }
                         <p className="text-sm font-medium leading-snug line-clamp-2">{video.title}</p>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1">
@@ -1610,6 +1621,21 @@ function AdminDashboard() {
                       </p>
                     </button>
                     <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                      {isSelected && onAir && (
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            setOnAir(false);
+                            setOnAirState(false).catch(() => {});
+                            setSelectedVideoId(null);
+                            setPlayback(null, 0).catch(() => {});
+                          }}
+                          className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
+                          title="Stop broadcast"
+                        >
+                          <Pause className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={e => {
                           e.stopPropagation();
