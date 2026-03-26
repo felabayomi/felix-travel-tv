@@ -105,11 +105,12 @@ interface QueueState {
   items: QueueItem[];
   queueIndex: number;
   autoplayQueue: boolean;
+  onAir: boolean;
 }
 
 async function fetchQueueState(): Promise<QueueState> {
   const res = await fetch('/api/playback/queue', { cache: 'no-store' });
-  if (!res.ok) return { items: [], queueIndex: -1, autoplayQueue: false };
+  if (!res.ok) return { items: [], queueIndex: -1, autoplayQueue: false, onAir: false };
   return res.json();
 }
 
@@ -1537,7 +1538,7 @@ function AdminDashboard() {
     setQueue(state.items);
     setPlayingQueueIndex(state.queueIndex);
     setQueueAutoplay(state.autoplayQueue);
-    setOnAir(state.queueIndex >= 0);
+    setOnAir(state.onAir);
   }, []);
 
   useEffect(() => { loadQueue(); }, [loadQueue]);
@@ -2165,10 +2166,7 @@ function AdminDashboard() {
                       onClick={async () => {
                         setOnAir(false);
                         setPlayingQueueIndex(-1);
-                        await Promise.all([
-                          setOnAirState(false),
-                          setPlayback(null, 0),
-                        ]);
+                        await fetch('/api/playback/queue/stop', { method: 'POST' });
                         await loadQueue();
                       }}
                       className="flex items-center gap-2 px-4 py-2 rounded-xl border border-destructive/30 text-destructive/70 text-sm hover:bg-destructive/10 transition-all"

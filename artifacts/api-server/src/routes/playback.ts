@@ -114,6 +114,7 @@ router.get("/queue", (_req, res) => {
     items: broadcastQueue,
     queueIndex: playbackState.queueIndex,
     autoplayQueue: playbackState.autoplayQueue,
+    onAir: playbackState.onAir,
   });
 });
 
@@ -150,6 +151,20 @@ router.delete("/queue/item/:index", (req, res) => {
 router.post("/queue/play/:index", (req, res) => {
   const idx = parseInt(req.params.index, 10);
   applyQueueItemAtIndex(idx);
+  res.json(playbackState);
+});
+
+router.post("/queue/stop", (_req, res) => {
+  playbackState = {
+    ...playbackState,
+    queueIndex: -1,
+    onAir: false,
+    itemType: null,
+    articleId: null,
+    videoId: null,
+    snippetIndex: 0,
+    updatedAt: Date.now(),
+  };
   res.json(playbackState);
 });
 
