@@ -440,6 +440,58 @@ export function PublicDisplay() {
     return () => clearInterval(id);
   }, []);
 
+  // ── Tab recording ──────────────────────────────────────────────────────────
+  const [isRecording, setIsRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recChunksRef = useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await (navigator.mediaDevices as any).getDisplayMedia({
+        video: { displaySurface: 'browser' },
+        audio: true,
+        preferCurrentTab: true,
+        selfBrowserSurface: 'include',
+      });
+      const mimeType = [
+        'video/mp4;codecs=h264',
+        'video/mp4',
+        'video/webm;codecs=h264',
+        'video/webm;codecs=vp9',
+        'video/webm',
+      ].find(t => MediaRecorder.isTypeSupported(t)) ?? 'video/webm';
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4_000_000 });
+      recChunksRef.current = [];
+      recorder.ondataavailable = e => { if (e.data.size > 0) recChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+        const blob = new Blob(recChunksRef.current, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `broadcast_recording.${ext}`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        setIsRecording(false);
+        recorderRef.current = null;
+      };
+      stream.getVideoTracks()[0].onended = () => {
+        if (recorder.state !== 'inactive') recorder.stop();
+      };
+      recorderRef.current = recorder;
+      recorder.start(200);
+      setIsRecording(true);
+    } catch {
+      // User cancelled or unsupported
+    }
+  };
+
+  const stopRecording = () => recorderRef.current?.stop();
+
   const [tick, setTick] = useState(0);
   const prevIndexRef = useRef(snippetIndex);
   useEffect(() => {
@@ -721,6 +773,29 @@ export function PublicDisplay() {
       <GlobalTicker speed={config?.tickerSpeed ?? 3} />
 
       <AmbientMusicPlayer />
+
+      {/* ── Recording button ── */}
+      <div className="fixed bottom-16 right-4 z-50">
+        {isRecording ? (
+          <button
+            onClick={stopRecording}
+            className="flex items-center gap-2 px-3 py-2 rounded-full text-white text-xs font-bold shadow-lg"
+            style={{ background: 'rgba(200,16,46,0.92)', backdropFilter: 'blur(8px)' }}
+          >
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            STOP & SAVE
+          </button>
+        ) : (
+          <button
+            onClick={startRecording}
+            className="flex items-center gap-2 px-3 py-2 rounded-full text-white text-xs font-semibold shadow-lg opacity-25 hover:opacity-90 transition-opacity"
+            style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}
+          >
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            REC
+          </button>
+        )}
+      </div>
     </main>
   );
 }
