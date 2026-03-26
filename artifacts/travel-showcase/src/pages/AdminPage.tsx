@@ -2105,7 +2105,8 @@ function AdminDashboard() {
                           {video.loop ? ' · Loop' : ''}
                         </p>
                       </div>
-                      {!videoSelectMode && <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                      {!videoSelectMode && (
+                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
                         <button
                           onClick={async e => {
                             e.stopPropagation();
@@ -2151,7 +2152,8 @@ function AdminDashboard() {
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </div>}
+                      </div>
+                      )}
                     </div>
                     {isEditingV && (
                       <SidebarVideoEditor
@@ -2235,7 +2237,8 @@ function AdminDashboard() {
                         </p>
                         <p className="text-sm font-medium leading-snug line-clamp-2">{a.title}</p>
                       </div>
-                      {!articleSelectMode && <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                      {!articleSelectMode && (
+                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
                         <button
                           onClick={async e => {
                             e.stopPropagation();
@@ -2316,7 +2319,8 @@ function AdminDashboard() {
                         >
                           {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                         </button>
-                      </div>}
+                      </div>
+                      )}
                     </div>
                     {/* Inline edit panel */}
                     {isEditing && (
