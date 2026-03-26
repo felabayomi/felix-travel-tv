@@ -72,7 +72,7 @@ interface WaitingConfig {
   ticker2Items: Array<{ text: string; url: string }>;
 }
 
-const POLL_MS = 2000;
+const POLL_MS = 1000;
 
 function usePlaybackSync() {
   const [state, setState] = useState<PlaybackState>({ itemType: null, articleId: null, snippetIndex: 0, videoId: null, interludeImageUrl: null, onAir: false, updatedAt: 0 });

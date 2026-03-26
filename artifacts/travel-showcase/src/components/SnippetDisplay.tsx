@@ -141,11 +141,11 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
 
               {/* Explanation */}
               <p
-                className="text-white/50 leading-relaxed"
+                className="text-white/65 leading-relaxed"
                 style={{
                   fontFamily: 'IBM Plex Sans, sans-serif',
                   fontWeight: 300,
-                  fontSize: 'clamp(14px, 1.3vw, 17px)',
+                  fontSize: 'clamp(16px, 1.6vw, 22px)',
                   maxWidth: '68%',
                 }}
               >
