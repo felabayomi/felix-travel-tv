@@ -1763,11 +1763,13 @@ function AdminDashboard() {
   const [sidebarTab, setSidebarTab] = useState<'articles' | 'videos'>('articles');
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [autoPlay, setAutoPlay] = useState(false);
   const [onAir, setOnAir] = useState(false);
   const [mainTab, setMainTab] = useState<'broadcast' | 'waiting' | 'archive'>('broadcast');
+  // voiceRestartToken: incrementing this forces the voice effect to re-run even when
+  // snippet/article haven't changed (e.g. autoplay was just enabled while already on snippet 0)
+  const [voiceRestartToken, setVoiceRestartToken] = useState(0);
   const AUTO_PLAY_SECONDS = 15;
-  const VOICE_FALLBACK_SECONDS = 90; // safety timer when voice is on but tab is hidden/audio fails
+  const VOICE_FALLBACK_SECONDS = 300; // absolute last-resort safety net only
   const [articleOverrides, setArticleOverrides] = useState<Record<number, Partial<Article>>>({});
   const [articleOrder, setArticleOrder] = useState<number[]>(() => {
     try { return JSON.parse(localStorage.getItem('newsreader_article_order') ?? '[]'); } catch { return []; }
@@ -1894,8 +1896,6 @@ function AdminDashboard() {
   useEffect(() => { playingArticleIdRef.current = playingArticleId; }, [playingArticleId]);
   const queueAutoplayRef = useRef(queueAutoplay);
   useEffect(() => { queueAutoplayRef.current = queueAutoplay; }, [queueAutoplay]);
-  const autoPlayRef = useRef(autoPlay);
-  useEffect(() => { autoPlayRef.current = autoPlay; }, [autoPlay]);
   const playingQueueIndexRef = useRef(playingQueueIndex);
   useEffect(() => { playingQueueIndexRef.current = playingQueueIndex; }, [playingQueueIndex]);
   const queueLengthRef = useRef(queue.length);
@@ -1967,8 +1967,8 @@ function AdminDashboard() {
         await updatePlayback(articleId, next);
         return;
       }
-      // Last snippet finished — advance queue when either autoplay mode is on
-      if (!autoPlayRef.current && !queueAutoplayRef.current) return;
+      // Last snippet finished — advance queue only when autoplay is on
+      if (!queueAutoplayRef.current) return;
       const hasNextItem = playingQueueIndexRef.current < queueLengthRef.current - 1;
       if (hasNextItem) {
         const imageUrl = await pickInterludeImage();
@@ -2003,43 +2003,51 @@ function AdminDashboard() {
   }, [updatePlayback]);
 
   // ── Voice effect ─────────────────────────────────────────────────────────────
-  // Fires only when the snippet or article actually changes (NOT on autoplay/voice
-  // toggle — those use refs so toggling mid-playback never restarts audio or
-  // confuses the "already spoken" guard).
-  // speakRef lets us call speak without putting it in deps (it's stable per voiceEnabled anyway).
+  // Fires when the snippet, article, or voiceEnabled changes, OR when voiceRestartToken
+  // is bumped (e.g. autoplay toggled on while already at snippet 0 — no other dep changed).
+  //
+  // The onEnded callback is ALWAYS attached and checks queueAutoplayRef at fire time.
+  // This means enabling autoplay mid-read will take effect when the current snippet ends,
+  // without needing to re-call speak().
   const speakRef = useRef(speak);
   useEffect(() => { speakRef.current = speak; }, [speak]);
 
   useEffect(() => {
     if (!voiceEnabled || !snippets[currentSnippetIndex]) return;
-    // If the article just changed wait for snippet index to reset to 0 first.
+    // If the article just changed, wait until snippet index resets to 0.
     const isNewArticle = prevIndexRef.current.articleId !== playingArticleId;
     if (isNewArticle && currentSnippetIndex !== 0) return;
-    // Skip if already spoken this snippet for this article.
-    if (prevIndexRef.current.index === currentSnippetIndex && prevIndexRef.current.articleId === playingArticleId) return;
+    // Skip if we already started speaking this exact snippet for this article.
+    if (
+      prevIndexRef.current.index === currentSnippetIndex &&
+      prevIndexRef.current.articleId === playingArticleId
+    ) return;
     prevIndexRef.current = { index: currentSnippetIndex, articleId: playingArticleId };
-    const shouldAdvance = autoPlayRef.current || queueAutoplayRef.current;
-    speakRef.current(
-      snippets[currentSnippetIndex].id,
-      shouldAdvance ? () => advanceRef.current() : undefined,
-    );
-  // autoPlay, queueAutoplay, speak intentionally omitted — accessed via refs above.
-  // This prevents the effect from re-running (and confusing the guard) on every toggle.
+    // Always attach onEnded; it checks queueAutoplayRef at the moment it fires
+    // so autoplay can be toggled on/off between the speak() call and when it ends.
+    speakRef.current(snippets[currentSnippetIndex].id, () => {
+      if (queueAutoplayRef.current) advanceRef.current();
+    });
+  // queueAutoplay is intentionally NOT in deps — accessed via ref so toggling it
+  // never restarts the currently-playing audio or resets the "already spoken" guard.
+  // voiceRestartToken IS in deps so the effect can be force-triggered when needed.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSnippetIndex, snippets, voiceEnabled, playingArticleId]);
+  }, [currentSnippetIndex, snippets, voiceEnabled, playingArticleId, voiceRestartToken]);
 
   // ── Auto-advance timer ────────────────────────────────────────────────────────
   // When voice is OFF: advances every AUTO_PLAY_SECONDS.
   // When voice is ON: fires after VOICE_FALLBACK_SECONDS as a safety net only
   // (normally voice's onEnded callback drives advances — this just catches failures).
   useEffect(() => {
-    const chapterAutoplay = autoPlay || queueAutoplay;
-    if (!chapterAutoplay || !playingArticleId || snippets.length === 0) return;
+    if (!queueAutoplay || !playingArticleId || snippets.length === 0) return;
+    // When voice is ON: this is purely a last-resort safety net (5 min) in case
+    // the browser blocks audio or the onEnded callback never fires.
+    // When voice is OFF: this is the primary driver (15 s per chapter).
     const delay = voiceEnabled ? VOICE_FALLBACK_SECONDS * 1000 : AUTO_PLAY_SECONDS * 1000;
     const timer = setTimeout(() => advanceRef.current(), delay);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoPlay, queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId]);
+  }, [queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId]);
 
   // Reset snippet index when the playing article changes
   useEffect(() => {
@@ -3016,24 +3024,28 @@ function AdminDashboard() {
                     </button>
 
                     <button
-                      onClick={() => {
-                        if (!autoPlay && playingArticleId) {
-                          stop();
+                      onClick={async () => {
+                        const next = !queueAutoplay;
+                        setQueueAutoplay(next);
+                        await apiSetQueueAutoplay(next);
+                        if (next) {
+                          // Turning autoplay ON: reset the "already spoken" guard and
+                          // bump voiceRestartToken so the voice effect re-fires even if
+                          // currentSnippetIndex didn't change (e.g. still at chapter 0).
                           prevIndexRef.current = { index: -1, articleId: null };
-                          updatePlayback(playingArticleId, 0);
+                          setVoiceRestartToken(t => t + 1);
                         }
-                        setAutoPlay(v => !v);
                       }}
-                      title={autoPlay ? `Auto-advancing every ${AUTO_PLAY_SECONDS}s` : 'Auto-play chapters off'}
+                      title={queueAutoplay ? 'Autoplay on — click to disable' : 'Enable autoplay (voice reads and advances automatically)'}
                       className={cn(
                         "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all",
-                        autoPlay
+                        queueAutoplay
                           ? "bg-green-500/20 border-green-500/40 text-green-400"
                           : "border-border text-white/50 hover:text-white hover:bg-white/5"
                       )}
                     >
-                      {autoPlay ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                      {autoPlay ? 'Auto' : 'Manual'}
+                      {queueAutoplay ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      {queueAutoplay ? 'Auto' : 'Manual'}
                     </button>
 
                     <button
