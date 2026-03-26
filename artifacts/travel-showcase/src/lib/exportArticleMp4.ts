@@ -2,7 +2,7 @@ import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 
 const WIDTH = 1280;
 const HEIGHT = 720;
-const FPS = 30;
+const FPS = 2;
 const SECONDS_PER_CHAPTER = 8;
 const FRAMES_PER_CHAPTER = FPS * SECONDS_PER_CHAPTER;
 
@@ -216,10 +216,10 @@ export async function exportArticleToMp4(
   });
 
   encoder.configure({
-    codec: 'avc1.4d0028',
+    codec: 'avc1.420028',
     width: WIDTH,
     height: HEIGHT,
-    bitrate: 5_000_000,
+    bitrate: 2_000_000,
     framerate: FPS,
   });
 
