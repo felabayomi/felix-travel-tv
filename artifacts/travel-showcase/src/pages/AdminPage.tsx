@@ -1700,7 +1700,7 @@ function AdminDashboard() {
   const { speak, stop, isLoading: isVoiceLoading } = useVoiceReader(voiceEnabled);
 
   // When snippet changes (via nav), update server + speak
-  const prevIndexRef = useRef(-1);
+  const prevIndexRef = useRef<{ index: number; articleId: number | null }>({ index: -1, articleId: null });
   const updatePlayback = useCallback(async (articleId: number, index: number) => {
     setCurrentSnippetIndex(index);
     await setPlayback(articleId, index);
@@ -1744,8 +1744,8 @@ function AdminDashboard() {
 
   useEffect(() => {
     if (!voiceEnabled || !snippets[currentSnippetIndex]) return;
-    if (prevIndexRef.current === currentSnippetIndex) return;
-    prevIndexRef.current = currentSnippetIndex;
+    if (prevIndexRef.current.index === currentSnippetIndex && prevIndexRef.current.articleId === playingArticleId) return;
+    prevIndexRef.current = { index: currentSnippetIndex, articleId: playingArticleId };
     const chapterAutoplay = autoPlay || queueAutoplay;
     speak(
       snippets[currentSnippetIndex].id,
@@ -1753,7 +1753,7 @@ function AdminDashboard() {
     );
   // handleNext intentionally omitted — we use the ref to avoid restarting on every index change
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSnippetIndex, snippets, voiceEnabled, speak, autoPlay, queueAutoplay]);
+  }, [currentSnippetIndex, snippets, voiceEnabled, speak, autoPlay, queueAutoplay, playingArticleId]);
 
   // Timer-based auto-advance when voice is off
   // handleNext intentionally omitted from deps — ref keeps it fresh without restarting the timer
@@ -1790,7 +1790,7 @@ function AdminDashboard() {
   // Reset snippet index when the playing article changes
   useEffect(() => {
     setCurrentSnippetIndex(0);
-    prevIndexRef.current = -1;
+    prevIndexRef.current = { index: -1, articleId: null };
   }, [playingArticleId]);
 
   const handleSelectChapter = (index: number) => {
@@ -2488,7 +2488,7 @@ function AdminDashboard() {
                       onClick={() => {
                         if (!autoPlay && playingArticleId) {
                           stop();
-                          prevIndexRef.current = -1;
+                          prevIndexRef.current = { index: -1, articleId: null };
                           updatePlayback(playingArticleId, 0);
                         }
                         setAutoPlay(v => !v);
