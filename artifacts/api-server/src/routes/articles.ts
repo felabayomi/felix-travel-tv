@@ -286,13 +286,52 @@ Example: "Airlines operating transatlantic routes have announced a significant i
 
 ---
 
+STEP 4 — MATCH THE EXPLANATION DEPTH TO THE CONTENT TYPE:
+
+Explanations must NEVER sound like Wikipedia or a generic encyclopedia.
+Write like a travel advisor giving practical planning advice — always answer real traveller questions.
+
+For every chapter, the explanation should feel like: "If you're planning a trip here, this is what you need to know."
+
+EXPLANATION DEPTH PER CONTENT TYPE:
+
+TRAVEL_NEWS → SHORT (2–3 sentences)
+  Just the key facts: what happened, why it matters to travellers, what they should do.
+
+TRAVEL_TIPS → SHORT (2–3 sentences)
+  Direct, actionable advice. No padding. One clear point per sentence.
+
+HOTEL_REVIEW → MEDIUM (5–7 sentences)
+  Cover: first impression, room quality, key amenities, who it suits, and one booking tip.
+
+BEFORE_YOU_BOOK → MEDIUM (5–7 sentences)
+  Cover: what to check before booking, costs to expect, timing, and what travellers miss.
+
+DESTINATION (intro chapters) → MEDIUM (5–7 sentences)
+  Cover: why visit, best time, where to stay, what to do, how many days, one travel tip.
+
+DESTINATION (deep chapters e.g. food, attractions) → LONG (8–12 sentences)
+  Be specific: name real restaurants, real attractions, real neighbourhoods, prices, tips.
+  Answer: what to do, where exactly, how much it costs, who it suits, mistakes to avoid.
+
+EXPEDITION → LONG (8–12 sentences)
+  Cover: what makes it special, how to get there, what to pack, best conditions, real logistics.
+
+CONTENT FRAMING RULES (apply to all types):
+- Always include at least one of: a real place name, a price range, a time estimate, or a practical tip
+- Never write "visitors can enjoy" — say what specifically they will do and why it's worth it
+- Never write "it is known for" — say what it actually is and what a traveller should expect
+- End destination and expedition chapters with a "Before you book" tip where natural
+- Write as Felix Abayomi, your trusted travel advisor — knowledgeable, direct, and helpful
+
+---
+
 CRITICAL RULES:
 - Every chapter must be specific to THIS article — not generic content
 - Use all available clues (title, description, URL, structured data) to infer the full story
 - Headlines must be punchy and specific — never vague
-- Explanations must include real names, places, numbers, and details
-- If content is limited, draw on your training knowledge about this topic
-- Stay in the correct voice for the content type throughout all chapters
+- If content is limited, draw on your training knowledge about this specific topic and destination
+- Stay in the correct voice and depth for the content type throughout all chapters
 
 ---
 
@@ -306,8 +345,8 @@ Respond with a JSON object ONLY (no markdown, no code block):
   "snippets": [
     {
       "headline": "Specific punchy chapter headline (max 10 words)",
-      "caption": "One precise sentence capturing the key point of this chapter",
-      "explanation": "2-3 sentences written in the correct voice — specific details, names, places, numbers",
+      "caption": "One precise sentence capturing the key planning insight of this chapter",
+      "explanation": "Written in the correct voice and depth for the content type — practical travel advice with real names, places, costs, and tips. Not a description. Not Wikipedia. A travel advisor talking to a real traveller.",
       "imagePrompt": "Detailed cinematic travel photography prompt matching the content type's mood — describe subject, setting, lighting, atmosphere, style"
     }
   ]

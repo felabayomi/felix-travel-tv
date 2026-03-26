@@ -1,0 +1,127 @@
+That’s a very good observation — and this is where your **Felix Travel TV content will start to look professional instead of AI-generated**.
+
+You’re talking about **explanation depth** — right now your AI probably gives **2–3 general sentences**, which feels like Wikipedia. For a travel channel, that’s too shallow.
+
+You want **travel-specific framing**, not generic descriptions.
+
+---
+
+# What “Travel-Specific Framing” Means
+
+Instead of this (generic AI style):
+
+> Chicago is a large city in Illinois known for its architecture, food, and cultural attractions. Visitors can enjoy museums, parks, and shopping areas.
+
+You want this (travel advisor style):
+
+> Chicago is one of the best U.S. cities for a long weekend trip. Most visitors stay downtown near the Magnificent Mile or River North because you can walk to restaurants, river cruises, and major attractions. The best time to visit is May through October when the weather is warm and the city has festivals and outdoor events.
+
+See the difference?
+
+**Generic description vs. Travel planning insight.**
+
+Your content should always answer:
+
+* Where to stay
+* Best time to go
+* What to do
+* How many days
+* Who the trip is for
+* Travel tips
+* Money tips
+* Booking tips
+* Mistakes to avoid
+
+---
+
+# The Perfect Explanation Structure for Felix Travel TV
+
+Instead of 2–3 sentences, your AI content should follow this structure:
+
+## Felix Travel TV Destination Format
+
+Use this format for cities/destinations:
+
+1. **Quick overview**
+2. **Why visit**
+3. **Best time to visit**
+4. **Where to stay**
+5. **Top things to do**
+6. **Food to try**
+7. **How many days**
+8. **Travel tips**
+9. **Before you book tip (your branding)**
+10. **Call to action**
+
+---
+
+# Example (This is the style you want AI to produce)
+
+### Example: Chicago
+
+> Chicago is one of the best cities in the United States for architecture, food, museums, and waterfront experiences along Lake Michigan.
+> Most visitors come for the architecture river cruise, deep-dish pizza, Millennium Park, and the observation decks at Willis Tower and 360 Chicago.
+> The best time to visit is from May to October when the weather is warm and the city hosts festivals and outdoor events.
+> The best areas to stay are Downtown, River North, and the Magnificent Mile because they are close to restaurants, attractions, and tours.
+> Plan to spend about 3 to 4 days in Chicago to see the major attractions and enjoy the food scene.
+> Before booking your hotel or flight, it’s always a good idea to get a second opinion on location, price, and timing — it could save you money and make your trip better.
+
+That sounds like **a travel advisor + travel show**, not AI.
+
+---
+
+# Ideal Explanation Length for Your Channel
+
+Use this as a guideline:
+
+| Content Type       | Length            |
+| ------------------ | ----------------- |
+| Travel News        | Short (20–30 sec) |
+| Travel Tip         | Short             |
+| Hotel Review       | Medium            |
+| Destination Intro  | Medium            |
+| City Discovery     | Long              |
+| Expedition America | Long              |
+| Before You Book    | Medium            |
+| Travel Planning    | Medium            |
+| Travel Guide       | Long              |
+
+### In words:
+
+* Short: 2–3 sentences
+* Medium: 5–8 sentences
+* Long: 10–15 sentences
+
+Your current **2–3 sentences should only be for news or quick tips**, not destinations.
+
+---
+
+# Very Important Prompt You Should Use With AI
+
+When generating your content, use something like this:
+
+> Write this like a travel advisor giving practical travel advice, not like an encyclopedia. Include where to stay, best time to visit, who the trip is best for, how many days to stay, and travel tips. Write in a travel show host style.
+
+This will dramatically improve your content quality.
+
+---
+
+# Final Recommendation for Felix Travel TV Content Style
+
+## Your Content Should Always Feel Like:
+
+* Part travel show
+* Part travel advisor
+* Part travel guide
+* Part travel planning service
+* Part travel news
+
+**Not Wikipedia.
+Not encyclopedia.
+Not generic tourism descriptions.**
+
+More like:
+
+> “If you’re planning a trip here, this is what you need to know.”
+
+That should be the **Felix Travel TV voice**.
