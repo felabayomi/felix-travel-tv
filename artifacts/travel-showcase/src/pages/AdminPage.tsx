@@ -637,7 +637,8 @@ function WaitingScreenPanel() {
               className="flex-1 rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/60 [color-scheme:dark]"
             >
               <option value="">— None —</option>
-              {sources.map(s => (
+              <option value="General">General</option>
+              {sources.filter(s => s !== 'General').map(s => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
