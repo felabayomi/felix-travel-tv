@@ -106,6 +106,7 @@ interface QueueItem {
 interface QueueState {
   items: QueueItem[];
   queueIndex: number;
+  snippetIndex: number;
   autoplayQueue: boolean;
   loopQueue: boolean;
   onAir: boolean;
@@ -113,7 +114,7 @@ interface QueueState {
 
 async function fetchQueueState(): Promise<QueueState> {
   const res = await fetch('/api/playback/queue', { cache: 'no-store' });
-  if (!res.ok) return { items: [], queueIndex: -1, autoplayQueue: false, loopQueue: false, onAir: false };
+  if (!res.ok) return { items: [], queueIndex: -1, snippetIndex: 0, autoplayQueue: false, loopQueue: false, onAir: false };
   return res.json();
 }
 
@@ -1710,7 +1711,13 @@ function AdminDashboard() {
     setQueueAutoplay(state.autoplayQueue);
     setQueueLoop(state.loopQueue);
     setOnAir(state.onAir);
-  }, []);
+    // Sync snippet index from server so advances driven by the server-side timer
+    // (when the admin tab is throttled in the background) are reflected locally.
+    setCurrentSnippetIndex(prev => {
+      if (state.snippetIndex !== prev) return state.snippetIndex;
+      return prev;
+    });
+  }, [setCurrentSnippetIndex]);
 
   useEffect(() => { loadQueue(); }, [loadQueue]);
 

@@ -1,4 +1,6 @@
 import { Router, type IRouter } from "express";
+import { db, snippetsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 export interface QueueItem {
   type: 'article' | 'video';
@@ -35,33 +37,7 @@ export let playbackState: PlaybackState = {
 
 export const broadcastQueue: QueueItem[] = [];
 
-export function applyQueueItemAtIndex(index: number): void {
-  if (index < 0 || index >= broadcastQueue.length) {
-    playbackState = {
-      ...playbackState,
-      itemType: null, articleId: null, videoId: null,
-      snippetIndex: 0, queueIndex: -1, onAir: false,
-      updatedAt: Date.now(),
-    };
-    return;
-  }
-  const item = broadcastQueue[index];
-  if (item.type === 'article') {
-    playbackState = {
-      ...playbackState,
-      itemType: 'article', articleId: item.articleId ?? null,
-      videoId: null, snippetIndex: 0,
-      queueIndex: index, onAir: true, updatedAt: Date.now(),
-    };
-  } else {
-    playbackState = {
-      ...playbackState,
-      itemType: 'video', videoId: item.videoId ?? null,
-      articleId: null, snippetIndex: 0,
-      queueIndex: index, onAir: true, updatedAt: Date.now(),
-    };
-  }
-}
+// ─── Interlude timer ──────────────────────────────────────────────────────────
 
 const INTERLUDE_DURATION_MS = 30_000;
 let interludeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -79,6 +55,120 @@ function resolveNextIndex(currentIndex: number): number | null {
   if (playbackState.loopQueue && broadcastQueue.length > 0) return 0;
   return null;
 }
+
+// ─── Server-side snippet auto-advance ────────────────────────────────────────
+// When the admin tab is in the background, browsers throttle its JS timers.
+// The server independently advances snippets every SNIPPET_ADVANCE_MS seconds
+// so the broadcast continues without the admin tab being active.
+// When the admin signals an advance (via PATCH /queue/snippet), the server
+// resets its timer so voice-driven pacing takes priority when admin is open.
+
+const SNIPPET_ADVANCE_MS = 18_000; // 18 s per snippet (server fallback)
+let snippetTimer: ReturnType<typeof setTimeout> | null = null;
+let snippetScheduledForArticleId: number | null = null;
+let snippetTotalCount: number | null = null;
+
+function clearSnippetTimer() {
+  if (snippetTimer !== null) {
+    clearTimeout(snippetTimer);
+    snippetTimer = null;
+  }
+}
+
+function scheduleNextSnippetAdvance() {
+  clearSnippetTimer();
+  const articleId = snippetScheduledForArticleId;
+  const total = snippetTotalCount;
+  if (!articleId || !total || total <= 0) return;
+
+  const fromIndex = playbackState.snippetIndex;
+
+  snippetTimer = setTimeout(() => {
+    snippetTimer = null;
+    // Guard: only act if we're still on the same article and on-air
+    if (playbackState.articleId !== articleId || !playbackState.onAir) return;
+
+    if (playbackState.snippetIndex !== fromIndex) {
+      // Admin already advanced this snippet — just reschedule from new position
+      scheduleNextSnippetAdvance();
+      return;
+    }
+
+    const nextIndex = fromIndex + 1;
+    if (nextIndex < total) {
+      playbackState = { ...playbackState, snippetIndex: nextIndex, updatedAt: Date.now() };
+      scheduleNextSnippetAdvance();
+    } else {
+      // Article finished all snippets — end queue item (admin will handle interlude/advance)
+      // Do nothing: admin calls /queue/interlude or /queue/advance when it detects last chapter
+      // If admin is gone, we stop here (interlude is admin-driven for image selection)
+      clearSnippetTimer();
+    }
+  }, SNIPPET_ADVANCE_MS);
+}
+
+async function startSnippetSchedule(articleId: number) {
+  clearSnippetTimer();
+  snippetScheduledForArticleId = articleId;
+  snippetTotalCount = null;
+
+  try {
+    const rows = await db
+      .select({ id: snippetsTable.id })
+      .from(snippetsTable)
+      .where(eq(snippetsTable.articleId, articleId));
+    snippetTotalCount = rows.length;
+  } catch {
+    snippetTotalCount = null;
+  }
+
+  // Only schedule if we're still on the same article
+  if (
+    playbackState.articleId === articleId &&
+    playbackState.onAir &&
+    snippetTotalCount &&
+    snippetTotalCount > 0
+  ) {
+    scheduleNextSnippetAdvance();
+  }
+}
+
+// ─── Apply queue item ─────────────────────────────────────────────────────────
+
+export function applyQueueItemAtIndex(index: number): void {
+  if (index < 0 || index >= broadcastQueue.length) {
+    clearSnippetTimer();
+    playbackState = {
+      ...playbackState,
+      itemType: null, articleId: null, videoId: null,
+      snippetIndex: 0, queueIndex: -1, onAir: false,
+      updatedAt: Date.now(),
+    };
+    return;
+  }
+  const item = broadcastQueue[index];
+  if (item.type === 'article') {
+    playbackState = {
+      ...playbackState,
+      itemType: 'article', articleId: item.articleId ?? null,
+      videoId: null, snippetIndex: 0,
+      queueIndex: index, onAir: true, updatedAt: Date.now(),
+    };
+    if (item.articleId) {
+      void startSnippetSchedule(item.articleId);
+    }
+  } else {
+    clearSnippetTimer();
+    playbackState = {
+      ...playbackState,
+      itemType: 'video', videoId: item.videoId ?? null,
+      articleId: null, snippetIndex: 0,
+      queueIndex: index, onAir: true, updatedAt: Date.now(),
+    };
+  }
+}
+
+// ─── Interlude scheduler ──────────────────────────────────────────────────────
 
 function scheduleInterludeAdvance() {
   clearInterludeTimer();
@@ -155,6 +245,7 @@ router.get("/queue", (_req, res) => {
   res.json({
     items: broadcastQueue,
     queueIndex: playbackState.queueIndex,
+    snippetIndex: playbackState.snippetIndex,
     autoplayQueue: playbackState.autoplayQueue,
     loopQueue: playbackState.loopQueue,
     onAir: playbackState.onAir,
@@ -199,6 +290,7 @@ router.post("/queue/play/:index", (req, res) => {
 
 router.post("/queue/stop", (_req, res) => {
   clearInterludeTimer();
+  clearSnippetTimer();
   playbackState = {
     ...playbackState,
     queueIndex: -1,
@@ -216,6 +308,7 @@ router.post("/queue/stop", (_req, res) => {
 // Pause — keeps queue position/article intact, just turns off onAir and kills the timer
 router.post("/queue/pause", (_req, res) => {
   clearInterludeTimer();
+  clearSnippetTimer();
   playbackState = { ...playbackState, onAir: false, updatedAt: Date.now() };
   res.json(playbackState);
 });
@@ -226,6 +319,7 @@ router.post("/queue/interlude", (req, res) => {
   if (typeof imageUrl !== 'string' || !imageUrl.trim()) {
     res.status(400).json({ error: "imageUrl required" }); return;
   }
+  clearSnippetTimer();
   playbackState = {
     ...playbackState,
     itemType: 'interlude',
@@ -242,6 +336,7 @@ router.post("/queue/interlude", (req, res) => {
 
 router.post("/queue/advance", (_req, res) => {
   clearInterludeTimer();
+  clearSnippetTimer();
   if (playbackState.autoplayQueue) {
     const next = resolveNextIndex(playbackState.queueIndex);
     if (next !== null) {
@@ -284,6 +379,8 @@ router.patch("/queue/snippet", (req, res) => {
     res.status(400).json({ error: "snippetIndex must be >= 0" }); return;
   }
   playbackState = { ...playbackState, snippetIndex, updatedAt: Date.now() };
+  // Admin signalled an advance — reset the server-side timer from this new position
+  scheduleNextSnippetAdvance();
   res.json(playbackState);
 });
 
