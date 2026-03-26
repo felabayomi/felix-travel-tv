@@ -61,6 +61,35 @@ export function applyQueueItemAtIndex(index: number): void {
   }
 }
 
+const INTERLUDE_DURATION_MS = 30_000;
+let interludeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearInterludeTimer() {
+  if (interludeTimer !== null) {
+    clearTimeout(interludeTimer);
+    interludeTimer = null;
+  }
+}
+
+function scheduleInterludeAdvance() {
+  clearInterludeTimer();
+  interludeTimer = setTimeout(() => {
+    interludeTimer = null;
+    const next = playbackState.queueIndex + 1;
+    if (playbackState.autoplayQueue && next < broadcastQueue.length) {
+      applyQueueItemAtIndex(next);
+    } else {
+      playbackState = {
+        ...playbackState,
+        itemType: null, articleId: null, videoId: null,
+        interludeImageUrl: null,
+        snippetIndex: 0, queueIndex: -1, onAir: false,
+        updatedAt: Date.now(),
+      };
+    }
+  }, INTERLUDE_DURATION_MS);
+}
+
 const router: IRouter = Router();
 
 // ─── Playback state ───────────────────────────────────────────────────────────
@@ -157,6 +186,7 @@ router.post("/queue/play/:index", (req, res) => {
 });
 
 router.post("/queue/stop", (_req, res) => {
+  clearInterludeTimer();
   playbackState = {
     ...playbackState,
     queueIndex: -1,
@@ -171,7 +201,7 @@ router.post("/queue/stop", (_req, res) => {
   res.json(playbackState);
 });
 
-// Set an interlude (still image) between queue items — public display handles countdown + advance
+// Set an interlude (still image) between queue items — server auto-advances after 30s
 router.post("/queue/interlude", (req, res) => {
   const { imageUrl } = req.body ?? {};
   if (typeof imageUrl !== 'string' || !imageUrl.trim()) {
@@ -187,10 +217,12 @@ router.post("/queue/interlude", (req, res) => {
     onAir: true,
     updatedAt: Date.now(),
   };
+  scheduleInterludeAdvance();
   res.json(playbackState);
 });
 
 router.post("/queue/advance", (_req, res) => {
+  clearInterludeTimer();
   const next = playbackState.queueIndex + 1;
   if (playbackState.autoplayQueue && next < broadcastQueue.length) {
     applyQueueItemAtIndex(next);
