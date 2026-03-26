@@ -257,6 +257,9 @@ export async function exportArticleToMp4(
   a.href = url;
   const safeName = article.title.replace(/[^a-z0-9]/gi, '_').slice(0, 60);
   a.download = `${safeName}.mp4`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
