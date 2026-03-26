@@ -740,18 +740,7 @@ export function PublicDisplay() {
 
               {/* Countdown */}
               {hasCountdown && config?.broadcastTime && (
-                <div className="space-y-2">
-                  <Countdown targetTime={config.broadcastTime} />
-                  {config.nextBroadcastSource && (
-                    <p
-                      className="text-white/50 text-sm uppercase tracking-widest"
-                      style={{ fontFamily: 'Oswald, sans-serif' }}
-                    >
-                      <span className="text-white/25 text-xs mr-2">NEXT:</span>
-                      {config.nextBroadcastSource}
-                    </p>
-                  )}
-                </div>
+                <Countdown targetTime={config.broadcastTime} />
               )}
 
               {/* Standby text when no countdown */}
@@ -761,6 +750,17 @@ export function PublicDisplay() {
                   style={{ fontFamily: 'IBM Plex Sans, sans-serif' }}
                 >
                   Live broadcast starting soon
+                </p>
+              )}
+
+              {/* Next broadcast source — shown in both countdown and standby modes */}
+              {config?.nextBroadcastSource && (
+                <p
+                  className="text-white/60 text-sm uppercase tracking-widest"
+                  style={{ fontFamily: 'Oswald, sans-serif' }}
+                >
+                  <span className="text-white/25 text-xs mr-2">NEXT:</span>
+                  {config.nextBroadcastSource}
                 </p>
               )}
 
