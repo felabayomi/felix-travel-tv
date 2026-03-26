@@ -295,28 +295,48 @@ function SecondaryTicker({ items, speed = 3 }: { items: Array<{ text: string; ur
   if (validItems.length === 0) return null;
 
   const pps = TICKER_SPEEDS_PPS[Math.min(Math.max(speed, 1), 5) - 1] ?? 50;
-  // Build one continuous scrolling string: "TEXT  ·  URL  •  TEXT2  ·  URL2  •  ..."
-  const parts = validItems.map(i => {
-    const displayUrl = i.url ? i.url.replace(/^https?:\/\//, '') : '';
-    return displayUrl
-      ? `${i.text.toUpperCase()}  ·  ${displayUrl.toUpperCase()}`
-      : i.text.toUpperCase();
-  });
-  const segment = parts.join('  •  ');
   const CHAR_WIDTH_PX = 10;
-  const stripWidth = segment.length * CHAR_WIDTH_PX;
-  const duration = Math.max(4, stripWidth / pps);
-  const animName = `ticker2-scroll-${pps}`;
 
-  const textStyle: React.CSSProperties = {
+  // Build JSX nodes so label and URL get distinct colours
+  const segmentNodes: React.ReactNode[] = [];
+  const baseStyle: React.CSSProperties = {
     fontFamily: 'IBM Plex Sans, sans-serif',
     fontWeight: 500,
     fontSize: '15px',
-    color: 'rgba(255,255,255,0.75)',
     letterSpacing: '0.06em',
     whiteSpace: 'nowrap',
-    paddingRight: '5rem',
   };
+
+  validItems.forEach((item, idx) => {
+    const displayUrl = item.url ? item.url.replace(/^https?:\/\//, '') : '';
+    if (idx > 0) {
+      segmentNodes.push(
+        <span key={`sep-${idx}`} style={{ ...baseStyle, color: 'rgba(200,16,46,0.7)', paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>•</span>
+      );
+    }
+    segmentNodes.push(
+      <span key={`txt-${idx}`} style={{ ...baseStyle, color: 'rgba(255,255,255,0.92)' }}>{item.text.toUpperCase()}</span>
+    );
+    if (displayUrl) {
+      segmentNodes.push(
+        <span key={`dot-${idx}`} style={{ ...baseStyle, color: 'rgba(255,255,255,0.3)', padding: '0 0.6rem' }}>·</span>
+      );
+      segmentNodes.push(
+        <span key={`url-${idx}`} style={{ ...baseStyle, color: '#93c5fd' }}>{displayUrl.toUpperCase()}</span>
+      );
+    }
+  });
+  // Trailing spacer so the loop gap is comfortable
+  segmentNodes.push(<span key="trail" style={{ paddingRight: '5rem' }} />);
+
+  // Use character count for duration estimate (same as before)
+  const rawText = validItems.map(i => {
+    const u = i.url ? i.url.replace(/^https?:\/\//, '') : '';
+    return u ? `${i.text}  ·  ${u}` : i.text;
+  }).join('  •  ');
+  const stripWidth = rawText.length * CHAR_WIDTH_PX;
+  const duration = Math.max(4, stripWidth / pps);
+  const animName = `ticker2-scroll-${pps}`;
 
   return (
     <div
@@ -337,11 +357,11 @@ function SecondaryTicker({ items, speed = 3 }: { items: Array<{ text: string; ur
       <div style={{ flex: 1, overflow: 'hidden', height: '40px', display: 'flex', alignItems: 'center' }}>
         <style>{`@keyframes ${animName}{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
         <div
-          key={`${pps}-${segment.length}`}
-          style={{ display: 'inline-flex', animation: `${animName} ${duration}s linear infinite`, willChange: 'transform' }}
+          key={`${pps}-${rawText.length}`}
+          style={{ display: 'inline-flex', alignItems: 'center', animation: `${animName} ${duration}s linear infinite`, willChange: 'transform' }}
         >
-          <span style={textStyle}>{segment}</span>
-          <span style={textStyle}>{segment}</span>
+          {segmentNodes}
+          {segmentNodes}
         </div>
       </div>
     </div>
