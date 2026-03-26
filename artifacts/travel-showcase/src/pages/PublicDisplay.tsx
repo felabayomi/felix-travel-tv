@@ -421,8 +421,8 @@ function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: Waiti
         </div>
       </div>
 
-      {/* Center label */}
-      <div className="absolute inset-0 flex flex-col items-center justify-end z-20 pb-24">
+      {/* Center label — sits above the two-ticker stack (120px) with extra clearance */}
+      <div className="absolute inset-0 flex flex-col items-center justify-end z-20" style={{ paddingBottom: '140px' }}>
         <div className="text-center px-8 flex flex-col items-center gap-2">
           <p style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontSize: '22px', fontWeight: 700, letterSpacing: '0.08em', textShadow: '0 2px 12px rgba(0,0,0,0.7)' }}>
             FELIX ABAYOMI TRAVEL ADVISOR
@@ -431,20 +431,29 @@ function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: Waiti
             Plan smarter. Travel better. Experience more.
           </p>
           <div className="w-10 h-px mt-1" style={{ background: '#c8102e' }} />
-          <p style={{ fontFamily: 'Oswald, sans-serif', color: '#c8102e', fontSize: '12px', letterSpacing: '0.28em', fontWeight: 600 }}>
-            COMING UP NEXT IN {remaining}s
-          </p>
+          {/* Countdown clock */}
+          <div className="flex items-center gap-3 mt-1">
+            <p style={{ fontFamily: 'Oswald, sans-serif', color: '#c8102e', fontSize: '13px', letterSpacing: '0.28em', fontWeight: 600 }}>
+              COMING UP NEXT IN
+            </p>
+            <span style={{
+              fontFamily: 'Oswald, sans-serif', fontWeight: 700, fontSize: '22px',
+              color: '#fff', letterSpacing: '0.04em', minWidth: '2.2ch', textAlign: 'right',
+              textShadow: '0 0 20px rgba(200,16,46,0.6)',
+            }}>
+              {remaining}s
+            </span>
+          </div>
+          {/* Progress bar inline — visible above tickers */}
+          <div className="w-48 mt-2 rounded-full overflow-hidden" style={{ height: '4px', background: 'rgba(255,255,255,0.15)' }}>
+            <motion.div
+              className="h-full rounded-full"
+              style={{ background: '#c8102e', width: `${pct}%` }}
+              animate={{ width: `${pct}%` }}
+              transition={{ duration: 0.9, ease: 'linear' }}
+            />
+          </div>
         </div>
-      </div>
-
-      {/* Countdown bar */}
-      <div className="absolute bottom-0 left-0 right-0 z-40" style={{ height: '4px', background: 'rgba(255,255,255,0.1)' }}>
-        <motion.div
-          className="h-full"
-          style={{ background: '#c8102e', width: `${pct}%` }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.9, ease: 'linear' }}
-        />
       </div>
 
       {/* Ticker */}
