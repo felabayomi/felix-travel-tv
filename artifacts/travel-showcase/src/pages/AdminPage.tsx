@@ -1798,20 +1798,10 @@ function AdminDashboard() {
     setQueueAutoplay(state.autoplayQueue);
     setQueueLoop(state.loopQueue);
     setOnAir(state.onAir);
-    // Sync snippet index from server — only forward, never backwards.
-    // Going backwards would reset the chapter during an interlude (server holds 0
-    // while the local state still reflects the last chapter of the finished article).
-    // New-article resets are already handled by the playingArticleId-change effect.
-    //
-    // IMPORTANT: When autoplay is active (voice or timed), the admin's updatePlayback()
-    // is the sole driver of snippetIndex. Do NOT let server polling advance it here —
-    // the server's fallback timer could fire mid-speech and truncate voice via this path.
-    setCurrentSnippetIndex(prev => {
-      if (autoPlayRef.current || queueAutoplayRef.current) return prev;
-      if (state.snippetIndex > prev) return state.snippetIndex;
-      return prev;
-    });
-  }, [setCurrentSnippetIndex]);
+    // snippetIndex is intentionally NOT synced from server here.
+    // The admin drives all snippet advances via updatePlayback() / advance().
+    // Syncing from server polling caused race conditions that truncated voice mid-read.
+  }, []);
 
   useEffect(() => { loadQueue(); }, [loadQueue]);
 
@@ -1929,9 +1919,6 @@ function AdminDashboard() {
 
   const updatePlayback = useCallback(async (_articleId: number, index: number) => {
     setCurrentSnippetIndex(index);
-    // Use the dedicated snippet-advance endpoint so the server resets its fallback timer.
-    // PUT /api/playback updates state but does NOT reset the 18s server timer, causing
-    // double-advances that skip snippets when the admin is actively driving playback.
     await fetch('/api/playback/queue/snippet', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -1957,41 +1944,54 @@ function AdminDashboard() {
         }
       } catch { /* fall through */ }
     }
-    // Fallback: configured interlude image URLs
     const cfg = await fetch('/api/waiting-config').then(r => r.json()).catch(() => null);
     const urls: string[] = cfg?.interludeImages ?? [];
     return urls.length > 0 ? urls[Math.floor(Math.random() * urls.length)] : null;
   }
 
-  const handleNext = useCallback(async () => {
-    const articleId = playingArticleIdRef.current;
-    const idx = currentSnippetIndexRef.current;
-    const snips = snippetsRef.current;
-    if (!articleId || snips.length === 0) return;
-    const next = idx + 1;
-    if (next >= snips.length) {
-      // Last chapter done — advance queue if autoplay is on
-      if (queueAutoplayRef.current) {
-        const hasNextItem = playingQueueIndexRef.current < queueLengthRef.current - 1;
-        if (hasNextItem) {
-          const imageUrl = await pickInterludeImage();
-          if (imageUrl) {
-            await fetch('/api/playback/queue/interlude', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ imageUrl }),
-            });
-          } else {
-            await apiAdvanceQueue();
-          }
+  // ── Single advance function ──────────────────────────────────────────────────
+  // Mutex guard prevents double-fires (voice onEnded + fallback timer both firing).
+  // Advances within the current article; when the last snippet is done, advances
+  // the queue if EITHER chapter-autoplay OR queue-autoplay is on.
+  const advancingRef = useRef(false);
+  const advance = useCallback(async () => {
+    if (advancingRef.current) return;
+    advancingRef.current = true;
+    try {
+      const articleId = playingArticleIdRef.current;
+      const idx = currentSnippetIndexRef.current;
+      const snips = snippetsRef.current;
+      if (!articleId || snips.length === 0) return;
+      const next = idx + 1;
+      if (next < snips.length) {
+        await updatePlayback(articleId, next);
+        return;
+      }
+      // Last snippet finished — advance queue when either autoplay mode is on
+      if (!autoPlayRef.current && !queueAutoplayRef.current) return;
+      const hasNextItem = playingQueueIndexRef.current < queueLengthRef.current - 1;
+      if (hasNextItem) {
+        const imageUrl = await pickInterludeImage();
+        if (imageUrl) {
+          await fetch('/api/playback/queue/interlude', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageUrl }),
+          });
         } else {
           await apiAdvanceQueue();
         }
-        await loadQueue();
+      } else {
+        await apiAdvanceQueue();
       }
-      return;
+      await loadQueue();
+    } finally {
+      advancingRef.current = false;
     }
-    updatePlayback(articleId, next);
   }, [updatePlayback, loadQueue]);
+
+  // Always-current ref so callbacks never hold a stale advance closure
+  const advanceRef = useRef(advance);
+  useEffect(() => { advanceRef.current = advance; }, [advance]);
 
   const handlePrev = useCallback(() => {
     const articleId = playingArticleIdRef.current;
@@ -2002,39 +2002,43 @@ function AdminDashboard() {
     updatePlayback(articleId, prev);
   }, [updatePlayback]);
 
-  // Always-current ref so timer/voice callbacks never hold a stale handleNext closure
-  const handleNextRef = useRef(handleNext);
-  useEffect(() => { handleNextRef.current = handleNext; }, [handleNext]);
+  // ── Voice effect ─────────────────────────────────────────────────────────────
+  // Fires only when the snippet or article actually changes (NOT on autoplay/voice
+  // toggle — those use refs so toggling mid-playback never restarts audio or
+  // confuses the "already spoken" guard).
+  // speakRef lets us call speak without putting it in deps (it's stable per voiceEnabled anyway).
+  const speakRef = useRef(speak);
+  useEffect(() => { speakRef.current = speak; }, [speak]);
 
   useEffect(() => {
     if (!voiceEnabled || !snippets[currentSnippetIndex]) return;
-    // If the article just changed, only speak once currentSnippetIndex has been reset to 0.
-    // This prevents speaking a stale chapter from the previous article before the reset fires.
+    // If the article just changed wait for snippet index to reset to 0 first.
     const isNewArticle = prevIndexRef.current.articleId !== playingArticleId;
     if (isNewArticle && currentSnippetIndex !== 0) return;
+    // Skip if already spoken this snippet for this article.
     if (prevIndexRef.current.index === currentSnippetIndex && prevIndexRef.current.articleId === playingArticleId) return;
     prevIndexRef.current = { index: currentSnippetIndex, articleId: playingArticleId };
-    const chapterAutoplay = autoPlay || queueAutoplay;
-    speak(
+    const shouldAdvance = autoPlayRef.current || queueAutoplayRef.current;
+    speakRef.current(
       snippets[currentSnippetIndex].id,
-      chapterAutoplay ? () => handleNextRef.current() : undefined,
+      shouldAdvance ? () => advanceRef.current() : undefined,
     );
-  // handleNext intentionally omitted — we use the ref to avoid restarting on every index change
+  // autoPlay, queueAutoplay, speak intentionally omitted — accessed via refs above.
+  // This prevents the effect from re-running (and confusing the guard) on every toggle.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSnippetIndex, snippets, voiceEnabled, speak, autoPlay, queueAutoplay, playingArticleId]);
+  }, [currentSnippetIndex, snippets, voiceEnabled, playingArticleId]);
 
-  // Auto-advance timer.
-  // When voice is OFF: advances after AUTO_PLAY_SECONDS (normal chapter pacing).
-  // When voice is ON: also runs as a safety net (VOICE_FALLBACK_SECONDS) in case the
-  // browser blocks audio on a background tab or the TTS callback never fires.
-  // handleNext reads from refs so it always sees the latest state when it fires.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // ── Auto-advance timer ────────────────────────────────────────────────────────
+  // When voice is OFF: advances every AUTO_PLAY_SECONDS.
+  // When voice is ON: fires after VOICE_FALLBACK_SECONDS as a safety net only
+  // (normally voice's onEnded callback drives advances — this just catches failures).
   useEffect(() => {
     const chapterAutoplay = autoPlay || queueAutoplay;
     if (!chapterAutoplay || !playingArticleId || snippets.length === 0) return;
     const delay = voiceEnabled ? VOICE_FALLBACK_SECONDS * 1000 : AUTO_PLAY_SECONDS * 1000;
-    const timer = setTimeout(() => handleNextRef.current(), delay);
+    const timer = setTimeout(() => advanceRef.current(), delay);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPlay, queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId]);
 
   // Reset snippet index when the playing article changes
@@ -3004,7 +3008,7 @@ function AdminDashboard() {
                     </div>
 
                     <button
-                      onClick={handleNext}
+                      onClick={() => advance()}
                       disabled={isLoadingSnippets}
                       className="p-2.5 rounded-xl border border-border text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                     >
