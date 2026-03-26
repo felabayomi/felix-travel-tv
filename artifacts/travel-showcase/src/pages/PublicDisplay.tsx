@@ -331,8 +331,8 @@ function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: Waiti
       <img
         src={imageUrl}
         alt="Travel deal"
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{ opacity: 0.55 }}
+        className="absolute inset-0 w-full h-full object-contain"
+        style={{ opacity: 0.9 }}
       />
       {/* Dark gradient overlay */}
       <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(5,5,8,0.75) 0%, rgba(5,5,8,0.3) 40%, rgba(5,5,8,0.8) 100%)' }} />
