@@ -1644,11 +1644,10 @@ function AdminDashboard() {
     if (!voiceEnabled || !snippets[currentSnippetIndex]) return;
     if (prevIndexRef.current === currentSnippetIndex) return;
     prevIndexRef.current = currentSnippetIndex;
-    const isLastChapter = currentSnippetIndex >= snippets.length - 1;
     const chapterAutoplay = autoPlay || queueAutoplay;
     speak(
       snippets[currentSnippetIndex].id,
-      chapterAutoplay && !isLastChapter ? () => handleNextRef.current() : undefined,
+      chapterAutoplay ? () => handleNextRef.current() : undefined,
     );
   // handleNext intentionally omitted — we use the ref to avoid restarting on every index change
   // eslint-disable-next-line react-hooks/exhaustive-deps
