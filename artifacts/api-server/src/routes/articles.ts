@@ -295,27 +295,26 @@ For every chapter, the explanation should feel like: "If you're planning a trip 
 
 EXPLANATION DEPTH PER CONTENT TYPE:
 
-TRAVEL_NEWS → SHORT (2–3 sentences)
-  Just the key facts: what happened, why it matters to travellers, what they should do.
+This is a TV broadcast — each explanation must be short enough to read aloud in under 20 seconds.
+Aim for 2–3 crisp, punchy sentences maximum. Never pad. Never repeat the headline. Get straight to the point.
 
-TRAVEL_TIPS → SHORT (2–3 sentences)
-  Direct, actionable advice. No padding. One clear point per sentence.
+TRAVEL_NEWS → SHORT (1–2 sentences)
+  Just the key fact and why it matters to travellers. One punchy statement, done.
 
-HOTEL_REVIEW → MEDIUM (5–7 sentences)
-  Cover: first impression, room quality, key amenities, who it suits, and one booking tip.
+TRAVEL_TIPS → SHORT (1–2 sentences)
+  One clear, direct, actionable tip. No padding.
 
-BEFORE_YOU_BOOK → MEDIUM (5–7 sentences)
-  Cover: what to check before booking, costs to expect, timing, and what travellers miss.
+HOTEL_REVIEW → MEDIUM (2–3 sentences)
+  Cover: the standout feature, who it suits, and one booking tip.
 
-DESTINATION (intro chapters) → MEDIUM (5–7 sentences)
-  Cover: why visit, best time, where to stay, what to do, how many days, one travel tip.
+BEFORE_YOU_BOOK → MEDIUM (2–3 sentences)
+  Cover: the one thing travellers miss, cost to expect, and a timing tip.
 
-DESTINATION (deep chapters e.g. food, attractions) → LONG (8–12 sentences)
-  Be specific: name real restaurants, real attractions, real neighbourhoods, prices, tips.
-  Answer: what to do, where exactly, how much it costs, who it suits, mistakes to avoid.
+DESTINATION → MEDIUM (2–3 sentences)
+  Name a specific place, what to do there, and one real insider tip.
 
-EXPEDITION → LONG (8–12 sentences)
-  Cover: what makes it special, how to get there, what to pack, best conditions, real logistics.
+EXPEDITION → MEDIUM (2–3 sentences)
+  What makes it special, how to get there, and the one thing to know before going.
 
 CONTENT FRAMING RULES (apply to all types):
 - Always include at least one of: a real place name, a price range, a time estimate, or a practical tip
