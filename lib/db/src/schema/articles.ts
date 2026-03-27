@@ -11,6 +11,7 @@ export const articlesTable = pgTable("articles", {
   publishedAt: timestamp("published_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   archived: boolean("archived").notNull().default(false),
+  bodyText: text("body_text"),
 });
 
 export const snippetsTable = pgTable("snippets", {

@@ -543,6 +543,7 @@ router.post("/", async (req, res) => {
       summary: content.summary,
       source: content.source,
       publishedAt: resolvedDate,
+      bodyText: page.bodyText || null,
     }).returning();
 
     // Insert snippets immediately with imageUrl = null so the article is
@@ -596,9 +597,27 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
     }
     const article = articles[0];
 
-    // Re-fetch the page and regenerate chapters using the current prompt
-    const page = await fetchPageData(article.url);
-    req.log.info({ url: article.url, bodyLen: page.bodyText.length }, "Regenerating chapters");
+    // Use the stored body text if available (preserves pasted content).
+    // Only re-fetch from the URL if nothing was saved at creation time.
+    let page: PageData;
+    if (article.bodyText && article.bodyText.trim().length > 100) {
+      page = {
+        html: "",
+        metaTitle: article.title,
+        metaDescription: article.summary,
+        ogTitle: article.title,
+        ogDescription: article.summary,
+        ogImage: "",
+        publishedTime: "",
+        author: "",
+        jsonLd: "",
+        bodyText: article.bodyText,
+      };
+      req.log.info({ articleId: id, bodyLen: article.bodyText.length }, "Regenerating chapters from stored body text");
+    } else {
+      page = await fetchPageData(article.url);
+      req.log.info({ articleId: id, url: article.url, bodyLen: page.bodyText.length }, "Regenerating chapters by re-fetching URL");
+    }
 
     const content = await generateArticleContent(article.url, page);
 
