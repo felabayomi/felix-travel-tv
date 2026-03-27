@@ -20,6 +20,52 @@ import { exportArticleToMp4 } from '@/lib/exportArticleMp4';
 const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN ?? '1234';
 const AUTH_KEY = 'newsreader_admin_auth';
 const SOURCE_KEY = 'newsreader_last_source';
+const SOURCES_HISTORY_KEY = 'newsreader_sources_history';
+
+function getSourceHistory(): string[] {
+  try { return JSON.parse(localStorage.getItem(SOURCES_HISTORY_KEY) ?? '[]'); }
+  catch { return []; }
+}
+function saveSourceToHistory(source: string) {
+  const trimmed = source.trim();
+  if (!trimmed) return;
+  const history = getSourceHistory().filter(s => s.toLowerCase() !== trimmed.toLowerCase());
+  history.unshift(trimmed);
+  localStorage.setItem(SOURCES_HISTORY_KEY, JSON.stringify(history.slice(0, 25)));
+}
+
+function SourceInput({ value, onChange, disabled, placeholder, className }: {
+  value: string; onChange: (v: string) => void;
+  disabled?: boolean; placeholder?: string; className?: string;
+}) {
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  useEffect(() => {
+    const history = getSourceHistory();
+    fetch('/api/sources', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : [])
+      .then((api: string[]) => {
+        const seen = new Set(history.map((s: string) => s.toLowerCase()));
+        const merged = [...history];
+        for (const s of api) { if (!seen.has(s.toLowerCase())) merged.push(s); }
+        setSuggestions(merged);
+      })
+      .catch(() => setSuggestions(history));
+  }, []);
+  return (
+    <>
+      <input
+        type="text" list="source-suggestions"
+        placeholder={placeholder ?? 'e.g. Felix Travel TV'}
+        value={value} onChange={e => onChange(e.target.value)}
+        disabled={disabled} autoComplete="off"
+        className={className ?? 'w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground/40'}
+      />
+      <datalist id="source-suggestions">
+        {suggestions.map(s => <option key={s} value={s} />)}
+      </datalist>
+    </>
+  );
+}
 
 // ─── Playback API helpers ──────────────────────────────────────────────────
 async function setPlayback(articleId: number | null, snippetIndex: number) {
@@ -1284,6 +1330,7 @@ function AddArticleDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: 
     mutation: {
       onSuccess: () => {
         localStorage.setItem(SOURCE_KEY, source.trim());
+        saveSourceToHistory(source);
         queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
         onAdded();
         onClose();
@@ -1338,9 +1385,10 @@ function AddArticleDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-muted-foreground block">Source</label>
-              <input type="text" placeholder="e.g. BBC News"
-                value={source} onChange={e => setSource(e.target.value)} disabled={createMutation.isPending}
-                className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground/40"
+              <SourceInput
+                value={source} onChange={setSource}
+                disabled={createMutation.isPending}
+                placeholder="e.g. BBC News"
               />
             </div>
             <div className="space-y-1.5">
@@ -1607,7 +1655,7 @@ function SidebarVideoEditor({ video, onClose, onSaved }: {
 function AddVideoDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
-  const [source, setSource] = useState('');
+  const [source, setSource] = useState(() => getSourceHistory()[0] ?? '');
   const [maxMins, setMaxMins] = useState('');
   const [maxSecs, setMaxSecs] = useState('');
   const [loop, setLoop] = useState(false);
@@ -1630,6 +1678,7 @@ function AddVideoDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: ()
         maxDurationSecs: totalSecs > 0 ? totalSecs : null,
         loop,
       });
+      saveSourceToHistory(source);
       onAdded();
     } catch (err: any) {
       setError(err?.message || 'Failed to add video');
@@ -1680,9 +1729,9 @@ function AddVideoDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: ()
             <label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Radio className="w-3.5 h-3.5" /> Source (optional)
             </label>
-            <input
-              type="text" placeholder="e.g. Felix Travel TV"
-              value={source} onChange={e => setSource(e.target.value)} disabled={saving}
+            <SourceInput
+              value={source} onChange={setSource} disabled={saving}
+              placeholder="e.g. Felix Travel TV"
               className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground/40"
             />
             <p className="text-[11px] text-muted-foreground/50">Used in the countdown screen "Which broadcast" selector.</p>
