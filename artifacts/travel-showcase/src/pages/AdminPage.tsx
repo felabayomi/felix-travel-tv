@@ -2551,7 +2551,7 @@ function AdminDashboard() {
                         </p>
                       </div>
                       {!videoSelectMode && (
-                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                      <div className="flex flex-col gap-1 md:opacity-0 md:group-hover:opacity-100 shrink-0 transition-opacity">
                         <button
                           onClick={async e => {
                             e.stopPropagation();
@@ -2664,7 +2664,7 @@ function AdminDashboard() {
                         </div>
                       )}
                       {/* Reorder buttons */}
-                      <div className="flex flex-col gap-0.5 pt-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex flex-col gap-0.5 pt-0.5 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={e => { e.stopPropagation(); moveArticle(a.id, -1); }}
                           disabled={listIdx === 0}
@@ -2689,7 +2689,7 @@ function AdminDashboard() {
                         <p className="text-sm font-medium leading-snug line-clamp-2">{a.title}</p>
                       </div>
                       {!articleSelectMode && (
-                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                      <div className="flex flex-col gap-1 md:opacity-0 md:group-hover:opacity-100 shrink-0 transition-opacity">
                         <button
                           onClick={async e => {
                             e.stopPropagation();
@@ -3117,7 +3117,7 @@ function AdminDashboard() {
                         </div>
 
                         {/* Reorder + remove (on hover) */}
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={async () => {
                               if (idx === 0) return;
