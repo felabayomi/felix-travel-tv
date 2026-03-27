@@ -196,62 +196,30 @@ Read the article and classify it as ONE of these types:
 
 ---
 
-STEP 2 — APPLY THE CORRECT CHAPTER STRUCTURE:
+STEP 2 — BREAK THE ARTICLE INTO CHAPTERS:
 
-The structures below define the TOPIC FOCUS of each chapter — they are never used verbatim as headlines.
-Every headline you write must be specific to THIS article's subject. Never copy the template labels.
+Read the article fully, then divide it into chapters that follow the natural story of the content.
+Do NOT apply a fixed template. Let the article decide what the chapters are.
 
-BAD headlines (template names leaked): "Introduction", "Best Time to Visit", "Things to Do", "Before You Book", "Final Advice", "Insider Travel Tips", "Who Is This Hotel Best For"
-GOOD headlines (specific to the article): "A City That Grabs You From the First Corner", "October Is the Sweet Spot — Here's Why", "Three Neighbourhoods Worth Your Time", "What Most Travellers Get Wrong About Flights Here", "The One Flight Hack That Saves Real Money"
+Chapter count by type:
+- DESTINATION: 6–8 chapters
+- HOTEL_REVIEW: 5–7 chapters
+- TRAVEL_TIPS: 5–6 chapters
+- BEFORE_YOU_BOOK: 5–7 chapters
+- EXPEDITION: 6–9 chapters
+- TRAVEL_NEWS: 3–4 chapters
 
-DESTINATION (7 chapters):
-1. [Opening hook] — Grab the viewer; set the scene for this specific place
-2. [About this place] — Key facts, geography, character of this destination
-3. [When to go] — Seasons, weather, events, crowds specific to here
-4. [Where to stay] — Neighbourhoods, hotel types, price ranges for this destination
-5. [What to do] — Top attractions and must-see sites specific to this place
-6. [Food & culture] — Local cuisine, nightlife, experiences unique to here
-7. [Practical advice] — Visas, transport, money tips specific to this destination
+Each chapter headline must:
+- Come directly from what the article is actually saying
+- Be written as a compelling broadcast title for that specific piece of information
+- Sound like something a presenter would say on air — vivid, specific, and engaging
+- NEVER be a generic label. Words like "Introduction", "Overview", "Tips", "Advice", "Summary", "Before You Book", "Things To Do", "Best Time to Visit", "Final Thoughts", "Conclusion" are FORBIDDEN as headlines
 
-HOTEL_REVIEW (6 chapters):
-1. [Opening impression] — First impressions; why this specific hotel stands out
-2. [Location] — This hotel's neighbourhood, accessibility, what's nearby
-3. [Rooms & design] — Room types, interiors, views, quality of this property
-4. [Amenities] — Pool, spa, dining, service at this hotel
-5. [Who it suits] — The type of traveller this hotel is best for
-6. [Booking advice] — Best rates, when to book, what to watch out for here
-
-TRAVEL_TIPS (6 chapters):
-1. [The hook] — Why this specific tip changes how you travel
-2. [The problem] — What travellers get wrong about this
-3. [Why it happens] — Root cause or common mistake
-4. [What to do] — The correct approach, step by step
-5. [Pro level] — Expert-level advice, insider tricks
-6. [Take action] — Clear, specific call to action
-
-BEFORE_YOU_BOOK (6 chapters):
-1. [Hook] — The most compelling fact about this trip upfront
-2. [Trip overview] — What to expect on this specific trip
-3. [Flights] — Best routes, airlines, timing, cost tips for this destination
-4. [Hotels] — Recommended stays, price ranges, location tips here
-5. [Getting around] — Transport and must-do experiences specific to this trip
-6. [Last word] — The one thing to know before confirming this booking
-
-EXPEDITION (8 chapters):
-1. [Hook] — What makes this adventure different from anywhere else
-2. [Location] — Where it is and why it is special
-3. [Getting there] — Transport, access, logistics for this expedition
-4. [When to go] — Best seasons and conditions for this specific place
-5. [Where to stay] — Camps, lodges, or options on this route
-6. [What to do] — Activities and bucket-list moments here
-7. [What to pack] — Gear and essentials for this specific terrain
-8. [Final prep] — Safety, booking advice, the one thing to sort before you go
-
-TRAVEL_NEWS (3–4 chapters):
-1. [The story] — What happened or what was announced
-2. [Why it matters] — Impact for travellers
-3. [What to do] — How travellers can act on this right now
-4. (Optional) [Background] — Context or history if it adds value
+Example of the right approach — an article about Lisbon in autumn:
+- "Where Fado Music Was Born — and Still Lives" (not "Culture")
+- "September to November: When the City Finally Breathes" (not "Best Time to Visit")
+- "Alfama to Belém: The Neighbourhoods That Define the City" (not "Where to Stay")
+- "Pastéis de Nata and the Restaurants Worth the Queue" (not "Food")
 
 ---
 
@@ -332,8 +300,8 @@ CONTENT FRAMING RULES (apply to all types):
 CRITICAL RULES:
 - Every chapter must be specific to THIS article — not generic content
 - Use all available clues (title, description, URL, structured data) to infer the full story
-- Headlines must be punchy and specific — never vague
-- NEVER use template chapter labels as headlines: words like "Introduction", "Best Time to Visit", "Things to Do", "Before You Book", "Final Advice", "Insider Travel Tips", "Booking Tips", "Who It Suits", "Trip Overview", "Getting Around", "What To Pack", "Travel Tips" must NEVER appear verbatim as a headline. Replace every one with a specific, article-driven title
+- Headlines must be vivid and specific to the article — never generic labels or category names
+- Every headline must read like a broadcast title written for this article's actual content, not a section heading from a template
 - If content is limited, draw on your training knowledge about this specific topic and destination
 - Stay in the correct voice and depth for the content type throughout all chapters
 
