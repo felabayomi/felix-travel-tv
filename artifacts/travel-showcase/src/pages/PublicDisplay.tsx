@@ -993,12 +993,12 @@ export function PublicDisplay() {
 
       <AmbientMusicPlayer />
 
-      {/* Voice narration toggle — sits to the right of the ambient music button */}
+      {/* Voice narration toggle — floats above the 120px ticker stack */}
       <button
         onClick={() => setVoiceEnabled(v => !v)}
         title={voiceEnabled ? 'Mute voice narration' : 'Enable voice narration'}
         className={cn(
-          "fixed bottom-6 right-6 p-3 rounded-full backdrop-blur-md transition-all duration-300 z-40",
+          "fixed bottom-[136px] right-4 p-3 rounded-full backdrop-blur-md transition-all duration-300 z-40",
           voiceEnabled
             ? "bg-primary/20 text-primary border border-primary/30"
             : "bg-black/20 text-white/50 border border-white/10 hover:bg-black/50 hover:text-white"
