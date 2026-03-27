@@ -58,19 +58,33 @@ function resolveNextIndex(currentIndex: number): number | null {
 
 // ─── Server-side snippet auto-advance ────────────────────────────────────────
 // When the admin tab is in the background, browsers throttle its JS timers.
-// The server independently advances snippets every SNIPPET_ADVANCE_MS seconds
-// so the broadcast continues without the admin tab being active.
-// When the admin signals an advance (via PATCH /queue/snippet), the server
-// resets its timer so voice-driven pacing takes priority when admin is open.
+// The server independently advances snippets so the broadcast continues without
+// the admin tab being active.
+//
+// The server checks every SNIPPET_CHECK_INTERVAL_MS (5 s) whether to advance.
+// It uses one of two thresholds:
+//   • Admin PRESENT  (last PATCH < 35 s ago): 5-minute safety net — voice drives pacing
+//   • Admin ABSENT   (last PATCH ≥ 35 s ago): 15 s fast fallback for overnight looping
+//
+// This prevents the server from cutting off voice reading mid-sentence while
+// still keeping the broadcast alive when the admin tab is backgrounded or closed.
 
-const SNIPPET_ADVANCE_MS = 15_000; // 15 s fallback — admin/voice normally drives at ~12 s
-let snippetTimer: ReturnType<typeof setTimeout> | null = null;
+const SNIPPET_ADVANCE_ABSENT_MS  = 15_000;  // fast advance when admin is gone
+const SNIPPET_SAFETY_NET_MS      = 300_000; // absolute last resort when admin is present
+const ADMIN_PRESENCE_TIMEOUT_MS  = 35_000;  // no PATCH in 35 s → admin considered absent
+const SNIPPET_CHECK_INTERVAL_MS  = 5_000;   // how often to re-evaluate
+
+// Timestamp of the last PATCH /queue/snippet call from the admin
+let lastAdminSnippetPatch = 0;
+
+// Using setInterval so we can re-evaluate admin presence on every tick
+let snippetTimer: ReturnType<typeof setInterval> | null = null;
 let snippetScheduledForArticleId: number | null = null;
 let snippetTotalCount: number | null = null;
 
 function clearSnippetTimer() {
   if (snippetTimer !== null) {
-    clearTimeout(snippetTimer);
+    clearInterval(snippetTimer);
     snippetTimer = null;
   }
 }
@@ -137,28 +151,41 @@ function scheduleNextSnippetAdvance() {
   if (!articleId || !total || total <= 0) return;
 
   const fromIndex = playbackState.snippetIndex;
+  const startedAt = Date.now();
 
-  snippetTimer = setTimeout(() => {
-    snippetTimer = null;
-    // Guard: only act if we're still on the same article and on-air
-    if (playbackState.articleId !== articleId || !playbackState.onAir) return;
+  snippetTimer = setInterval(() => {
+    // Guard: article changed or broadcast stopped
+    if (playbackState.articleId !== articleId || !playbackState.onAir) {
+      clearSnippetTimer();
+      return;
+    }
 
+    // Admin already advanced this snippet — sync to new position
     if (playbackState.snippetIndex !== fromIndex) {
-      // Admin already advanced this snippet — just reschedule from new position
+      clearSnippetTimer();
       scheduleNextSnippetAdvance();
       return;
     }
 
-    const nextIndex = fromIndex + 1;
-    if (nextIndex < total) {
-      playbackState = { ...playbackState, snippetIndex: nextIndex, updatedAt: Date.now() };
-      scheduleNextSnippetAdvance();
-    } else {
-      // Article finished — advance the queue server-side if autoplay is on.
-      // This keeps the broadcast running even when the admin tab is sleeping.
-      void serverAdvanceQueue();
+    const elapsed = Date.now() - startedAt;
+    // Use a long safety-net when the admin is actively present; fast fallback when absent
+    const adminIsPresent = Date.now() - lastAdminSnippetPatch < ADMIN_PRESENCE_TIMEOUT_MS;
+    const threshold = adminIsPresent ? SNIPPET_SAFETY_NET_MS : SNIPPET_ADVANCE_ABSENT_MS;
+
+    if (elapsed >= threshold) {
+      clearSnippetTimer();
+      const nextIndex = fromIndex + 1;
+      if (nextIndex < total) {
+        // Advance to next snippet
+        playbackState = { ...playbackState, snippetIndex: nextIndex, updatedAt: Date.now() };
+        scheduleNextSnippetAdvance();
+      } else {
+        // Article finished — advance the queue server-side if autoplay is on.
+        // This keeps the broadcast running when the admin tab is backgrounded or closed.
+        void serverAdvanceQueue();
+      }
     }
-  }, SNIPPET_ADVANCE_MS);
+  }, SNIPPET_CHECK_INTERVAL_MS);
 }
 
 async function startSnippetSchedule(articleId: number) {
@@ -432,8 +459,10 @@ router.patch("/queue/snippet", (req, res) => {
   if (typeof snippetIndex !== 'number' || snippetIndex < 0) {
     res.status(400).json({ error: "snippetIndex must be >= 0" }); return;
   }
+  // Record that the admin is present — prevents server fallback from firing mid-voice
+  lastAdminSnippetPatch = Date.now();
   playbackState = { ...playbackState, snippetIndex, updatedAt: Date.now() };
-  // Admin signalled an advance — reset the server-side timer from this new position
+  // Reset the server-side timer from this new position
   scheduleNextSnippetAdvance();
   res.json(playbackState);
 });
