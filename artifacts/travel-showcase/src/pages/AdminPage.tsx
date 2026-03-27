@@ -1317,7 +1317,7 @@ function SnippetRow({
 }
 
 // ─── Add Article Drawer ────────────────────────────────────────────────────
-function AddArticleDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+function AddArticleDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: (articleId: number) => void }) {
   const queryClient = useQueryClient();
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
@@ -1328,11 +1328,11 @@ function AddArticleDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: 
 
   const createMutation = useCreateArticle({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         localStorage.setItem(SOURCE_KEY, source.trim());
         saveSourceToHistory(source);
         queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
-        onAdded();
+        onAdded(data.id);
         onClose();
       },
       onError: (err: any) => setError(err?.data?.error || 'Failed to process article.'),
@@ -1829,6 +1829,7 @@ function AdminDashboard() {
   const [editingVideoId, setEditingVideoId] = useState<number | null>(null);
   const [exportingArticleId, setExportingArticleId] = useState<number | null>(null);
   const [regenImagesId, setRegenImagesId] = useState<number | null>(null);
+  const [pendingImagesArticleId, setPendingImagesArticleId] = useState<number | null>(null);
   const [articleSearch, setArticleSearch] = useState('');
   const [videoSearch, setVideoSearch] = useState('');
   const [articleSelectMode, setArticleSelectMode] = useState(false);
@@ -1931,6 +1932,30 @@ function AdminDashboard() {
           if (!Array.isArray(data) || data.length === 0) return false;
           const allLoaded = data.every((s: { imageUrl: string | null }) => s.imageUrl !== null);
           return allLoaded ? false : 4000;
+        },
+      }
+    }
+  );
+
+  // Independently poll the most recently added article until all its images arrive.
+  // This runs regardless of whether the article is currently playing, so images are
+  // ready the moment the user adds it to the queue — even if they stop/restart playback.
+  useGetArticleSnippets(
+    pendingImagesArticleId ?? 0,
+    {
+      query: {
+        enabled: pendingImagesArticleId !== null && pendingImagesArticleId !== playingArticleId,
+        refetchInterval: (query) => {
+          const data = query.state.data;
+          if (!Array.isArray(data) || data.length === 0) return 4000;
+          const allLoaded = data.every((s: { imageUrl: string | null }) => s.imageUrl !== null);
+          if (allLoaded) {
+            // All images ready — stop polling and refresh the article list
+            setPendingImagesArticleId(null);
+            queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+            return false;
+          }
+          return 4000;
         },
       }
     }
@@ -3197,7 +3222,7 @@ function AdminDashboard() {
         {showAddDrawer && (
           <AddArticleDrawer
             onClose={() => setShowAddDrawer(false)}
-            onAdded={() => setShowAddDrawer(false)}
+            onAdded={(id) => { setPendingImagesArticleId(id); setShowAddDrawer(false); }}
           />
         )}
       </AnimatePresence>
