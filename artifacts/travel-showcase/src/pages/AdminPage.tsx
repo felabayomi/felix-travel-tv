@@ -1817,6 +1817,8 @@ function AdminDashboard() {
   const [onAir, setOnAir] = useState(false);
   const [mainTab, setMainTab] = useState<'broadcast' | 'waiting' | 'archive'>('broadcast');
   const [mobilePanelOpen, setMobilePanelOpen] = useState<'library' | 'queue'>('library');
+  const [queueSelectMode, setQueueSelectMode] = useState(false);
+  const [selectedQueueIndices, setSelectedQueueIndices] = useState<Set<number>>(new Set());
   // voiceRestartToken: incrementing this forces the voice effect to re-run even when
   // snippet/article haven't changed (e.g. autoplay was just enabled while already on snippet 0)
   const [voiceRestartToken, setVoiceRestartToken] = useState(0);
@@ -3011,19 +3013,96 @@ function AdminDashboard() {
                   </button>
 
                   {/* Play All */}
-                  <button
-                    onClick={async () => {
-                      if (queue.length === 0) return;
-                      setVoiceEnabled(true);
-                      await apiSetQueueAutoplay(true);
-                      await apiPlayQueueItem(0);
-                      await loadQueue();
-                    }}
-                    disabled={queue.length === 0}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-all"
-                  >
-                    <Play className="w-4 h-4" /> Play All
-                  </button>
+                  {!queueSelectMode && (
+                    <button
+                      onClick={async () => {
+                        if (queue.length === 0) return;
+                        setVoiceEnabled(true);
+                        await apiSetQueueAutoplay(true);
+                        await apiPlayQueueItem(0);
+                        await loadQueue();
+                      }}
+                      disabled={queue.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-all"
+                    >
+                      <Play className="w-4 h-4" /> Play All
+                    </button>
+                  )}
+
+                  {/* Select mode toggle */}
+                  {queue.length > 0 && !queueSelectMode && (
+                    <button
+                      onClick={() => { setQueueSelectMode(true); setSelectedQueueIndices(new Set()); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-white hover:bg-white/5 transition-all"
+                      title="Select items to remove"
+                    >
+                      <ListChecks className="w-3.5 h-3.5" /> Select
+                    </button>
+                  )}
+
+                  {/* Clear All */}
+                  {queue.length > 0 && !queueSelectMode && (
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm(`Remove all ${queue.length} item${queue.length !== 1 ? 's' : ''} from the queue?`)) return;
+                        setQueue([]);
+                        await apiReorderQueue([]);
+                        setPlayingQueueIndex(-1);
+                        setOnAir(false);
+                        stop();
+                        await fetch('/api/playback/queue/stop', { method: 'POST' });
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/30 text-destructive/60 text-xs hover:text-destructive hover:bg-destructive/10 transition-all"
+                      title="Clear entire queue"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Clear All
+                    </button>
+                  )}
+
+                  {/* Select mode actions */}
+                  {queueSelectMode && (
+                    <>
+                      <button
+                        onClick={() => {
+                          if (selectedQueueIndices.size === queue.length) {
+                            setSelectedQueueIndices(new Set());
+                          } else {
+                            setSelectedQueueIndices(new Set(queue.map((_, i) => i)));
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-white hover:bg-white/5 transition-all"
+                      >
+                        {selectedQueueIndices.size === queue.length ? <Square className="w-3.5 h-3.5" /> : <CheckSquare className="w-3.5 h-3.5" />}
+                        {selectedQueueIndices.size === queue.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (selectedQueueIndices.size === 0) return;
+                          const remaining = queue.filter((_, i) => !selectedQueueIndices.has(i));
+                          setQueue(remaining);
+                          await apiReorderQueue(remaining);
+                          if (selectedQueueIndices.has(playingQueueIndex)) {
+                            setPlayingQueueIndex(-1);
+                            setOnAir(false);
+                            stop();
+                            await fetch('/api/playback/queue/stop', { method: 'POST' });
+                          }
+                          setQueueSelectMode(false);
+                          setSelectedQueueIndices(new Set());
+                        }}
+                        disabled={selectedQueueIndices.size === 0}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-destructive/20 border border-destructive/40 text-destructive text-xs font-semibold hover:bg-destructive/30 disabled:opacity-40 transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Remove {selectedQueueIndices.size > 0 ? `(${selectedQueueIndices.size})` : ''}
+                      </button>
+                      <button
+                        onClick={() => { setQueueSelectMode(false); setSelectedQueueIndices(new Set()); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-white hover:bg-white/5 transition-all"
+                      >
+                        <X className="w-3.5 h-3.5" /> Cancel
+                      </button>
+                    </>
+                  )}
 
                   {/* Pause / Resume / Stop */}
                   {onAir && (
@@ -3086,18 +3165,32 @@ function AdminDashboard() {
                     return (
                       <div
                         key={idx}
+                        onClick={queueSelectMode ? () => {
+                          setSelectedQueueIndices(prev => {
+                            const next = new Set(prev);
+                            next.has(idx) ? next.delete(idx) : next.add(idx);
+                            return next;
+                          });
+                        } : undefined}
                         className={cn(
                           "group flex items-center gap-3 p-4 rounded-xl border transition-all",
-                          isActive
-                            ? "bg-primary/12 border-primary/35"
-                            : "border-border bg-card/20 hover:bg-card/40"
+                          queueSelectMode && "cursor-pointer",
+                          queueSelectMode && selectedQueueIndices.has(idx)
+                            ? "bg-destructive/10 border-destructive/40"
+                            : isActive
+                              ? "bg-primary/12 border-primary/35"
+                              : "border-border bg-card/20 hover:bg-card/40"
                         )}
                       >
-                        {/* Position / live dot */}
+                        {/* Checkbox (select mode) or position / live dot */}
                         <div className="w-5 shrink-0 text-center">
-                          {isActive
-                            ? <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
-                            : <span className="text-xs text-muted-foreground/40">{idx + 1}</span>
+                          {queueSelectMode
+                            ? selectedQueueIndices.has(idx)
+                              ? <CheckSquare className="w-4 h-4 text-destructive" />
+                              : <Square className="w-4 h-4 text-muted-foreground/50" />
+                            : isActive
+                              ? <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
+                              : <span className="text-xs text-muted-foreground/40">{idx + 1}</span>
                           }
                         </div>
 
@@ -3116,8 +3209,8 @@ function AdminDashboard() {
                           </p>
                         </div>
 
-                        {/* Reorder + remove (on hover) */}
-                        <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        {/* Reorder + remove (on hover) — hidden in select mode */}
+                        <div className={cn("flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity", queueSelectMode && "hidden")}>
                           <button
                             onClick={async () => {
                               if (idx === 0) return;
@@ -3159,12 +3252,14 @@ function AdminDashboard() {
                           </button>
                         </div>
 
-                        {/* Play button */}
+                        {/* Play button — hidden in select mode */}
                         <button
-                          onClick={async () => {
+                          onClick={async (e) => {
+                            e.stopPropagation();
                             await apiPlayQueueItem(idx);
                             await loadQueue();
                           }}
+                          style={{ display: queueSelectMode ? 'none' : undefined }}
                           className={cn(
                             "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
                             isActive
