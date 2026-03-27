@@ -170,156 +170,116 @@ async function generateArticleContent(url: string, page: PageData): Promise<Arti
     page.bodyText && `Article body:\n${page.bodyText}`,
   ].filter(Boolean).join("\n\n");
 
-  const prompt = `You are a travel content producer for Felix Travel TV — a professional travel channel that presents content in structured, episodic TV show format.
+  const prompt = `You are a travel content producer for Felix Travel TV — a professional travel channel presented by Felix Abayomi, trusted travel advisor.
 
-Your job is to read the article below and break it into chapters following Felix Travel TV's standard episode formats.
+Your job is to transform the article below into a structured Felix Travel TV episode using the Content Engine Logic below. Follow every step in order.
 
 URL: ${url}
 
-${hasRichContent ? `ARTICLE CONTENT:\n${context}` : `NOTE: This article's full text could not be extracted (site may use JavaScript rendering, require login, or block bots). Use ALL of the following partial data to infer and create meaningful, specific content — do NOT write generic placeholder content:
+${hasRichContent ? `ARTICLE CONTENT:\n${context}` : `NOTE: This article's full text could not be extracted. Use the partial data below plus your own knowledge of this specific destination or topic to create substantive, specific content. Do NOT write generic placeholder text.
 
-${context || `URL path clues: ${url}`}
-
-Even with limited data, create substantive, specific chapters that sound like real travel journalism about this actual story.`}
+${context || `URL path clues: ${url}`}`}
 
 ---
 
-STEP 1 — DETECT THE CONTENT TYPE:
-Read the article and classify it as ONE of these types:
+STEP 1 — CLASSIFY THE CONTENT
 
-- DESTINATION: A city, country, or region guide (e.g. "Best things to do in Tokyo")
-- HOTEL_REVIEW: A hotel, resort, or accommodation review
-- TRAVEL_TIPS: A tips, advice, or how-to article (e.g. "How to save money flying")
-- BEFORE_YOU_BOOK: A pre-trip planning or booking guide
-- EXPEDITION: An adventure, road trip, or outdoor destination feature
-- TRAVEL_NEWS: A short news item, announcement, deal alert, or industry update
+Read the article and assign ONE content type:
 
----
-
-STEP 2 — BREAK THE ARTICLE INTO CHAPTERS:
-
-Read the article fully, then divide it into chapters that follow the natural story of the content.
-Do NOT apply a fixed template. Let the article decide what the chapters are.
-
-Chapter count by type:
-- DESTINATION: 6–8 chapters
-- HOTEL_REVIEW: 5–7 chapters
-- TRAVEL_TIPS: 5–6 chapters
-- BEFORE_YOU_BOOK: 5–7 chapters
-- EXPEDITION: 6–9 chapters
-- TRAVEL_NEWS: 3–4 chapters
-
-Each chapter headline must:
-- Come directly from what the article is actually saying
-- Be written as a compelling broadcast title for that specific piece of information
-- Sound like something a presenter would say on air — vivid, specific, and engaging
-- NEVER be a generic label. Words like "Introduction", "Overview", "Tips", "Advice", "Summary", "Before You Book", "Things To Do", "Best Time to Visit", "Final Thoughts", "Conclusion" are FORBIDDEN as headlines
-
-Example of the right approach — an article about Lisbon in autumn:
-- "Where Fado Music Was Born — and Still Lives" (not "Culture")
-- "September to November: When the City Finally Breathes" (not "Best Time to Visit")
-- "Alfama to Belém: The Neighbourhoods That Define the City" (not "Where to Stay")
-- "Pastéis de Nata and the Restaurants Worth the Queue" (not "Food")
+- CITY_DISCOVERY: A city or town guide focused on experiences in that place
+- DESTINATION_FEATURE: A broader destination, country, or region feature
+- TRAVEL_DEAL: A deal, offer, pricing announcement, or trip package
+- TRAVEL_TOOL: An app, service, website, or travel product feature
+- ROAD_TRIP: A route, road trip, or multi-stop journey feature
+- TRAVEL_TIPS: Advice, how-to, or planning guidance
 
 ---
 
-STEP 3 — APPLY THE CORRECT TONE & VOICE:
+STEP 2 — EXTRACT THE KEY INFORMATION
 
-Each content type has a distinct voice. Match the tone to the type you detected.
-
-DESTINATION → DOCUMENTARY STYLE (calm, cinematic, storytelling)
-Write as if narrating a Discovery Channel or National Geographic documentary.
-Tone: Evocative, scenic, informative. Paint a picture with words.
-Example: "Nestled along the shores of Lake Michigan, Chicago rises with a boldness that is unmistakably American — a city of architecture, ambition, and extraordinary food."
-
-HOTEL_REVIEW → TRAVEL SHOW HOST STYLE (warm, personal, guiding)
-Write as if Felix is personally walking through the hotel and talking to camera.
-Tone: Friendly, direct, honest. Share a genuine impression.
-Example: "From the moment you walk through the doors of this hotel, you know you're in the right place. The lobby sets a confident tone — modern, spacious, and effortlessly welcoming."
-
-TRAVEL_TIPS → TRAVEL ADVISOR STYLE (expert, helpful, practical)
-Write as if Felix is giving professional advice to a client.
-Tone: Clear, confident, actionable. Speak with authority.
-Example: "One of the biggest mistakes travellers make is booking the cheapest flight without checking the layover time. Here's what you need to know before you click confirm."
-
-BEFORE_YOU_BOOK → TRAVEL ADVISOR STYLE (expert, helpful, practical)
-Same advisor tone — professional, structured, decision-focused. Do NOT open with "Before you book" or "Before you confirm" — start with the most compelling fact or insight instead.
-Example: "Six things will make or break this trip — and most travellers only discover them after they've already paid. Getting these right will save you real money and a lot of stress."
-
-EXPEDITION → DOCUMENTARY ADVENTURE STYLE (dramatic, inspiring, exploratory)
-Write as if narrating an adventure documentary — bold, cinematic, urgent.
-Tone: Epic, vivid, immersive. Make the viewer feel they are there.
-Example: "This is not a destination for the faint-hearted. The trails are steep, the terrain is raw, and the rewards are extraordinary — this is what real expedition travel looks like."
-
-TRAVEL_NEWS → NEWS ANCHOR STYLE (clear, factual, professional)
-Write as if reading from a travel news bulletin.
-Tone: Authoritative, concise, informative. No fluff — facts first.
-Example: "Airlines operating transatlantic routes have announced a significant increase in summer capacity, with new routes expected to bring prices down for travellers booking before April."
+From the article (and your own knowledge if needed), identify:
+- location (city, country, region)
+- morning_experiences (what to do, see, eat in the morning)
+- afternoon_experiences (afternoon activities, sights, places)
+- evening_experiences (evening dining, nightlife, atmosphere)
+- food_and_culture (cuisine, local culture, markets, traditions)
+- luxury_and_upgrades (premium experiences, upscale stays, splurge options)
+- nature_and_extras (outdoor experiences, side trips, unique activities)
+- practical_tips (pricing, timing, transport, booking advice, facts)
+- target_traveler (who this trip is ideal for)
 
 ---
 
-STEP 4 — MATCH THE EXPLANATION DEPTH TO THE CONTENT TYPE:
+STEP 3 — BUILD THE EPISODE CHAPTERS
 
-Explanations must NEVER sound like Wikipedia or a generic encyclopedia.
-Write like a travel advisor giving practical planning advice — always answer real traveller questions.
+Always produce exactly 9 chapters in this fixed order. Every chapter must be based on the extracted information above. If a specific field is sparse, draw on your knowledge of this destination or topic.
 
-For every chapter, the explanation should feel like: "If you're planning a trip here, this is what you need to know."
+Chapter 1 — INTRODUCTION: Hook the viewer. Open with the most compelling fact, scene, or reason to care about this destination or story. Set the scene powerfully.
 
-EXPLANATION DEPTH PER CONTENT TYPE:
+Chapter 2 — MORNING: What the morning experience looks, feels, and tastes like. First impressions, morning activities, breakfast spots, early sights.
 
-This is a TV broadcast — each explanation must be short enough to read aloud in under 20 seconds.
-Aim for 2–3 crisp, punchy sentences maximum. Never pad. Never repeat the headline. Get straight to the point.
+Chapter 3 — AFTERNOON: The heart of the day. Key attractions, experiences, and activities that define this destination in the afternoon.
 
-TRAVEL_NEWS → SHORT (1–2 sentences)
-  Just the key fact and why it matters to travellers. One punchy statement, done.
+Chapter 4 — EVENING: How the destination transforms after dark. Evening dining, nightlife, atmosphere, sunset spots.
 
-TRAVEL_TIPS → SHORT (1–2 sentences)
-  One clear, direct, actionable tip. No padding.
+Chapter 5 — TIPS & FACTS: The practical intelligence every traveller needs. Real prices, timing, transport, what to avoid, insider knowledge.
 
-HOTEL_REVIEW → MEDIUM (2–3 sentences)
-  Cover: the standout feature, who it suits, and one booking tip.
+Chapter 6 — LUXURY & UPGRADES: The premium layer. Best hotels, upscale experiences, splurge-worthy options, and why they're worth it.
 
-BEFORE_YOU_BOOK → MEDIUM (2–3 sentences)
-  Cover: the one thing travellers miss, cost to expect, and a timing tip.
+Chapter 7 — NATURE & EXTRA EXPERIENCES: What exists beyond the obvious. Outdoor adventures, hidden gems, unusual activities, side trips.
 
-DESTINATION → MEDIUM (2–3 sentences)
-  Name a specific place, what to do there, and one real insider tip.
+Chapter 8 — ADVISOR INSIGHT: Felix Travel TV's expertise. This is where Felix speaks directly — explaining how Felix Travel TV helps travellers plan flights, book hotels, build itineraries, save time, and travel with confidence. Always personalised, always authoritative.
 
-EXPEDITION → MEDIUM (2–3 sentences)
-  What makes it special, how to get there, and the one thing to know before going.
+Chapter 9 — CALL TO ACTION: The close. Inspire the viewer to take action — book the trip, start planning, reach out to Felix Travel TV. Make it compelling and specific to this destination.
 
-CONTENT FRAMING RULES (apply to all types):
-- Always include at least one of: a real place name, a price range, a time estimate, or a practical tip
-- Never write "visitors can enjoy" — say what specifically they will do and why it's worth it
-- Never write "it is known for" — say what it actually is and what a traveller should expect
-- NEVER repeat the phrase "Before you book" — it is overused and monotonous. Instead, vary how chapters end using different approaches each time. Rotate through endings like: a compelling reason to go, a specific insider tip, a common mistake to avoid, a price reality check, a surprising fact, the single best thing about this place, or a memorable closing line. Each chapter should land differently.
-- Write as Felix Abayomi, your trusted travel advisor — knowledgeable, direct, and helpful
+---
+
+STEP 4 — WRITE EACH CHAPTER
+
+For each of the 9 chapters, write:
+
+HEADLINE: A vivid, broadcast-quality title specific to this article's content. The headline must reflect exactly what the chapter covers — never a generic label.
+
+FORBIDDEN headline words: "Introduction", "Morning", "Afternoon", "Evening", "Tips", "Facts", "Luxury", "Nature", "Advisor", "Call to Action", "Overview", "Conclusion", "Summary"
+
+GOOD headline examples:
+- Chapter 1: "The City That Rewrites Every Expectation" / "Why Santiago Is the Story Everyone Is Missing"
+- Chapter 2: "The Souk at Sunrise — When the City Belongs to You" / "First Coffee, First Cobblestone, First Wonder"
+- Chapter 5: "€85 a Night, Rooftop Included — Here Is What to Know" / "The One Booking Mistake That Costs Most Travellers"
+- Chapter 8: "Felix Travel TV Plans the Trip You Have Been Dreaming Of" / "From Flights to Itinerary — We Handle the Detail"
+- Chapter 9: "Your Next Chapter Starts Here — Book With Felix Travel TV" / "The Trip Is Real. The Only Question Is When"
+
+EXPLANATION: 2–3 crisp sentences written as Felix Abayomi speaking to camera. Warm, authoritative, direct. No filler. No Wikipedia. Speak like a trusted advisor giving real, specific, useful information. Read aloud in under 20 seconds.
+
+VOICE: Throughout all chapters, Felix speaks as a knowledgeable, confident travel advisor — descriptive for destination chapters, practical for tips, inspiring for the call to action.
 
 ---
 
 CRITICAL RULES:
-- Every chapter must be specific to THIS article — not generic content
-- Use all available clues (title, description, URL, structured data) to infer the full story
-- Headlines must be vivid and specific to the article — never generic labels or category names
-- Every headline must read like a broadcast title written for this article's actual content, not a section heading from a template
-- If content is limited, draw on your training knowledge about this specific topic and destination
-- Stay in the correct voice and depth for the content type throughout all chapters
+- All 9 chapters are required — never skip one
+- Every chapter must be specific to THIS article and destination — not generic
+- If article content is thin, use your knowledge of this specific place or topic
+- Headlines must be vivid broadcast titles — never section labels
+- Explanations must never repeat the headline
+- Always include real place names, real prices, real timing where possible
+- Chapter 8 must always reference Felix Travel TV by name and describe the service
+- Chapter 9 must always end with a clear, compelling invitation to book or plan
 
 ---
 
 Respond with a JSON object ONLY (no markdown, no code block):
 {
-  "title": "Concise, engaging headline for the full article",
-  "summary": "2-3 sentence summary of what this article is about",
-  "source": "The news outlet name (e.g. 'BBC Travel', 'Reuters', 'Felix Travel TV')",
+  "title": "Concise, engaging headline for the full episode",
+  "summary": "2-3 sentence summary of what this episode covers",
+  "source": "The source outlet name (e.g. 'BBC Travel', 'Reuters', 'Felix Travel TV')",
   "publishedAt": "ISO 8601 date (use article date if found, otherwise: ${new Date().toISOString()})",
-  "contentType": "DESTINATION | HOTEL_REVIEW | TRAVEL_TIPS | BEFORE_YOU_BOOK | EXPEDITION | TRAVEL_NEWS",
+  "contentType": "CITY_DISCOVERY | DESTINATION_FEATURE | TRAVEL_DEAL | TRAVEL_TOOL | ROAD_TRIP | TRAVEL_TIPS",
   "snippets": [
     {
-      "headline": "Specific punchy chapter headline (max 10 words)",
-      "caption": "One precise sentence capturing the key planning insight of this chapter",
-      "explanation": "Written in the correct voice and depth for the content type — practical travel advice with real names, places, costs, and tips. Not a description. Not Wikipedia. A travel advisor talking to a real traveller.",
-      "imagePrompt": "Image prompt using the correct visual style for this content type (see guide below). Must be specific to this chapter's subject — describe the exact scene, location, people, mood, lighting, and photographic style. Do NOT use generic descriptions.\n\nVISUAL STYLE GUIDE:\n- DESTINATION chapters: 'destination documentary photography of [specific place], natural lighting, realistic travel photography, National Geographic style, travel documentary, cinematic composition, street life, high detail, 4k'\n- EXPEDITION chapters: 'adventure documentary photography, [specific terrain or location], dramatic natural lighting, raw wilderness, expedition travel, Discovery Channel style, cinematic, high detail, 4k'\n- HOTEL_REVIEW chapters: 'luxury travel photography of [specific hotel feature], golden hour lighting, architecture, pool or suite interior, travel magazine style, cinematic lighting, high detail, 4k'\n- TRAVEL_TIPS and BEFORE_YOU_BOOK chapters: 'travel show photography, [specific scene e.g. traveller at airport / planning with laptop / packing suitcase], soft documentary lighting, travel advisor style, realistic, high detail'\n- TRAVEL_NEWS chapters: 'cinematic travel news photography, [specific subject], professional photojournalism, travel industry, editorial style, high detail'"
+      "headline": "Vivid broadcast chapter title (max 12 words)",
+      "caption": "One precise sentence capturing the key insight of this chapter",
+      "explanation": "2-3 sentences in Felix's voice — specific, warm, authoritative, useful. Real places, real prices, real advice.",
+      "imagePrompt": "Photorealistic travel photography prompt specific to this chapter's exact content. Describe the precise scene, location, people, mood, lighting, and style. Choose the correct visual approach: destination/city chapters use 'cinematic travel documentary photography, [specific scene], natural lighting, National Geographic style, high detail, 4k'; evening/culture chapters use 'warm evening travel photography, [specific scene], golden hour, atmospheric lighting, lifestyle, high detail'; luxury chapters use 'luxury travel photography, [specific hotel or experience], editorial style, soft lighting, aspirational, high detail'; tips/practical chapters use 'travel lifestyle photography, [specific practical scene], soft documentary lighting, realistic, relatable, high detail'; advisor/CTA chapters use 'professional travel advisor photography, Felix Travel TV style, warm confident presenter energy, broadcast quality'"
     }
   ]
 }`;
@@ -334,7 +294,7 @@ Respond with a JSON object ONLY (no markdown, no code block):
   try {
     const parsed = JSON.parse(content);
     const snippets: SnippetData[] = Array.isArray(parsed.snippets)
-      ? parsed.snippets.slice(0, 8).map((s: any) => ({
+      ? parsed.snippets.slice(0, 9).map((s: any) => ({
           headline: s.headline || "Travel Highlight",
           caption: s.caption || "A key moment from this story.",
           explanation: s.explanation || "More details are available about this travel story.",

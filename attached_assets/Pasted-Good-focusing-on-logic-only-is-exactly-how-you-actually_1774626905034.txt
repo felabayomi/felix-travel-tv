@@ -1,0 +1,287 @@
+Good — focusing on logic only is exactly how you actually build the AI correctly.
+Forget the travel examples for a moment. What you are really building is a content transformation engine.
+
+I’m going to give you the pure logic flow so your Replit agent can generate chapters, articles, and videos from any travel data.
+
+⸻
+
+Core System Logic – Travel Content Generator
+
+This is the high-level logic your AI should follow every time.
+
+Master Logic Flow
+
+INPUT (travel data)
+    ↓
+CLASSIFY content type
+    ↓
+EXTRACT key information
+    ↓
+ORGANIZE into content sections (chapters)
+    ↓
+EXPAND sections into paragraphs
+    ↓
+ADD advisor insight / authority
+    ↓
+ADD call to action
+    ↓
+GENERATE article
+    ↓
+CONVERT article into video script
+    ↓
+OUTPUT structured content
+
+That’s the whole system in simple form.
+
+⸻
+
+Step 1 – Content Type Classification Logic
+
+Your AI must first determine what type of content it received.
+
+Classification Logic
+
+IF input contains city + activities → City Discovery
+IF input contains destination description → Destination Feature
+IF input contains pricing + dates → Travel Deal / Trip
+IF input contains app/software description → Travel Tool / App
+IF input contains route/stops → Road Trip
+IF input contains tips only → Travel Tips
+
+So first step is always:
+
+content_type = classify(input)
+
+
+⸻
+
+Step 2 – Information Extraction Logic
+
+After classification, the AI extracts structured data.
+
+Extraction Logic
+
+From any input, extract:
+
+location
+morning_activity
+afternoon_activity
+evening_activity
+food
+culture
+luxury
+nature
+tips
+facts
+pricing
+dates
+features
+benefits
+target_traveler
+
+Not all inputs will have all fields — that’s fine.
+
+So:
+
+data = extract_information(input)
+
+
+⸻
+
+Step 3 – Chapter Generator Logic
+
+This is the most important part for your system.
+
+The AI should always build chapters in this order:
+
+Chapter Logic
+
+Chapter 1 – Introduction
+Chapter 2 – Morning
+Chapter 3 – Afternoon
+Chapter 4 – Evening
+Chapter 5 – Tips / Facts
+Chapter 6 – Luxury / Upgrades
+Chapter 7 – Nature / Extra Experiences
+Chapter 8 – Advisor Insight
+Chapter 9 – Call To Action
+
+So the logic is:
+
+chapters = [
+  introduction,
+  morning,
+  afternoon,
+  evening,
+  tips,
+  luxury,
+  nature,
+  advisor,
+  call_to_action
+]
+
+If some data is missing, the AI should still generate the section using general knowledge.
+
+⸻
+
+Step 4 – Content Expansion Logic
+
+Now the AI expands each chapter into content.
+
+Expansion Logic
+
+For each chapter:
+
+FOR each chapter:
+    take related data
+    expand into descriptive paragraph
+    add experience language
+    add traveler perspective
+
+So:
+
+for chapter in chapters:
+    section_text = expand(chapter, data)
+
+
+⸻
+
+Step 5 – Advisor Positioning Logic
+
+This is marketing logic built into the system.
+
+The AI must always insert authority positioning before the call to action.
+
+Advisor Logic
+
+Insert section explaining:
+- planning trips
+- booking hotels
+- booking flights
+- itineraries
+- saving time
+- travel support
+
+So:
+
+article += advisor_section
+
+
+⸻
+
+Step 6 – Call To Action Logic
+
+Every article or video must end with:
+
+encourage_trip
+encourage_booking
+encourage_contact
+encourage_planning
+
+So:
+
+article += call_to_action
+
+
+⸻
+
+Step 7 – Video Script Conversion Logic
+
+After the article is generated, convert it into video format.
+
+Video Logic
+
+Video Script Structure:
+Hook
+Introduction
+Morning
+Afternoon
+Evening
+Tips
+Luxury
+Nature
+Advisor Message
+Call To Action
+Closing Line
+
+So basically:
+
+video_script = convert_article_to_video(article)
+
+
+⸻
+
+Final System Logic (Full Pseudocode)
+
+This is what your Replit AI system should actually run like:
+
+function generate_travel_content(input):
+
+    content_type = classify(input)
+
+    data = extract_information(input)
+
+    chapters = build_chapters(data)
+
+    article = ""
+    for chapter in chapters:
+        article += expand_chapter(chapter, data)
+
+    article += advisor_section()
+
+    article += call_to_action()
+
+    video_script = convert_to_video(article)
+
+    return {
+        "article": article,
+        "chapters": chapters,
+        "video_script": video_script
+    }
+
+
+⸻
+
+The Most Important Logic in the Whole System
+
+If you only remember one thing, remember this:
+
+The Content Engine Formula
+
+RAW TRAVEL INFO
+→ STRUCTURE
+→ CHAPTERS
+→ EXPAND
+→ ADD AUTHORITY
+→ ADD CTA
+→ ARTICLE
+→ VIDEO SCRIPT
+→ CONTENT
+
+Or even simpler:
+
+Input → Organize → Expand → Promote → Output
+
+
+⸻
+
+You Are Basically Building This
+
+Not a travel generator.
+
+You are building a:
+
+Travel Content Engine
+Travel Article Generator
+Travel Video Script Generator
+Travel Marketing Generator
+Travel Advisor Promotion Engine
+City Guide Generator
+Trip Promotion Generator
+
+This is actually a content automation system, not just an AI writer.
+
+⸻
+
+If you want, the next step would be:
+Design the actual system architecture (modules, functions, database, workflow).
