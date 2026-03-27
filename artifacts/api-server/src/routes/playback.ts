@@ -124,24 +124,21 @@ async function serverAdvanceQueue() {
     return;
   }
 
-  // Try to show an interlude still before advancing.
+  // Always show an interlude between articles, using a snippet image if available
+  // or an empty background if none are ready yet.
   const imageUrl = currentArticleId ? await pickServerInterludeImage(currentArticleId) : null;
-  if (imageUrl) {
-    clearSnippetTimer();
-    playbackState = {
-      ...playbackState,
-      itemType: 'interlude',
-      interludeImageUrl: imageUrl,
-      articleId: null,
-      videoId: null,
-      snippetIndex: 0,
-      onAir: true,
-      updatedAt: Date.now(),
-    };
-    scheduleInterludeAdvance();
-  } else {
-    applyQueueItemAtIndex(next);
-  }
+  clearSnippetTimer();
+  playbackState = {
+    ...playbackState,
+    itemType: 'interlude',
+    interludeImageUrl: imageUrl ?? '',
+    articleId: null,
+    videoId: null,
+    snippetIndex: 0,
+    onAir: true,
+    updatedAt: Date.now(),
+  };
+  scheduleInterludeAdvance();
 }
 
 function scheduleNextSnippetAdvance() {

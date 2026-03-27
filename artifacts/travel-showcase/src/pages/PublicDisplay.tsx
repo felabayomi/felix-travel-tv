@@ -414,13 +414,15 @@ function InterludeScreen({ imageUrl, config }: { imageUrl: string; config: Waiti
 
   return (
     <main className="relative w-screen h-screen overflow-hidden" style={{ background: '#050508' }}>
-      {/* Background image — fills screen like article images */}
-      <img
-        src={imageUrl}
-        alt="Travel deal"
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{ opacity: 0.95 }}
-      />
+      {/* Background image — fills screen like article images (omitted when no URL) */}
+      {imageUrl && (
+        <img
+          src={imageUrl}
+          alt="Travel deal"
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ opacity: 0.95 }}
+        />
+      )}
       {/* Dark gradient overlay */}
       <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(5,5,8,0.75) 0%, rgba(5,5,8,0.3) 40%, rgba(5,5,8,0.8) 100%)' }} />
 
@@ -650,8 +652,8 @@ export function PublicDisplay() {
     }
   }, [snippetIndex]);
 
-  if (onAir && itemType === 'interlude' && interludeImageUrl) {
-    return <InterludeScreen imageUrl={interludeImageUrl} config={config} />;
+  if (onAir && itemType === 'interlude') {
+    return <InterludeScreen imageUrl={interludeImageUrl ?? ''} config={config} />;
   }
 
   if (!onAir || (!articleId && !videoId)) {

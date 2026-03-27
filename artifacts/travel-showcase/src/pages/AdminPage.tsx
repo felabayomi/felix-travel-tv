@@ -1983,6 +1983,8 @@ function AdminDashboard() {
   useEffect(() => { playingArticleIdRef.current = playingArticleId; }, [playingArticleId]);
   const queueAutoplayRef = useRef(queueAutoplay);
   useEffect(() => { queueAutoplayRef.current = queueAutoplay; }, [queueAutoplay]);
+  const queueLoopRef = useRef(queueLoop);
+  useEffect(() => { queueLoopRef.current = queueLoop; }, [queueLoop]);
   const playingQueueIndexRef = useRef(playingQueueIndex);
   useEffect(() => { playingQueueIndexRef.current = playingQueueIndex; }, [playingQueueIndex]);
   const queueLengthRef = useRef(queue.length);
@@ -2058,7 +2060,8 @@ function AdminDashboard() {
       }
       // Last snippet finished — advance queue only when autoplay is on
       if (!queueAutoplayRef.current) return;
-      const hasNextItem = playingQueueIndexRef.current < queueLengthRef.current - 1;
+      // Show interlude if there's a genuine next item, OR if loop is on (always has a "next")
+      const hasNextItem = playingQueueIndexRef.current < queueLengthRef.current - 1 || queueLoopRef.current;
       if (hasNextItem) {
         const imageUrl = await pickInterludeImage();
         if (imageUrl) {
