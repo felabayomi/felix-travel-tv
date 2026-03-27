@@ -130,8 +130,8 @@ function LiveClock() {
   }, []);
   return (
     <span
-      className="tabular-nums tracking-wider text-white/55 text-sm"
-      style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 500 }}
+      className="tabular-nums text-white/55"
+      style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 500, fontSize: '17px', letterSpacing: '0.1em' }}
     >
       {time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
     </span>
@@ -868,29 +868,29 @@ export function PublicDisplay() {
       <div
         className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-8"
         style={{
-          paddingTop: '18px',
-          paddingBottom: '18px',
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.88) 0%, transparent 100%)',
+          paddingTop: '28px',
+          paddingBottom: '22px',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.90) 0%, transparent 100%)',
           borderTop: '3px solid #c8102e',
         }}
       >
         {/* Left: source + chapter */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {selectedArticle?.source && (
             <>
               <span
-                className="text-white/80 text-xs tracking-[0.18em] uppercase"
-                style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 600 }}
+                className="text-white/90 uppercase"
+                style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, fontSize: '26px', letterSpacing: '0.1em', lineHeight: 1 }}
               >
                 {selectedArticle.source}
               </span>
-              <span className="text-white/20 text-xs">·</span>
+              <span className="text-white/25" style={{ fontSize: '20px' }}>·</span>
             </>
           )}
           {snippets.length > 0 && (
             <span
-              className="text-white/40 text-xs tracking-[0.15em] uppercase"
-              style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 500 }}
+              className="text-white/50 uppercase"
+              style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 500, fontSize: '17px', letterSpacing: '0.14em', lineHeight: 1 }}
             >
               Clip {safeIndex + 1} of {snippets.length}
             </span>
@@ -898,7 +898,7 @@ export function PublicDisplay() {
         </div>
 
         {/* Right: clock + ON AIR badge */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <LiveClock />
           <AnimatePresence>
             {onAir && (
@@ -908,12 +908,12 @@ export function PublicDisplay() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.85 }}
                 transition={{ duration: 0.3 }}
-                className="flex items-center gap-1.5 px-3 py-0.5 rounded-sm"
+                className="flex items-center gap-2 px-3 py-1 rounded-sm"
                 style={{ background: '#c8102e' }}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                 <span
-                  style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.12em' }}
+                  style={{ fontFamily: 'Oswald, sans-serif', color: '#fff', fontWeight: 700, fontSize: '15px', letterSpacing: '0.14em' }}
                 >
                   ON AIR
                 </span>
