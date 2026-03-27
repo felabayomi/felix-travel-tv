@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, snippetsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull, and } from "drizzle-orm";
 
 export interface QueueItem {
   type: 'article' | 'video';
@@ -63,7 +63,7 @@ function resolveNextIndex(currentIndex: number): number | null {
 // When the admin signals an advance (via PATCH /queue/snippet), the server
 // resets its timer so voice-driven pacing takes priority when admin is open.
 
-const SNIPPET_ADVANCE_MS = 300_000; // 5 min per snippet (server fallback only — admin voice drives normally)
+const SNIPPET_ADVANCE_MS = 15_000; // 15 s fallback — admin/voice normally drives at ~12 s
 let snippetTimer: ReturnType<typeof setTimeout> | null = null;
 let snippetScheduledForArticleId: number | null = null;
 let snippetTotalCount: number | null = null;
@@ -72,6 +72,61 @@ function clearSnippetTimer() {
   if (snippetTimer !== null) {
     clearTimeout(snippetTimer);
     snippetTimer = null;
+  }
+}
+
+// Pick a random snippet image URL from the given article (for server-driven interludes).
+async function pickServerInterludeImage(articleId: number): Promise<string | null> {
+  try {
+    const rows = await db
+      .select({ id: snippetsTable.id })
+      .from(snippetsTable)
+      .where(and(eq(snippetsTable.articleId, articleId), isNotNull(snippetsTable.imageUrl)));
+    if (rows.length === 0) return null;
+    const pick = rows[Math.floor(Math.random() * rows.length)];
+    return `/api/snippets/${pick.id}/image`;
+  } catch {
+    return null;
+  }
+}
+
+// Called when the server-side timer fires on the LAST snippet of an article.
+// Mirrors what the admin does: either start an interlude (if an image is available)
+// or advance the queue directly.
+async function serverAdvanceQueue() {
+  if (!playbackState.autoplayQueue) return;
+
+  const currentArticleId = playbackState.articleId;
+  const next = resolveNextIndex(playbackState.queueIndex);
+  if (next === null) {
+    // No next item and no loop — stop the broadcast.
+    playbackState = {
+      ...playbackState,
+      itemType: null, articleId: null, videoId: null,
+      interludeImageUrl: null,
+      snippetIndex: 0, queueIndex: -1, onAir: false,
+      updatedAt: Date.now(),
+    };
+    return;
+  }
+
+  // Try to show an interlude still before advancing.
+  const imageUrl = currentArticleId ? await pickServerInterludeImage(currentArticleId) : null;
+  if (imageUrl) {
+    clearSnippetTimer();
+    playbackState = {
+      ...playbackState,
+      itemType: 'interlude',
+      interludeImageUrl: imageUrl,
+      articleId: null,
+      videoId: null,
+      snippetIndex: 0,
+      onAir: true,
+      updatedAt: Date.now(),
+    };
+    scheduleInterludeAdvance();
+  } else {
+    applyQueueItemAtIndex(next);
   }
 }
 
@@ -99,10 +154,9 @@ function scheduleNextSnippetAdvance() {
       playbackState = { ...playbackState, snippetIndex: nextIndex, updatedAt: Date.now() };
       scheduleNextSnippetAdvance();
     } else {
-      // Article finished all snippets — end queue item (admin will handle interlude/advance)
-      // Do nothing: admin calls /queue/interlude or /queue/advance when it detects last chapter
-      // If admin is gone, we stop here (interlude is admin-driven for image selection)
-      clearSnippetTimer();
+      // Article finished — advance the queue server-side if autoplay is on.
+      // This keeps the broadcast running even when the admin tab is sleeping.
+      void serverAdvanceQueue();
     }
   }, SNIPPET_ADVANCE_MS);
 }
