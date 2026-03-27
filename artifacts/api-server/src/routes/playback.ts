@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, snippetsTable } from "@workspace/db";
-import { eq, isNotNull, and } from "drizzle-orm";
+import { db, snippetsTable, configStore } from "@workspace/db";
+import { eq, isNotNull, and, inArray } from "drizzle-orm";
 
 export interface QueueItem {
   type: 'article' | 'video';
@@ -36,6 +36,71 @@ export let playbackState: PlaybackState = {
 };
 
 export const broadcastQueue: QueueItem[] = [];
+
+// ─── DB persistence ───────────────────────────────────────────────────────────
+// Saves the broadcast queue and playback state to the DB so they survive server
+// restarts and production deploys. Interlude state is intentionally NOT
+// persisted — on restart we resume at the start of the current article.
+
+const QUEUE_DB_KEY = 'broadcast_queue';
+const STATE_DB_KEY = 'playback_state';
+
+function persistState(): void {
+  const stateToSave = {
+    // If in an interlude, record the queue position only — timer will resume next article
+    itemType: playbackState.itemType === 'interlude' ? null : playbackState.itemType,
+    articleId: playbackState.itemType === 'interlude' ? null : playbackState.articleId,
+    videoId: playbackState.itemType === 'interlude' ? null : playbackState.videoId,
+    snippetIndex: playbackState.itemType === 'interlude' ? 0 : playbackState.snippetIndex,
+    queueIndex: playbackState.queueIndex,
+    onAir: playbackState.onAir && playbackState.itemType !== 'interlude',
+    autoplayQueue: playbackState.autoplayQueue,
+    loopQueue: playbackState.loopQueue,
+  };
+  const upsert = (key: string, value: string) =>
+    db.insert(configStore).values({ key, value })
+      .onConflictDoUpdate({ target: configStore.key, set: { value } })
+      .catch((e: unknown) => console.error('[persistState] DB error:', e));
+  upsert(QUEUE_DB_KEY, JSON.stringify(broadcastQueue));
+  upsert(STATE_DB_KEY, JSON.stringify(stateToSave));
+}
+
+async function loadPersistedState(): Promise<void> {
+  try {
+    const rows = await db.select().from(configStore)
+      .where(inArray(configStore.key, [QUEUE_DB_KEY, STATE_DB_KEY]));
+    const byKey: Record<string, unknown> = {};
+    for (const r of rows) {
+      try { byKey[r.key] = JSON.parse(r.value); } catch { /* ignore bad JSON */ }
+    }
+
+    if (Array.isArray(byKey[QUEUE_DB_KEY])) {
+      broadcastQueue.splice(0, broadcastQueue.length, ...(byKey[QUEUE_DB_KEY] as QueueItem[]));
+    }
+
+    const s = byKey[STATE_DB_KEY] as Partial<PlaybackState> | undefined;
+    if (s) {
+      playbackState = {
+        ...playbackState,
+        itemType: (s.itemType as PlaybackState['itemType']) ?? null,
+        articleId: s.articleId ?? null,
+        videoId: s.videoId ?? null,
+        snippetIndex: s.snippetIndex ?? 0,
+        queueIndex: s.queueIndex ?? -1,
+        onAir: s.onAir ?? false,
+        autoplayQueue: s.autoplayQueue ?? false,
+        loopQueue: s.loopQueue ?? false,
+        updatedAt: Date.now(),
+      };
+      // Resume the server-side snippet timer if we were mid-article
+      if (playbackState.onAir && playbackState.itemType === 'article' && playbackState.articleId) {
+        void startSnippetSchedule(playbackState.articleId);
+      }
+    }
+  } catch (e) {
+    console.error('[loadPersistedState] error:', e);
+  }
+}
 
 // ─── Interlude timer ──────────────────────────────────────────────────────────
 
@@ -121,6 +186,7 @@ async function serverAdvanceQueue() {
       snippetIndex: 0, queueIndex: -1, onAir: false,
       updatedAt: Date.now(),
     };
+    persistState();
     return;
   }
 
@@ -138,6 +204,7 @@ async function serverAdvanceQueue() {
     onAir: true,
     updatedAt: Date.now(),
   };
+  persistState();
   scheduleInterludeAdvance();
 }
 
@@ -222,6 +289,7 @@ export function applyQueueItemAtIndex(index: number): void {
       snippetIndex: 0, queueIndex: -1, onAir: false,
       updatedAt: Date.now(),
     };
+    persistState();
     return;
   }
   const item = broadcastQueue[index];
@@ -232,6 +300,7 @@ export function applyQueueItemAtIndex(index: number): void {
       videoId: null, snippetIndex: 0,
       queueIndex: index, onAir: true, updatedAt: Date.now(),
     };
+    persistState();
     if (item.articleId) {
       void startSnippetSchedule(item.articleId);
     }
@@ -243,6 +312,7 @@ export function applyQueueItemAtIndex(index: number): void {
       articleId: null, snippetIndex: 0,
       queueIndex: index, onAir: true, updatedAt: Date.now(),
     };
+    persistState();
   }
 }
 
@@ -266,6 +336,7 @@ function scheduleInterludeAdvance() {
       snippetIndex: 0, queueIndex: -1, onAir: false,
       updatedAt: Date.now(),
     };
+    persistState();
   }, INTERLUDE_DURATION_MS);
 }
 
@@ -304,6 +375,7 @@ router.put("/", (req, res) => {
       updatedAt: Date.now(),
     };
   }
+  persistState();
   res.json(playbackState);
 });
 
@@ -314,6 +386,7 @@ router.patch("/", (req, res) => {
     return;
   }
   playbackState = { ...playbackState, onAir, updatedAt: Date.now() };
+  persistState();
   res.json(playbackState);
 });
 
@@ -334,6 +407,7 @@ router.put("/queue", (req, res) => {
   const { items } = req.body ?? {};
   if (!Array.isArray(items)) { res.status(400).json({ error: "items must be an array" }); return; }
   broadcastQueue.splice(0, broadcastQueue.length, ...items);
+  persistState();
   res.json({ items: broadcastQueue });
 });
 
@@ -343,6 +417,7 @@ router.post("/queue/item", (req, res) => {
     res.status(400).json({ error: "type and title required" }); return;
   }
   broadcastQueue.push({ type, articleId: articleId ?? null, videoId: videoId ?? null, title });
+  persistState();
   res.json({ items: broadcastQueue });
 });
 
@@ -357,12 +432,13 @@ router.delete("/queue/item/:index", (req, res) => {
   } else if (playbackState.queueIndex > idx) {
     playbackState = { ...playbackState, queueIndex: playbackState.queueIndex - 1, updatedAt: Date.now() };
   }
+  persistState();
   res.json({ items: broadcastQueue });
 });
 
 router.post("/queue/play/:index", (req, res) => {
   const idx = parseInt(req.params.index, 10);
-  applyQueueItemAtIndex(idx);
+  applyQueueItemAtIndex(idx);  // applyQueueItemAtIndex calls persistState() internally
   res.json(playbackState);
 });
 
@@ -380,6 +456,7 @@ router.post("/queue/stop", (_req, res) => {
     snippetIndex: 0,
     updatedAt: Date.now(),
   };
+  persistState();
   res.json(playbackState);
 });
 
@@ -388,6 +465,7 @@ router.post("/queue/pause", (_req, res) => {
   clearInterludeTimer();
   clearSnippetTimer();
   playbackState = { ...playbackState, onAir: false, updatedAt: Date.now() };
+  persistState();
   res.json(playbackState);
 });
 
@@ -408,6 +486,9 @@ router.post("/queue/interlude", (req, res) => {
     onAir: true,
     updatedAt: Date.now(),
   };
+  // Interlude is ephemeral — we don't persist it; persistState() writes onAir=false
+  // which means on restart we safely skip the interlude and resume at the next article
+  persistState();
   scheduleInterludeAdvance();
   res.json(playbackState);
 });
@@ -418,7 +499,7 @@ router.post("/queue/advance", (_req, res) => {
   if (playbackState.autoplayQueue) {
     const next = resolveNextIndex(playbackState.queueIndex);
     if (next !== null) {
-      applyQueueItemAtIndex(next);
+      applyQueueItemAtIndex(next);  // applyQueueItemAtIndex calls persistState() internally
       res.json(playbackState);
       return;
     }
@@ -430,6 +511,7 @@ router.post("/queue/advance", (_req, res) => {
     snippetIndex: 0, queueIndex: -1, onAir: false,
     updatedAt: Date.now(),
   };
+  persistState();
   res.json(playbackState);
 });
 
@@ -439,6 +521,7 @@ router.patch("/queue/autoplay", (req, res) => {
     res.status(400).json({ error: "autoplayQueue must be a boolean" }); return;
   }
   playbackState = { ...playbackState, autoplayQueue, updatedAt: Date.now() };
+  persistState();
   res.json(playbackState);
 });
 
@@ -448,6 +531,7 @@ router.patch("/queue/loop", (req, res) => {
     res.status(400).json({ error: "loopQueue must be a boolean" }); return;
   }
   playbackState = { ...playbackState, loopQueue, updatedAt: Date.now() };
+  persistState();
   res.json(playbackState);
 });
 
@@ -459,9 +543,14 @@ router.patch("/queue/snippet", (req, res) => {
   // Record that the admin is present — prevents server fallback from firing mid-voice
   lastAdminSnippetPatch = Date.now();
   playbackState = { ...playbackState, snippetIndex, updatedAt: Date.now() };
+  persistState();
   // Reset the server-side timer from this new position
   scheduleNextSnippetAdvance();
   res.json(playbackState);
 });
+
+// Load persisted queue and state from DB on startup so production restarts
+// don't lose the broadcast queue and current playback position.
+void loadPersistedState();
 
 export default router;

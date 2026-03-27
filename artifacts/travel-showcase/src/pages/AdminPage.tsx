@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, Plus, Trash2, Edit3, Check, X,
@@ -38,6 +38,8 @@ function SourceInput({ value, onChange, disabled, placeholder, className }: {
   value: string; onChange: (v: string) => void;
   disabled?: boolean; placeholder?: string; className?: string;
 }) {
+  const uid = useId();
+  const listId = `source-suggestions-${uid.replace(/:/g, '')}`;
   const [suggestions, setSuggestions] = useState<string[]>([]);
   useEffect(() => {
     const history = getSourceHistory();
@@ -54,13 +56,13 @@ function SourceInput({ value, onChange, disabled, placeholder, className }: {
   return (
     <>
       <input
-        type="text" list="source-suggestions"
+        type="text" list={listId}
         placeholder={placeholder ?? 'e.g. Felix Travel TV'}
         value={value} onChange={e => onChange(e.target.value)}
         disabled={disabled} autoComplete="off"
         className={className ?? 'w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground/40'}
       />
-      <datalist id="source-suggestions">
+      <datalist id={listId}>
         {suggestions.map(s => <option key={s} value={s} />)}
       </datalist>
     </>
