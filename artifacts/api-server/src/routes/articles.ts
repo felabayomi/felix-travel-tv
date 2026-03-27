@@ -408,9 +408,64 @@ async function generateImage(prompt: string): Promise<string | null> {
     const b64 = response.data?.[0]?.b64_json;
     if (!b64) return null;
     return `data:image/png;base64,${b64}`;
-  } catch {
+  } catch (err: any) {
     return null;
   }
+}
+
+/**
+ * Generate and persist images for a list of snippets.
+ *
+ * Strategy:
+ *   1. Fire all requests in parallel (fast — same as original approach).
+ *   2. Collect any that came back null and retry them one-by-one with a
+ *      short pause, so transient rate-limit blips don't leave blank chapters.
+ *
+ * This runs entirely after the HTTP response has been sent, so it never
+ * contributes to request timeouts.
+ */
+async function generateAndSaveImages(
+  snippets: Array<{ id: number; imagePrompt: string | null }>,
+  log: { info: (...a: any[]) => void; error: (...a: any[]) => void }
+) {
+  // ── Pass 1: parallel ──────────────────────────────────────────────────────
+  const results = await Promise.allSettled(
+    snippets.map(async (snippet) => {
+      if (!snippet.imagePrompt) return { id: snippet.id, ok: false };
+      const imageUrl = await generateImage(snippet.imagePrompt);
+      if (imageUrl) {
+        await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
+        return { id: snippet.id, ok: true };
+      }
+      return { id: snippet.id, ok: false };
+    })
+  );
+
+  const failed = snippets.filter((_, i) => {
+    const r = results[i];
+    return r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok);
+  });
+
+  if (failed.length === 0) {
+    log.info({ total: snippets.length }, "Image generation complete (all parallel)");
+    return;
+  }
+
+  log.info({ failed: failed.length }, "Retrying failed images sequentially");
+
+  // ── Pass 2: sequential retry for failures ─────────────────────────────────
+  let retried = 0;
+  for (const snippet of failed) {
+    if (!snippet.imagePrompt) continue;
+    await new Promise(r => setTimeout(r, 1200));
+    const imageUrl = await generateImage(snippet.imagePrompt);
+    if (imageUrl) {
+      await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
+      retried++;
+    }
+  }
+
+  log.info({ total: snippets.length, retried }, "Image generation complete (with retries)");
 }
 
 // GET /api/articles
@@ -527,25 +582,9 @@ router.post("/", async (req, res) => {
     // Respond immediately — the article is saved, chapters are ready.
     res.status(201).json(formatArticle(article, insertedSnippets.length));
 
-    // Fire-and-forget: generate images sequentially in the background.
-    // Each snippet gets two attempts with a short pause between retries.
-    (async () => {
-      for (const snippet of insertedSnippets) {
-        if (!snippet.imagePrompt) continue;
-        let imageUrl = await generateImage(snippet.imagePrompt);
-        if (!imageUrl) {
-          await new Promise(r => setTimeout(r, 1500));
-          imageUrl = await generateImage(snippet.imagePrompt);
-        }
-        if (imageUrl) {
-          await db
-            .update(snippetsTable)
-            .set({ imageUrl })
-            .where(eq(snippetsTable.id, snippet.id));
-        }
-      }
-      req.log.info({ articleId: article.id, total: insertedSnippets.length }, "Background image generation complete");
-    })().catch(err =>
+    // Fire-and-forget: generate images in the background (parallel-first, then
+    // sequential retry for any that failed). Never blocks the HTTP response.
+    generateAndSaveImages(insertedSnippets, req.log).catch(err =>
       req.log.error({ err, articleId: article.id }, "Background image generation failed")
     );
   } catch (err) {
@@ -555,8 +594,8 @@ router.post("/", async (req, res) => {
 });
 
 // POST /api/articles/:id/regenerate-images
-// Re-generates images for any snippets that are missing one (imageUrl = null).
-// Runs sequentially with one retry per snippet.
+// Queues image generation for all snippets that are missing an image.
+// Responds immediately; generation runs in the background.
 router.post("/:id/regenerate-images", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -578,26 +617,18 @@ router.post("/:id/regenerate-images", async (req, res) => {
       .orderBy(asc(snippetsTable.snippetOrder));
 
     const missing = snippets.filter(s => !s.imageUrl && s.imagePrompt);
-    let regenerated = 0;
 
-    for (const snippet of missing) {
-      let imageUrl = await generateImage(snippet.imagePrompt!);
-      if (!imageUrl) {
-        await new Promise(r => setTimeout(r, 1500));
-        imageUrl = await generateImage(snippet.imagePrompt!);
-      }
-      if (imageUrl) {
-        await db
-          .update(snippetsTable)
-          .set({ imageUrl })
-          .where(eq(snippetsTable.id, snippet.id));
-        regenerated++;
-      }
+    // Respond immediately so the request never times out.
+    res.json({ total: snippets.length, missing: missing.length, started: true });
+
+    // Generate in the background using the same parallel-first strategy.
+    if (missing.length > 0) {
+      generateAndSaveImages(missing, req.log).catch(err =>
+        req.log.error({ err, articleId: id }, "Regenerate images failed")
+      );
     }
-
-    res.json({ total: snippets.length, missing: missing.length, regenerated });
   } catch (err) {
-    req.log.error({ err }, "Failed to regenerate images");
+    req.log.error({ err }, "Failed to start image regeneration");
     res.status(500).json({ error: "Failed to regenerate images" });
   }
 });
