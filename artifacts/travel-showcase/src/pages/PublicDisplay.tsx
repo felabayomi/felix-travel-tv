@@ -701,7 +701,7 @@ export function PublicDisplay() {
 
     return (
       <div
-        className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-12 pb-28"
+        className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-5 sm:p-12 pb-28"
         style={{ background: '#050508' }}
       >
         {/* Top accent line */}
@@ -738,11 +738,11 @@ export function PublicDisplay() {
           transition={{ duration: 0.8 }}
           className="w-full max-w-4xl"
         >
-          {/* Two-column layout when there are topics */}
-          <div className={`flex gap-16 ${hasTopics ? 'items-start' : 'flex-col items-center text-center'}`}>
+          {/* Two-column on desktop, single-column on mobile */}
+          <div className={`flex flex-col ${hasTopics ? 'sm:flex-row sm:items-start sm:gap-16 gap-8' : 'items-center text-center'}`}>
 
             {/* Left / Center: Branding + countdown + website/social */}
-            <div className={`flex flex-col gap-7 flex-1 ${hasTopics ? 'items-start' : 'items-center'}`}>
+            <div className={`flex flex-col gap-5 sm:gap-7 flex-1 ${hasTopics ? 'items-start' : 'items-center'}`}>
 
               {/* Thin red rule */}
               <div
@@ -761,7 +761,7 @@ export function PublicDisplay() {
                     transition={{ duration: 1.8, ease: [0.22, 1, 0.36, 1] }}
                   >
                     <h1
-                      className="text-5xl text-white uppercase"
+                      className="text-3xl sm:text-5xl text-white uppercase"
                       style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, letterSpacing: '0.06em', lineHeight: 1 }}
                     >
                       {activeEntries[nameIndex % activeEntries.length].name}
@@ -843,9 +843,9 @@ export function PublicDisplay() {
               />
             </div>
 
-            {/* Right: Today's Topics */}
+            {/* Right: Today's Topics — full width on mobile, fixed on desktop */}
             {hasTopics && (
-              <div className="shrink-0 w-64 pt-1">
+              <div className="sm:shrink-0 sm:w-64 w-full pt-1">
                 <p
                   className="text-[#c8102e] text-xs uppercase tracking-widest font-bold mb-4"
                   style={{ fontFamily: 'Oswald, sans-serif', letterSpacing: '0.18em' }}
@@ -916,31 +916,31 @@ export function PublicDisplay() {
 
       {/* ── Unified top HUD bar (z-40, above everything) ── */}
       <div
-        className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-8"
+        className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-3 sm:px-8"
         style={{
-          paddingTop: '28px',
-          paddingBottom: '22px',
+          paddingTop: '18px',
+          paddingBottom: '14px',
           background: 'linear-gradient(to bottom, rgba(0,0,0,0.90) 0%, transparent 100%)',
           borderTop: '3px solid #c8102e',
         }}
       >
         {/* Left: source + chapter */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           {selectedArticle?.source && (
             <>
               <span
-                className="text-white/90 uppercase"
-                style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, fontSize: '26px', letterSpacing: '0.1em', lineHeight: 1 }}
+                className="text-white/90 uppercase truncate"
+                style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 700, fontSize: 'clamp(14px, 4vw, 26px)', letterSpacing: '0.1em', lineHeight: 1 }}
               >
                 {selectedArticle.source}
               </span>
-              <span className="text-white/25" style={{ fontSize: '20px' }}>·</span>
+              <span className="text-white/25 shrink-0" style={{ fontSize: '16px' }}>·</span>
             </>
           )}
           {snippets.length > 0 && (
             <span
-              className="text-white/50 uppercase"
-              style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 500, fontSize: '17px', letterSpacing: '0.14em', lineHeight: 1 }}
+              className="text-white/50 uppercase shrink-0"
+              style={{ fontFamily: 'Oswald, sans-serif', fontWeight: 500, fontSize: 'clamp(11px, 3vw, 17px)', letterSpacing: '0.14em', lineHeight: 1 }}
             >
               Clip {safeIndex + 1} of {snippets.length}
             </span>

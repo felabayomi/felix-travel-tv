@@ -83,8 +83,8 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
         {lowerIn && (
           <motion.div
             key={snippet.id}
-            className="absolute left-0 z-20"
-            style={{ bottom: '150px', maxWidth: '85%' }}
+            className="absolute left-0 z-20 w-full sm:w-auto"
+            style={{ bottom: '130px', maxWidth: '92%' }}
             initial={{ y: '110%' }}
             animate={{ y: 0 }}
             exit={{ y: '110%' }}
@@ -98,55 +98,55 @@ export function SnippetDisplay({ snippet, isActive, chapterIndex, totalChapters 
 
             {/* Panel */}
             <div
-              className="ml-[5px] px-8 py-5"
+              className="ml-[5px] px-4 py-3 sm:px-8 sm:py-5"
               style={{
                 background: 'linear-gradient(to right, rgba(3,3,8,0.97) 0%, rgba(3,3,8,0.93) 70%, transparent 100%)',
               }}
             >
               {/* Headline */}
               <h1
-                className="text-white leading-none mb-3"
+                className="text-white leading-tight mb-2 sm:mb-3"
                 style={{
                   fontFamily: 'Oswald, sans-serif',
                   fontWeight: 700,
-                  fontSize: 'clamp(24px, 3.6vw, 46px)',
+                  fontSize: 'clamp(18px, 4.5vw, 46px)',
                   letterSpacing: '0.02em',
                   textTransform: 'uppercase',
                   textShadow: '0 2px 16px rgba(0,0,0,0.9)',
-                  maxWidth: '80%',
+                  maxWidth: '95%',
                 }}
               >
                 {snippet.headline}
               </h1>
 
               {/* Rule */}
-              <div className="w-14 h-[2px] mb-3" style={{ background: '#c8102e' }} />
+              <div className="w-10 h-[2px] mb-2 sm:mb-3" style={{ background: '#c8102e' }} />
 
               {/* Caption */}
               <p
-                className="text-white leading-snug mb-3"
+                className="text-white leading-snug mb-2 sm:mb-3"
                 style={{
                   fontFamily: 'IBM Plex Sans, sans-serif',
                   fontWeight: 400,
-                  fontSize: 'clamp(13px, 1.5vw, 19px)',
+                  fontSize: 'clamp(12px, 2.5vw, 19px)',
                   letterSpacing: '0.01em',
-                  maxWidth: '75%',
+                  maxWidth: '90%',
                 }}
               >
                 {snippet.caption}
               </p>
 
-              {/* Divider */}
-              <div className="mb-3" style={{ width: '100%', maxWidth: '60%', height: '1px', background: 'rgba(255,255,255,0.12)' }} />
+              {/* Divider — hidden on very small screens */}
+              <div className="hidden sm:block mb-3" style={{ width: '60%', height: '1px', background: 'rgba(255,255,255,0.12)' }} />
 
-              {/* Explanation */}
+              {/* Explanation — hidden on small phones to avoid overflow */}
               <p
-                className="text-white/65 leading-relaxed"
+                className="hidden sm:block text-white/65 leading-relaxed"
                 style={{
                   fontFamily: 'IBM Plex Sans, sans-serif',
                   fontWeight: 300,
-                  fontSize: 'clamp(16px, 1.6vw, 22px)',
-                  maxWidth: '68%',
+                  fontSize: 'clamp(14px, 1.6vw, 22px)',
+                  maxWidth: '80%',
                 }}
               >
                 {snippet.explanation}
