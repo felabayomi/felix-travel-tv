@@ -506,39 +506,48 @@ router.post("/", async (req, res) => {
       publishedAt: resolvedDate,
     }).returning();
 
-    // Generate images sequentially to avoid rate-limiting.
-    // Parallel requests cause some to silently fail when the API is busy.
-    const snippetRows: Array<{
-      articleId: number;
-      snippetOrder: number;
-      headline: string;
-      caption: string;
-      explanation: string;
-      imageUrl: string | null;
-      imagePrompt: string;
-    }> = [];
-    for (let index = 0; index < content.snippets.length; index++) {
-      const s = content.snippets[index];
-      // Try twice before giving up so transient errors don't leave blank chapters
-      let imageUrl = await generateImage(s.imagePrompt);
-      if (!imageUrl) {
-        await new Promise(r => setTimeout(r, 1500));
-        imageUrl = await generateImage(s.imagePrompt);
+    // Insert snippets immediately with imageUrl = null so the article is
+    // available right away. Images are generated in the background after the
+    // response is sent, so the HTTP request never times out.
+    const snippetRows = content.snippets.map((s, index) => ({
+      articleId: article.id,
+      snippetOrder: index,
+      headline: s.headline,
+      caption: s.caption,
+      explanation: s.explanation,
+      imageUrl: null as string | null,
+      imagePrompt: s.imagePrompt,
+    }));
+
+    const insertedSnippets = await db
+      .insert(snippetsTable)
+      .values(snippetRows)
+      .returning();
+
+    // Respond immediately — the article is saved, chapters are ready.
+    res.status(201).json(formatArticle(article, insertedSnippets.length));
+
+    // Fire-and-forget: generate images sequentially in the background.
+    // Each snippet gets two attempts with a short pause between retries.
+    (async () => {
+      for (const snippet of insertedSnippets) {
+        if (!snippet.imagePrompt) continue;
+        let imageUrl = await generateImage(snippet.imagePrompt);
+        if (!imageUrl) {
+          await new Promise(r => setTimeout(r, 1500));
+          imageUrl = await generateImage(snippet.imagePrompt);
+        }
+        if (imageUrl) {
+          await db
+            .update(snippetsTable)
+            .set({ imageUrl })
+            .where(eq(snippetsTable.id, snippet.id));
+        }
       }
-      snippetRows.push({
-        articleId: article.id,
-        snippetOrder: index,
-        headline: s.headline,
-        caption: s.caption,
-        explanation: s.explanation,
-        imageUrl,
-        imagePrompt: s.imagePrompt,
-      });
-    }
-
-    await db.insert(snippetsTable).values(snippetRows);
-
-    res.status(201).json(formatArticle(article, snippetRows.length));
+      req.log.info({ articleId: article.id, total: insertedSnippets.length }, "Background image generation complete");
+    })().catch(err =>
+      req.log.error({ err, articleId: article.id }, "Background image generation failed")
+    );
   } catch (err) {
     req.log.error({ err }, "Failed to create article");
     res.status(422).json({ error: "Failed to process URL" });
