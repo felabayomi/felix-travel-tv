@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, Mic, MicOff } from 'lucide-react';
+import { Loader2, Volume2, VolumeX } from 'lucide-react';
 import { useGetArticles, useGetArticleSnippets } from '@workspace/api-client-react';
 import { ProgressBar } from '@/components/ProgressBar';
 import { SnippetDisplay } from '@/components/SnippetDisplay';
@@ -1004,7 +1004,7 @@ export function PublicDisplay() {
             : "bg-black/20 text-white/50 border border-white/10 hover:bg-black/50 hover:text-white"
         )}
       >
-        {voiceEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+        {voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
       </button>
 
     </main>
