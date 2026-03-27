@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Mic, MicOff } from 'lucide-react';
 import { useGetArticles, useGetArticleSnippets } from '@workspace/api-client-react';
 import { ProgressBar } from '@/components/ProgressBar';
 import { SnippetDisplay } from '@/components/SnippetDisplay';
 import { AmbientMusicPlayer } from '@/components/AmbientMusicPlayer';
+import { useVoiceReader } from '@/hooks/use-voice-reader';
+import { cn } from '@/lib/utils';
 
 function ESTClock() {
   const [now, setNow] = useState(() => new Date());
@@ -652,6 +654,45 @@ export function PublicDisplay() {
     }
   }, [snippetIndex]);
 
+  // ── Voice narration on public display ────────────────────────────────────────
+  // The public display is a passive viewer — it speaks whichever snippet the
+  // server says is current, but it NEVER calls onEnded to drive advances.
+  // Advances are always driven by the server/admin (never from this side).
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const { speak, stop } = useVoiceReader(voiceEnabled);
+  const speakRef = useRef(speak);
+  useEffect(() => { speakRef.current = speak; }, [speak]);
+  const stopRef = useRef(stop);
+  useEffect(() => { stopRef.current = stop; }, [stop]);
+
+  // Track which snippet was last spoken so we don't re-speak on unrelated re-renders
+  const lastSpokenRef = useRef<{ snippetId: number; articleId: number | null }>({ snippetId: -1, articleId: null });
+
+  useEffect(() => {
+    // Stop voice when not on an article
+    if (itemType !== 'article' || !currentSnippet) {
+      stopRef.current();
+      lastSpokenRef.current = { snippetId: -1, articleId: null };
+      return;
+    }
+    // Guard: don't re-speak the same snippet for the same article
+    if (
+      lastSpokenRef.current.snippetId === currentSnippet.id &&
+      lastSpokenRef.current.articleId === articleId
+    ) return;
+    lastSpokenRef.current = { snippetId: currentSnippet.id, articleId: articleId ?? null };
+    // Speak with no onEnded — public display never drives queue advances
+    speakRef.current(currentSnippet.id);
+  }, [currentSnippet, itemType, articleId]);
+
+  // Stop audio immediately when entering interlude or video
+  useEffect(() => {
+    if (itemType !== 'article') {
+      stopRef.current();
+      lastSpokenRef.current = { snippetId: -1, articleId: null };
+    }
+  }, [itemType]);
+
   if (onAir && itemType === 'interlude') {
     return <InterludeScreen imageUrl={interludeImageUrl ?? ''} config={config} />;
   }
@@ -951,6 +992,20 @@ export function PublicDisplay() {
       <SecondaryTicker items={config?.ticker2Items ?? []} speed={config?.tickerSpeed ?? 3} />
 
       <AmbientMusicPlayer />
+
+      {/* Voice narration toggle — sits to the right of the ambient music button */}
+      <button
+        onClick={() => setVoiceEnabled(v => !v)}
+        title={voiceEnabled ? 'Mute voice narration' : 'Enable voice narration'}
+        className={cn(
+          "fixed bottom-6 right-6 p-3 rounded-full backdrop-blur-md transition-all duration-300 z-40",
+          voiceEnabled
+            ? "bg-primary/20 text-primary border border-primary/30"
+            : "bg-black/20 text-white/50 border border-white/10 hover:bg-black/50 hover:text-white"
+        )}
+      >
+        {voiceEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+      </button>
 
     </main>
   );
