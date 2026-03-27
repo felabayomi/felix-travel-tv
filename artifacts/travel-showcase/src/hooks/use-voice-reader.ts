@@ -1,3 +1,20 @@
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ⚠️  PROTECTED BROADCAST ENGINE — DO NOT MODIFY WITHOUT READING replit.md FIRST
+//
+// This hook is part of the autoplay/interlude/voice system. Changes here have
+// historically caused audio to overlap, play twice, or cut off mid-sentence.
+//
+// CRITICAL INVARIANTS (do not break):
+//   1. genRef (generation counter) must be incremented at the TOP of every speak()
+//      call, and checked after every await. This prevents stale async completions
+//      from a previous chapter from overriding a newer chapter that has already started.
+//   2. stop() must clear el.onended AND el.ontimeupdate before pausing. If not
+//      cleared, the ended callback fires on the stale element after stop() and
+//      triggers an unwanted advance to the next chapter.
+//   3. On TTS fetch error, onEnded is still called after 2 s. This ensures the
+//      slideshow never freezes if audio is unavailable.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 import { useEffect, useCallback, useRef, useState } from 'react';
 
 // In-memory blob URL cache so we don't re-fetch audio for chapters already seen

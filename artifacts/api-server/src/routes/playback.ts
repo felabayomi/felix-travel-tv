@@ -121,6 +121,26 @@ function resolveNextIndex(currentIndex: number): number | null {
   return null;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ⚠️  PROTECTED BROADCAST ENGINE — DO NOT MODIFY WITHOUT READING replit.md FIRST
+//
+// This block (snippet advance + interlude + queue advance) is tightly coupled to
+// AdminPage.tsx (advance(), auto-advance timer, serverItemType guard) and
+// use-voice-reader.ts. Seemingly innocent changes here have historically caused:
+//   • The same article looping forever
+//   • Interludes being skipped entirely
+//   • Articles being cut short by double-advances
+//
+// CRITICAL INVARIANTS (do not break):
+//   1. clearSnippetTimer() MUST be the first line of serverAdvanceQueue(), BEFORE
+//      any `await`. Moving it after the await allows the interval to fire again
+//      during the async image fetch, calling serverAdvanceQueue() multiple times.
+//   2. scheduleInterludeAdvance() MUST always be called after an article finishes,
+//      even when imageUrl is empty. Never skip straight to applyQueueItemAtIndex.
+//   3. GET /queue MUST include itemType so AdminPage knows when an interlude is active.
+//   4. All timing constants below are production-tested — do not change them.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 // ─── Server-side snippet auto-advance ────────────────────────────────────────
 // When the admin tab is in the background, browsers throttle its JS timers.
 // The server independently advances snippets so the broadcast continues without

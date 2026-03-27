@@ -2051,6 +2051,26 @@ function AdminDashboard() {
     return urls.length > 0 ? urls[Math.floor(Math.random() * urls.length)] : null;
   }
 
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ⚠️  PROTECTED BROADCAST ENGINE — DO NOT MODIFY WITHOUT READING replit.md FIRST
+  //
+  // advance(), the voice effect, and the auto-advance timer below work together
+  // with playback.ts (server) and use-voice-reader.ts. Breaking any invariant
+  // here has historically caused skipped interludes, double-advances, and looping.
+  //
+  // CRITICAL INVARIANTS (do not break):
+  //   1. advance() MUST check serverItemTypeRef.current === 'interlude' first and
+  //      return immediately. The server's 30 s interlude timer handles queue advance.
+  //   2. advance() MUST always post to /queue/interlude (imageUrl: imageUrl ?? '')
+  //      when hasNextItem is true — NEVER call apiAdvanceQueue() to skip interlude.
+  //   3. The auto-advance timer useEffect MUST guard on serverItemType === 'interlude'
+  //      and return early — must not fire while the interlude is counting down.
+  //   4. loadQueue() MUST sync serverItemType. The serverItemTypeRef keeps it
+  //      current for all async callbacks without stale closure issues.
+  //   5. snippetIndex must NOT be synced from the server inside loadQueue.
+  //      The admin drives all snippet advances. Syncing it causes voice to be cut off.
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   // ── Single advance function ──────────────────────────────────────────────────
   // Mutex guard prevents double-fires (voice onEnded + fallback timer both firing).
   // Advances within the current article; when the last snippet is done, advances

@@ -48,6 +48,46 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
+## PROTECTED SYSTEMS — DO NOT MODIFY WITHOUT READING THIS FIRST
+
+The following three systems work together as a single tightly-coupled broadcast engine. They have been carefully debugged and must not be changed, refactored, or "cleaned up" as part of any unrelated feature work. Any change to one part can silently break the others.
+
+### 1. Server-side snippet advance + queue advance (`artifacts/api-server/src/routes/playback.ts`)
+
+Key invariants that MUST be preserved:
+- `clearSnippetTimer()` is called at the **very start** of `serverAdvanceQueue()`, BEFORE any `await`. If moved after the await, the interval fires again during the async image fetch and calls `serverAdvanceQueue()` multiple times, causing double-advances and broken loops.
+- `scheduleInterludeAdvance()` always fires after every article finishes (server side), regardless of whether an image was found. The interlude always shows for `INTERLUDE_DURATION_MS` (30 s) before advancing.
+- `itemType` is included in the `GET /queue` response so the admin page can detect interlude state.
+- Constants: `SNIPPET_ADVANCE_ABSENT_MS=15000`, `SNIPPET_SAFETY_NET_MS=300000`, `ADMIN_PRESENCE_TIMEOUT_MS=35000`, `SNIPPET_CHECK_INTERVAL_MS=5000`, `INTERLUDE_DURATION_MS=30000`.
+
+### 2. Admin advance + voice + auto-advance timer (`artifacts/travel-showcase/src/pages/AdminPage.tsx`)
+
+Key invariants that MUST be preserved:
+- `advance()` checks `serverItemTypeRef.current === 'interlude'` at the very top and returns immediately if true. This prevents the admin from double-firing during the server's 30 s interlude countdown.
+- `advance()` always posts to `/api/playback/queue/interlude` (with `imageUrl: imageUrl ?? ''`) when there is a next item — it never calls `apiAdvanceQueue()` directly to skip the interlude.
+- The auto-advance timer `useEffect` checks `serverItemType === 'interlude'` and returns early — the timer must not fire during interlude.
+- `serverItemType` is synced from `GET /queue` on every `loadQueue()` poll (every 2 s). The `serverItemTypeRef` keeps it always-current for async callbacks.
+- The voice effect (`speakRef.current(...)`) attaches `onEnded` that calls `advanceRef.current()`. `queueAutoplay` is accessed via `queueAutoplayRef` — NOT as a dep — so toggling autoplay never restarts the audio.
+- `snippetIndex` is intentionally NOT synced from the server in `loadQueue`. The admin drives all snippet advances. Syncing it caused race conditions that truncated voice mid-read.
+
+### 3. Voice reader hook (`artifacts/travel-showcase/src/hooks/use-voice-reader.ts`)
+
+Key invariants that MUST be preserved:
+- `genRef` (generation counter) prevents stale async callbacks: every `speak()` call increments the generation; after the fetch completes it checks `genRef.current !== myGen` and discards the result if a newer call has taken over.
+- `stop()` clears `onended` and `ontimeupdate` before pausing, so no stale callback fires after stopping.
+- Audio fetch failures fall through to call `onEnded` after 2 s so the slideshow never freezes on a TTS error.
+
+### Summary of what breaks when these are touched accidentally:
+| Symptom | Cause |
+|---|---|
+| Same article replays in a loop | `clearSnippetTimer()` moved after await in `serverAdvanceQueue` |
+| Interlude is skipped | `advance()` calls `apiAdvanceQueue()` directly when no image found |
+| Double-advance cuts articles short | Auto-advance timer fires during interlude (missing `serverItemType` guard) |
+| Voice cuts off mid-sentence | `snippetIndex` synced from server in `loadQueue` |
+| Audio plays twice or overlaps | `genRef` logic removed or `onended` not cleared in `stop()` |
+
+---
+
 ## Artifacts
 
 ### `artifacts/travel-showcase` (`@workspace/travel-showcase`)
