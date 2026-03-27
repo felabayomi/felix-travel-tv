@@ -209,7 +209,7 @@ TEMPLATE A — CITY_GUIDE (7 chapters):
 4. Experiences & Activities — What to do, see, and explore
 5. Where to Stay — Accommodation options, neighbourhoods to base yourself, price ranges
 6. Travel Tips — Practical advice: transport, costs, timing, what to know before going
-7. Felix Travel TV — How Felix Travel TV helps you plan and book this city trip; call to action
+7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, helps you plan and book this city trip; call to action
 
 TEMPLATE B — DESTINATION_FEATURE (7 chapters):
 1. Introduction — Why this destination matters and what the story is about
@@ -218,7 +218,7 @@ TEMPLATE B — DESTINATION_FEATURE (7 chapters):
 4. Food & Culture — Cuisine, local life, cultural highlights
 5. Best Time to Visit — Seasons, weather, events, and practical timing advice
 6. Travel Planning Tips — Flights, logistics, costs, how to prepare
-7. Felix Travel TV — How Felix Travel TV makes planning this trip effortless; call to action
+7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, makes planning this trip effortless; call to action
 
 TEMPLATE C — TRAVEL_DEAL (7 chapters):
 1. Trip Overview — What this deal or trip package is, where it goes, who offers it
@@ -227,7 +227,7 @@ TEMPLATE C — TRAVEL_DEAL (7 chapters):
 4. Highlights — The most exciting moments and experiences on this trip
 5. Who This Trip Is For — The ideal traveller profile: families, couples, adventurers, etc.
 6. Booking Information — How to book, deadlines, contact details, what to do next
-7. Felix Travel TV — Why Felix Travel TV is the right partner for this deal; call to action
+7. Felix, Your Travel Advisor — Why Felix, as your personal travel agent and advisor, is the right partner for this deal; call to action
 
 TEMPLATE D — TRAVEL_TOOL (7 chapters):
 1. The Problem — The travel challenge or frustration this tool solves
@@ -236,7 +236,7 @@ TEMPLATE D — TRAVEL_TOOL (7 chapters):
 4. Key Features — The standout capabilities and what makes it different
 5. Who It's For — The traveller types who benefit most
 6. Pricing & Access — Cost, free tier, subscription details, where to get it
-7. Felix Travel TV — Felix Travel TV's recommendation and how to start using it; call to action
+7. Felix, Your Travel Advisor — Felix's personal recommendation and how to start using it with his guidance; call to action
 
 TEMPLATE E — ROAD_TRIP (7 chapters):
 1. Route Overview — Where the journey starts, ends, and what it covers
@@ -245,7 +245,7 @@ TEMPLATE E — ROAD_TRIP (7 chapters):
 4. Food Stops — Where to eat, drink, and experience local flavour along the way
 5. Travel Tips — Driving advice, logistics, costs, best season, what to book ahead
 6. Recommended Schedule — A practical day-by-day or leg-by-leg breakdown
-7. Felix Travel TV — How Felix Travel TV helps plan and book this road trip; call to action
+7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, helps you plan and book this road trip; call to action
 
 TEMPLATE F — TRAVEL_TIPS (6 chapters):
 1. The Problem — The common travel mistake, challenge, or gap this addresses
@@ -253,7 +253,7 @@ TEMPLATE F — TRAVEL_TIPS (6 chapters):
 3. Real Examples — Concrete scenarios, case studies, or practical illustrations
 4. What to Avoid — The mistakes, traps, and wrong assumptions to steer clear of
 5. Recommendations — Felix's personal recommendations and trusted options
-6. Felix Travel TV — How to put these tips into action with Felix Travel TV; call to action
+6. Felix, Your Travel Advisor — How to put these tips into action with Felix as your personal travel agent and advisor; call to action
 
 TEMPLATE G — HOTEL_FEATURE (7 chapters):
 1. Hotel Overview — First impressions: what this property is, its positioning, its personality
@@ -262,7 +262,7 @@ TEMPLATE G — HOTEL_FEATURE (7 chapters):
 4. Dining — Restaurants, bars, breakfast, room service, signature dishes
 5. Amenities — Pool, spa, gym, concierge, services, what sets it apart
 6. Who It's For — The ideal guest: couples, families, business, luxury seekers
-7. Felix Travel TV — Booking tips, best rates, and how Felix Travel TV secures this hotel; call to action
+7. Felix, Your Travel Advisor — Booking tips, best rates, and how Felix, as your personal travel agent and advisor, secures this hotel for you; call to action
 
 TEMPLATE H — CRUISE_FEATURE (7 chapters):
 1. Cruise Overview — The line, ship, itinerary, and what kind of experience this is
@@ -271,7 +271,7 @@ TEMPLATE H — CRUISE_FEATURE (7 chapters):
 4. Dining & Entertainment — Food quality, restaurants, shows, and onboard activities
 5. Cabins — Cabin categories, sizes, views, pricing tiers
 6. Who It's For — Families, couples, first-timers, luxury cruisers — who belongs on this ship
-7. Felix Travel TV — How Felix Travel TV books cruises and why to use them; call to action
+7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, books cruises and why travellers trust him; call to action
 
 TEMPLATE I — GENERAL_TRAVEL (6 chapters):
 1. The Story — What this piece of travel content is about and why it matters
@@ -279,7 +279,7 @@ TEMPLATE I — GENERAL_TRAVEL (6 chapters):
 3. What It Means for Travellers — How this affects travel plans, decisions, or experiences
 4. Practical Takeaways — What travellers should actually do with this information
 5. Felix's Perspective — Felix Abayomi's expert take and personal recommendation
-6. Felix Travel TV — How Felix Travel TV helps travellers act on this; call to action
+6. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, helps travellers act on this; call to action
 
 ---
 
@@ -299,7 +299,7 @@ GOOD headline examples by chapter purpose:
 - Deal pricing: "Seven Nights in Ireland — $4,045 All In, and Worth Every Cent"
 - Hotel: "From the Moment You Walk Through the Door, This Hotel Gets It Right"
 - Who it's for: "Built for Families Who Want the Magic Without the Stress"
-- Felix CTA: "Felix Travel TV Handles the Detail — You Just Show Up and Enjoy"
+- Felix CTA: "Felix, Your Travel Agent and Advisor — You Just Show Up and Enjoy"
 
 EXPLANATION: 2–3 crisp sentences in Felix Abayomi's voice — warm, direct, authoritative, specific. No filler. No Wikipedia language. Speak like a trusted advisor giving real, useful information. Must be readable aloud in under 20 seconds.
 
@@ -311,7 +311,7 @@ CRITICAL RULES:
 - Produce ALL chapters required by the selected template — never skip one
 - Every chapter must be grounded in THIS article's actual content
 - If the article lacks detail for a section, use your knowledge of the specific subject
-- The final chapter of every template is always Felix Travel TV + call to action
+- The final chapter of every template is always Felix as your personal travel agent and advisor + call to action
 - Headlines must be vivid broadcast titles, never template section labels
 - Explanations must never repeat the headline word for word
 - Always include real names, real prices, and real specifics wherever possible
