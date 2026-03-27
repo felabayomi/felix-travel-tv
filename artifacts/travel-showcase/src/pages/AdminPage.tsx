@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useId } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, Plus, Trash2, Edit3, Check, X,
@@ -38,9 +38,10 @@ function SourceInput({ value, onChange, disabled, placeholder, className }: {
   value: string; onChange: (v: string) => void;
   disabled?: boolean; placeholder?: string; className?: string;
 }) {
-  const uid = useId();
-  const listId = `source-suggestions-${uid.replace(/:/g, '')}`;
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const history = getSourceHistory();
     fetch('/api/sources', { cache: 'no-store' })
@@ -53,19 +54,57 @@ function SourceInput({ value, onChange, disabled, placeholder, className }: {
       })
       .catch(() => setSuggestions(history));
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  const inputClass = className ?? 'w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground/40';
+
   return (
-    <>
-      <input
-        type="text" list={listId}
-        placeholder={placeholder ?? 'e.g. Felix Travel TV'}
-        value={value} onChange={e => onChange(e.target.value)}
-        disabled={disabled} autoComplete="off"
-        className={className ?? 'w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground/40'}
-      />
-      <datalist id={listId}>
-        {suggestions.map(s => <option key={s} value={s} />)}
-      </datalist>
-    </>
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          placeholder={placeholder ?? 'e.g. Felix Travel TV'}
+          value={value} onChange={e => onChange(e.target.value)}
+          disabled={disabled} autoComplete="off"
+          onFocus={() => suggestions.length > 0 && setOpen(true)}
+          className={inputClass + ' pr-8'}
+        />
+        {suggestions.length > 0 && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => setOpen(v => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronDown className={`w-4 h-4 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+      </div>
+      {open && suggestions.length > 0 && (
+        <div className="absolute z-50 top-full mt-1 w-full bg-card border border-border rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+          {suggestions.map(s => (
+            <button
+              key={s} type="button"
+              onMouseDown={() => { onChange(s); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors truncate"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1416,7 +1455,7 @@ function AddArticleDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: 
               <textarea
                 placeholder="Select all text in the article (Ctrl+A), copy and paste here..."
                 value={text} onChange={e => setText(e.target.value)} disabled={createMutation.isPending}
-                rows={8}
+                rows={16}
                 className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 resize-none"
               />
             )}
