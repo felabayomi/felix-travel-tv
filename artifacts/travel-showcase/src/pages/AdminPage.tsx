@@ -159,11 +159,12 @@ interface QueueState {
   autoplayQueue: boolean;
   loopQueue: boolean;
   onAir: boolean;
+  itemType: 'article' | 'video' | 'interlude' | null;
 }
 
 async function fetchQueueState(): Promise<QueueState> {
   const res = await fetch('/api/playback/queue', { cache: 'no-store' });
-  if (!res.ok) return { items: [], queueIndex: -1, snippetIndex: 0, autoplayQueue: false, loopQueue: false, onAir: false };
+  if (!res.ok) return { items: [], queueIndex: -1, snippetIndex: 0, autoplayQueue: false, loopQueue: false, onAir: false, itemType: null };
   return res.json();
 }
 
@@ -1849,6 +1850,7 @@ function AdminDashboard() {
   const [queueAutoplay, setQueueAutoplay] = useState(false);
   const [queueLoop, setQueueLoop] = useState(false);
   const [playingQueueIndex, setPlayingQueueIndex] = useState(-1);
+  const [serverItemType, setServerItemType] = useState<'article' | 'video' | 'interlude' | null>(null);
 
   const loadQueue = useCallback(async () => {
     const state = await fetchQueueState();
@@ -1857,6 +1859,7 @@ function AdminDashboard() {
     setQueueAutoplay(state.autoplayQueue);
     setQueueLoop(state.loopQueue);
     setOnAir(state.onAir);
+    setServerItemType(state.itemType ?? null);
     // snippetIndex is intentionally NOT synced from server here.
     // The admin drives all snippet advances via updatePlayback() / advance().
     // Syncing from server polling caused race conditions that truncated voice mid-read.
@@ -1997,6 +2000,8 @@ function AdminDashboard() {
   useEffect(() => { queueLengthRef.current = queue.length; }, [queue.length]);
   const queueRef = useRef(queue);
   useEffect(() => { queueRef.current = queue; }, [queue]);
+  const serverItemTypeRef = useRef(serverItemType);
+  useEffect(() => { serverItemTypeRef.current = serverItemType; }, [serverItemType]);
 
   // When the admin tab becomes visible again, immediately resync from the server
   // and reset the "already spoken" guard so voice restarts for the current chapter.
@@ -2053,6 +2058,9 @@ function AdminDashboard() {
   const advancingRef = useRef(false);
   const advance = useCallback(async () => {
     if (advancingRef.current) return;
+    // If the server is already in interlude, don't fire another advance on top of it.
+    // The interlude timer will handle moving to the next item automatically.
+    if (serverItemTypeRef.current === 'interlude') return;
     advancingRef.current = true;
     try {
       const articleId = playingArticleIdRef.current;
@@ -2066,18 +2074,15 @@ function AdminDashboard() {
       }
       // Last snippet finished — advance queue only when autoplay is on
       if (!queueAutoplayRef.current) return;
-      // Show interlude if there's a genuine next item, OR if loop is on (always has a "next")
+      // Always show an interlude between articles (even a blank one keeps the timing clean).
+      // Only skip the interlude entirely when there is no next item and loop is off.
       const hasNextItem = playingQueueIndexRef.current < queueLengthRef.current - 1 || queueLoopRef.current;
       if (hasNextItem) {
         const imageUrl = await pickInterludeImage();
-        if (imageUrl) {
-          await fetch('/api/playback/queue/interlude', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageUrl }),
-          });
-        } else {
-          await apiAdvanceQueue();
-        }
+        await fetch('/api/playback/queue/interlude', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl: imageUrl ?? '' }),
+        });
       } else {
         await apiAdvanceQueue();
       }
@@ -2137,8 +2142,10 @@ function AdminDashboard() {
   // When voice is OFF: advances every AUTO_PLAY_SECONDS.
   // When voice is ON: fires after VOICE_FALLBACK_SECONDS as a safety net only
   // (normally voice's onEnded callback drives advances — this just catches failures).
+  // Disabled entirely during interlude — the server's 30 s interlude timer handles that.
   useEffect(() => {
     if (!queueAutoplay || !playingArticleId || snippets.length === 0) return;
+    if (serverItemType === 'interlude') return;
     // When voice is ON: this is purely a last-resort safety net (5 min) in case
     // the browser blocks audio or the onEnded callback never fires.
     // When voice is OFF: this is the primary driver (15 s per chapter).
@@ -2146,7 +2153,7 @@ function AdminDashboard() {
     const timer = setTimeout(() => advanceRef.current(), delay);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId]);
+  }, [queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, serverItemType]);
 
   // Reset snippet index when the playing article changes
   useEffect(() => {

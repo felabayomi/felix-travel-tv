@@ -175,6 +175,10 @@ async function pickServerInterludeImage(articleId: number): Promise<string | nul
 async function serverAdvanceQueue() {
   if (!playbackState.autoplayQueue) return;
 
+  // Clear the snippet timer FIRST — before any async work — so the interval cannot
+  // fire again and call serverAdvanceQueue() a second time while we await the image.
+  clearSnippetTimer();
+
   const currentArticleId = playbackState.articleId;
   const next = resolveNextIndex(playbackState.queueIndex);
   if (next === null) {
@@ -193,7 +197,6 @@ async function serverAdvanceQueue() {
   // Always show an interlude between articles, using a snippet image if available
   // or an empty background if none are ready yet.
   const imageUrl = currentArticleId ? await pickServerInterludeImage(currentArticleId) : null;
-  clearSnippetTimer();
   playbackState = {
     ...playbackState,
     itemType: 'interlude',
@@ -400,6 +403,7 @@ router.get("/queue", (_req, res) => {
     autoplayQueue: playbackState.autoplayQueue,
     loopQueue: playbackState.loopQueue,
     onAir: playbackState.onAir,
+    itemType: playbackState.itemType,
   });
 });
 
@@ -469,17 +473,16 @@ router.post("/queue/pause", (_req, res) => {
   res.json(playbackState);
 });
 
-// Set an interlude (still image) between queue items — server auto-advances after 30s
+// Set an interlude (still image) between queue items — server auto-advances after 30s.
+// imageUrl is optional — an empty string produces a blank-screen interlude.
 router.post("/queue/interlude", (req, res) => {
   const { imageUrl } = req.body ?? {};
-  if (typeof imageUrl !== 'string' || !imageUrl.trim()) {
-    res.status(400).json({ error: "imageUrl required" }); return;
-  }
+  const normalised = typeof imageUrl === 'string' ? imageUrl.trim() : '';
   clearSnippetTimer();
   playbackState = {
     ...playbackState,
     itemType: 'interlude',
-    interludeImageUrl: imageUrl.trim(),
+    interludeImageUrl: normalised,
     articleId: null,
     videoId: null,
     snippetIndex: 0,
