@@ -198,56 +198,60 @@ Read the article and classify it as ONE of these types:
 
 STEP 2 — APPLY THE CORRECT CHAPTER STRUCTURE:
 
-Use the matching structure below. Each chapter title shown is a GUIDE — adapt it to the specific content.
+The structures below define the TOPIC FOCUS of each chapter — they are never used verbatim as headlines.
+Every headline you write must be specific to THIS article's subject. Never copy the template labels.
+
+BAD headlines (template names leaked): "Introduction", "Best Time to Visit", "Things to Do", "Before You Book", "Final Advice", "Insider Travel Tips", "Who Is This Hotel Best For"
+GOOD headlines (specific to the article): "A City That Grabs You From the First Corner", "October Is the Sweet Spot — Here's Why", "Three Neighbourhoods Worth Your Time", "What Most Travellers Get Wrong About Flights Here", "The One Flight Hack That Saves Real Money"
 
 DESTINATION (7 chapters):
-1. Introduction — Hook the viewer; set the scene
-2. About the Destination — Key facts, geography, character of the place
-3. Best Time to Visit — Seasons, weather, events, crowds
-4. Where to Stay — Neighbourhoods, hotel types, price ranges
-5. Things to Do — Top attractions, must-see sites
-6. Food & Experiences — Local cuisine, nightlife, culture
-7. Insider Travel Tips — Visas, transport, money, practical advice — give real, specific, actionable tips
+1. [Opening hook] — Grab the viewer; set the scene for this specific place
+2. [About this place] — Key facts, geography, character of this destination
+3. [When to go] — Seasons, weather, events, crowds specific to here
+4. [Where to stay] — Neighbourhoods, hotel types, price ranges for this destination
+5. [What to do] — Top attractions and must-see sites specific to this place
+6. [Food & culture] — Local cuisine, nightlife, experiences unique to here
+7. [Practical advice] — Visas, transport, money tips specific to this destination
 
 HOTEL_REVIEW (6 chapters):
-1. Introduction — First impressions; why this hotel?
-2. Location — Neighbourhood, accessibility, what's nearby
-3. Rooms & Design — Room types, interiors, views, quality
-4. Amenities & Services — Pool, spa, dining, concierge
-5. Who Is This Hotel Best For — Couples, families, business, budget
-6. Booking Tips — Best rates, when to book, what to watch out for
+1. [Opening impression] — First impressions; why this specific hotel stands out
+2. [Location] — This hotel's neighbourhood, accessibility, what's nearby
+3. [Rooms & design] — Room types, interiors, views, quality of this property
+4. [Amenities] — Pool, spa, dining, service at this hotel
+5. [Who it suits] — The type of traveller this hotel is best for
+6. [Booking advice] — Best rates, when to book, what to watch out for here
 
 TRAVEL_TIPS (6 chapters):
-1. Introduction — Why this tip matters
-2. The Problem — What travellers get wrong
-3. Why It Happens — Root cause or common mistake
-4. What To Do — The correct approach, step by step
-5. Pro Tips — Expert-level advice, insider tricks
-6. Summary & Action — Recap and clear call to action
+1. [The hook] — Why this specific tip changes how you travel
+2. [The problem] — What travellers get wrong about this
+3. [Why it happens] — Root cause or common mistake
+4. [What to do] — The correct approach, step by step
+5. [Pro level] — Expert-level advice, insider tricks
+6. [Take action] — Clear, specific call to action
 
 BEFORE_YOU_BOOK (6 chapters):
-1. Introduction — Overview of the trip or destination
-2. Trip Overview — Highlights and what to expect
-3. Flights — Best airlines, routes, timing, cost tips
-4. Hotels — Recommended stays, price ranges, location tips
-5. Transport & Activities — Getting around, must-do experiences
-6. Final Advice — Last checks before confirming the booking
+1. [Hook] — The most compelling fact about this trip upfront
+2. [Trip overview] — What to expect on this specific trip
+3. [Flights] — Best routes, airlines, timing, cost tips for this destination
+4. [Hotels] — Recommended stays, price ranges, location tips here
+5. [Getting around] — Transport and must-do experiences specific to this trip
+6. [Last word] — The one thing to know before confirming this booking
 
 EXPEDITION (8 chapters):
-1. Introduction — The adventure begins; hook the viewer
-2. Location Overview — Where it is and why it's special
-3. How To Get There — Transport, access, logistics
-4. Best Time To Go — Seasons, conditions, peak vs. off-peak
-5. Where To Stay — Camps, lodges, or overnight options
-6. Things To Do — Activities, highlights, bucket list moments
-7. What To Pack — Gear, clothing, essentials
-8. Travel Tips — Safety, booking advice, final checklist
+1. [Hook] — What makes this adventure different from anywhere else
+2. [Location] — Where it is and why it is special
+3. [Getting there] — Transport, access, logistics for this expedition
+4. [When to go] — Best seasons and conditions for this specific place
+5. [Where to stay] — Camps, lodges, or options on this route
+6. [What to do] — Activities and bucket-list moments here
+7. [What to pack] — Gear and essentials for this specific terrain
+8. [Final prep] — Safety, booking advice, the one thing to sort before you go
 
 TRAVEL_NEWS (3–4 chapters):
-1. The Story — What happened or what was announced
-2. Why It Matters — Impact for travellers
-3. What To Do Next — How travellers can act on this
-4. (Optional) Background — Context or history if relevant
+1. [The story] — What happened or what was announced
+2. [Why it matters] — Impact for travellers
+3. [What to do] — How travellers can act on this right now
+4. (Optional) [Background] — Context or history if it adds value
 
 ---
 
@@ -329,6 +333,7 @@ CRITICAL RULES:
 - Every chapter must be specific to THIS article — not generic content
 - Use all available clues (title, description, URL, structured data) to infer the full story
 - Headlines must be punchy and specific — never vague
+- NEVER use template chapter labels as headlines: words like "Introduction", "Best Time to Visit", "Things to Do", "Before You Book", "Final Advice", "Insider Travel Tips", "Booking Tips", "Who It Suits", "Trip Overview", "Getting Around", "What To Pack", "Travel Tips" must NEVER appear verbatim as a headline. Replace every one with a specific, article-driven title
 - If content is limited, draw on your training knowledge about this specific topic and destination
 - Stay in the correct voice and depth for the content type throughout all chapters
 
