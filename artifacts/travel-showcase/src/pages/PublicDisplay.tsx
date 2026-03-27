@@ -608,9 +608,21 @@ export function PublicDisplay() {
   const { itemType, articleId, snippetIndex, videoId, interludeImageUrl, onAir } = usePlaybackSync();
   const config = useWaitingConfig();
   const { data: articles = [] } = useGetArticles();
+  // Poll every 4 s while any snippet is missing its image (background generation).
+  // Stops automatically once all images have arrived.
   const { data: snippets = [], isLoading: isLoadingSnippets } = useGetArticleSnippets(
     articleId ?? 0,
-    { query: { enabled: itemType === 'article' && articleId !== null } }
+    {
+      query: {
+        enabled: itemType === 'article' && articleId !== null,
+        refetchInterval: (query) => {
+          const data = query.state.data;
+          if (!Array.isArray(data) || data.length === 0) return false;
+          const allLoaded = data.every((s: { imageUrl: string | null }) => s.imageUrl !== null);
+          return allLoaded ? false : 4000;
+        },
+      }
+    }
   );
 
   const safeIndex = Math.min(snippetIndex, Math.max(0, snippets.length - 1));

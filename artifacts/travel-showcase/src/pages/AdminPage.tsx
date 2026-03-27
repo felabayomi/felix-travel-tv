@@ -1918,10 +1918,22 @@ function AdminDashboard() {
     });
   };
 
-  // Snippets for the currently playing article from the queue
+  // Snippets for the currently playing article from the queue.
+  // Poll every 4 s while any snippet is still missing its image (background generation
+  // can take up to ~60 s). Polling stops automatically once all images are present.
   const { data: snippets = [], isLoading: isLoadingSnippets } = useGetArticleSnippets(
     playingArticleId ?? 0,
-    { query: { enabled: playingArticleId !== null } }
+    {
+      query: {
+        enabled: playingArticleId !== null,
+        refetchInterval: (query) => {
+          const data = query.state.data;
+          if (!Array.isArray(data) || data.length === 0) return false;
+          const allLoaded = data.every((s: { imageUrl: string | null }) => s.imageUrl !== null);
+          return allLoaded ? false : 4000;
+        },
+      }
+    }
   );
 
   const deleteMutation = useDeleteArticle({
