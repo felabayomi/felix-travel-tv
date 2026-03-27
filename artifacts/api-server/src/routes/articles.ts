@@ -654,6 +654,8 @@ router.delete("/:id", async (req, res) => {
 });
 
 // GET /api/articles/:id/snippets
+// Note: Cache-Control: no-store prevents stale 304 responses from hiding
+// image-URL updates that arrive after background generation completes.
 router.get("/:id/snippets", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -668,13 +670,37 @@ router.get("/:id/snippets", async (req, res) => {
       return;
     }
 
+    // Select only the columns we need — deliberately exclude image_url
+    // (which is a 2-3 MB base64 string) to keep responses fast and small.
+    // We only need to know whether an image exists, not the raw data.
     const snippets = await db
-      .select()
+      .select({
+        id: snippetsTable.id,
+        articleId: snippetsTable.articleId,
+        snippetOrder: snippetsTable.snippetOrder,
+        headline: snippetsTable.headline,
+        caption: snippetsTable.caption,
+        explanation: snippetsTable.explanation,
+        hasImage: sql<boolean>`(${snippetsTable.imageUrl} IS NOT NULL)`,
+        imagePrompt: snippetsTable.imagePrompt,
+        createdAt: snippetsTable.createdAt,
+      })
       .from(snippetsTable)
       .where(eq(snippetsTable.articleId, id))
       .orderBy(asc(snippetsTable.snippetOrder));
 
-    res.json(snippets.map(formatSnippet));
+    res.setHeader("Cache-Control", "no-store");
+    res.json(snippets.map(s => ({
+      id: s.id,
+      articleId: s.articleId,
+      snippetOrder: s.snippetOrder,
+      headline: s.headline,
+      caption: s.caption,
+      explanation: s.explanation,
+      imageUrl: s.hasImage ? snippetImageUrl(s.id) : null,
+      imagePrompt: s.imagePrompt,
+      createdAt: s.createdAt,
+    })));
   } catch (err) {
     req.log.error({ err }, "Failed to fetch snippets");
     res.status(500).json({ error: "Failed to fetch snippets" });
