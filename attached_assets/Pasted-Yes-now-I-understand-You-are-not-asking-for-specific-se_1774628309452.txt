@@ -1,0 +1,263 @@
+Yes — now I understand.
+You are not asking for specific sections like morning/afternoon/evening.
+
+You are asking for the LOGIC that converts ANY travel content into different ARTICLE STRUCTURES (templates) depending on the type of content.
+
+So what you need is a Template Conversion System, not an itinerary structure.
+
+This is the correct logic.
+
+⸻
+
+Travel Content Conversion Logic (Template System)
+
+This is what your Replit agent should actually do.
+
+Core Idea
+
+Your system should NOT write articles directly.
+
+It should:
+	1.	Detect content type
+	2.	Choose a template
+	3.	Map input data into template sections
+	4.	Expand sections into content
+	5.	Output structured article
+	6.	Convert article into video script if needed
+
+⸻
+
+Step 1 – Content Type Detection Logic
+
+Your AI must first classify the input.
+
+Detection Logic
+
+IF input contains city or places → City Guide
+IF input contains destination description → Destination Feature
+IF input contains prices, dates → Travel Deal
+IF input contains software/app → Travel Tool
+IF input contains multiple stops → Road Trip
+IF input contains tips/advice → Travel Tips
+IF input contains hotel/resort → Hotel Feature
+IF input contains cruise → Cruise Feature
+ELSE → General Travel Article
+
+This step is the most important part of the system.
+
+⸻
+
+Step 2 – Template Selection Logic
+
+After detecting the type, the AI selects a template structure.
+
+Template Selection
+
+City Guide → Template A
+Destination Feature → Template B
+Travel Deal → Template C
+Travel Tool → Template D
+Road Trip → Template E
+Travel Tips → Template F
+Hotel Feature → Template G
+Cruise Feature → Template H
+General Travel → Template I
+
+
+⸻
+
+Step 3 – Template Structure Logic
+
+These are STRUCTURES, not content.
+
+Template A – City Guide Article
+
+Title
+Overview
+Main Areas / Highlights
+Food / Culture
+Experiences / Activities
+Where to Stay
+Travel Tips
+Conclusion
+
+Template B – Destination Feature
+
+Title
+Introduction
+Why Visit
+Top Experiences
+Food & Culture
+Best Time to Visit
+Travel Planning Tips
+Conclusion
+
+Template C – Travel Deal / Trip Promotion
+
+Title
+Trip Overview
+What's Included
+Dates & Pricing
+Highlights
+Who This Trip Is For
+Booking Information
+
+Template D – Travel Tool / App
+
+Title
+Problem
+Solution
+How It Works
+Key Features
+Who It's For
+Pricing
+Use Cases
+
+Template E – Road Trip Article
+
+Title
+Route Overview
+Major Stops
+Scenic Highlights
+Food Stops
+Travel Tips
+Recommended Schedule
+
+Template F – Travel Tips Article
+
+Title
+Travel Problem
+Tips List
+Examples
+Recommendations
+Summary
+
+Template G – Hotel / Resort Feature
+
+Title
+Hotel Overview
+Location
+Rooms
+Dining
+Amenities
+Who It's For
+Booking Tips
+
+Template H – Cruise Feature
+
+Title
+Cruise Overview
+Ship Experience
+Destinations
+Dining & Entertainment
+Cabins
+Who It's For
+Booking Advice
+
+
+⸻
+
+Step 4 – Content Mapping Logic
+
+Now the AI maps input data into the template.
+
+Mapping Logic
+
+FOR each section in template:
+    find related information from input
+    place information into that section
+    if missing, generate general content
+
+
+⸻
+
+Step 5 – Expansion Logic
+
+After mapping, expand into readable content.
+
+FOR each section:
+    convert notes into paragraphs
+    add descriptions
+    add traveler perspective
+
+
+⸻
+
+Step 6 – Video Conversion Logic
+
+Convert article sections into video segments.
+
+FOR each article section:
+    convert into spoken script segment
+
+
+⸻
+
+FULL SYSTEM LOGIC (Very Important)
+
+This is what your Replit agent should follow:
+
+function generate_content(input):
+
+    type = detect_content_type(input)
+
+    template = select_template(type)
+
+    structured_sections = map_input_to_template(input, template)
+
+    article = expand_sections(structured_sections)
+
+    video_script = convert_to_video(article)
+
+    return article, video_script
+
+
+⸻
+
+The Most Important Concept You Need To Remember
+
+You are building this system:
+
+INPUT CONTENT
+      ↓
+CONTENT TYPE DETECTION
+      ↓
+TEMPLATE SELECTION
+      ↓
+CONTENT MAPPING
+      ↓
+SECTION EXPANSION
+      ↓
+ARTICLE
+      ↓
+VIDEO SCRIPT
+      ↓
+OUTPUT
+
+
+⸻
+
+One Sentence That Explains Your Entire System
+
+This is the key logic:
+
+Detect content type → Choose template → Map content → Expand → Output article and video
+
+
+⸻
+
+This Is NOT a Writing AI
+
+What you’re building is actually:
+
+Content Structuring Engine
+Template Conversion Engine
+Travel Content Generator
+Article Generator
+Video Script Generator
+Marketing Content Generator
+
+
+⸻
+
+If you build this logic correctly, the AI can take ANY travel content and automatically turn it into structured articles and videos.

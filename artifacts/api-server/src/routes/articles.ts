@@ -172,98 +172,149 @@ async function generateArticleContent(url: string, page: PageData): Promise<Arti
 
   const prompt = `You are a travel content producer for Felix Travel TV — a professional travel channel presented by Felix Abayomi, trusted travel advisor.
 
-Your job is to transform the article below into a structured Felix Travel TV episode using the Content Engine Logic below. Follow every step in order.
+Your job is to transform the article below into a structured Felix Travel TV episode. Follow every step precisely.
 
 URL: ${url}
 
-${hasRichContent ? `ARTICLE CONTENT:\n${context}` : `NOTE: This article's full text could not be extracted. Use the partial data below plus your own knowledge of this specific destination or topic to create substantive, specific content. Do NOT write generic placeholder text.
+${hasRichContent ? `ARTICLE CONTENT:\n${context}` : `NOTE: This article's full text could not be extracted. Use the partial data below plus your own knowledge of this specific topic to create substantive content. Do NOT write generic placeholder text.
 
-${context || `URL path clues: ${url}`}`}
-
----
-
-STEP 1 — CLASSIFY THE CONTENT
-
-Read the article and assign ONE content type:
-
-- CITY_DISCOVERY: A city or town guide focused on experiences in that place
-- DESTINATION_FEATURE: A broader destination, country, or region feature
-- TRAVEL_DEAL: A deal, offer, pricing announcement, or trip package
-- TRAVEL_TOOL: An app, service, website, or travel product feature
-- ROAD_TRIP: A route, road trip, or multi-stop journey feature
-- TRAVEL_TIPS: Advice, how-to, or planning guidance
+${context || `URL clues: ${url}`}`}
 
 ---
 
-STEP 2 — EXTRACT THE KEY INFORMATION
+STEP 1 — DETECT CONTENT TYPE
 
-From the article (and your own knowledge if needed), identify:
-- location (city, country, region)
-- morning_experiences (what to do, see, eat in the morning)
-- afternoon_experiences (afternoon activities, sights, places)
-- evening_experiences (evening dining, nightlife, atmosphere)
-- food_and_culture (cuisine, local culture, markets, traditions)
-- luxury_and_upgrades (premium experiences, upscale stays, splurge options)
-- nature_and_extras (outdoor experiences, side trips, unique activities)
-- practical_tips (pricing, timing, transport, booking advice, facts)
-- target_traveler (who this trip is ideal for)
+Read the article and classify it as ONE of:
 
----
-
-STEP 3 — BUILD THE EPISODE CHAPTERS
-
-Always produce exactly 9 chapters in this fixed order. Every chapter must be based on the extracted information above. If a specific field is sparse, draw on your knowledge of this destination or topic.
-
-Chapter 1 — INTRODUCTION: Hook the viewer. Open with the most compelling fact, scene, or reason to care about this destination or story. Set the scene powerfully.
-
-Chapter 2 — MORNING: What the morning experience looks, feels, and tastes like. First impressions, morning activities, breakfast spots, early sights.
-
-Chapter 3 — AFTERNOON: The heart of the day. Key attractions, experiences, and activities that define this destination in the afternoon.
-
-Chapter 4 — EVENING: How the destination transforms after dark. Evening dining, nightlife, atmosphere, sunset spots.
-
-Chapter 5 — TIPS & FACTS: The practical intelligence every traveller needs. Real prices, timing, transport, what to avoid, insider knowledge.
-
-Chapter 6 — LUXURY & UPGRADES: The premium layer. Best hotels, upscale experiences, splurge-worthy options, and why they're worth it.
-
-Chapter 7 — NATURE & EXTRA EXPERIENCES: What exists beyond the obvious. Outdoor adventures, hidden gems, unusual activities, side trips.
-
-Chapter 8 — ADVISOR INSIGHT: Felix Travel TV's expertise. This is where Felix speaks directly — explaining how Felix Travel TV helps travellers plan flights, book hotels, build itineraries, save time, and travel with confidence. Always personalised, always authoritative.
-
-Chapter 9 — CALL TO ACTION: The close. Inspire the viewer to take action — book the trip, start planning, reach out to Felix Travel TV. Make it compelling and specific to this destination.
+- CITY_GUIDE — content about a specific city or town and its experiences
+- DESTINATION_FEATURE — a broader destination, country, or region feature
+- TRAVEL_DEAL — a deal, trip package, pricing offer, or booking promotion
+- TRAVEL_TOOL — an app, website, service, or travel product
+- ROAD_TRIP — a route, multi-stop journey, or driving feature
+- TRAVEL_TIPS — advice, how-to, or planning guidance
+- HOTEL_FEATURE — a hotel, resort, or accommodation review
+- CRUISE_FEATURE — a cruise line, ship, or sailing experience
+- GENERAL_TRAVEL — any other travel content
 
 ---
 
-STEP 4 — WRITE EACH CHAPTER
+STEP 2 — SELECT THE MATCHING TEMPLATE
 
-For each of the 9 chapters, write:
+Based on the content type, use the correct template below. The template defines what each chapter must cover. Map the article's information into each section. If a section's data is missing from the article, draw on your own knowledge of the subject.
 
-HEADLINE: A vivid, broadcast-quality title specific to this article's content. The headline must reflect exactly what the chapter covers — never a generic label.
+TEMPLATE A — CITY_GUIDE (7 chapters):
+1. Overview — What makes this city unique and worth visiting
+2. Main Areas & Highlights — The key neighbourhoods, districts, and must-see spots
+3. Food & Culture — Local cuisine, markets, cultural traditions, and dining scenes
+4. Experiences & Activities — What to do, see, and explore
+5. Where to Stay — Accommodation options, neighbourhoods to base yourself, price ranges
+6. Travel Tips — Practical advice: transport, costs, timing, what to know before going
+7. Felix Travel TV — How Felix Travel TV helps you plan and book this city trip; call to action
 
-FORBIDDEN headline words: "Introduction", "Morning", "Afternoon", "Evening", "Tips", "Facts", "Luxury", "Nature", "Advisor", "Call to Action", "Overview", "Conclusion", "Summary"
+TEMPLATE B — DESTINATION_FEATURE (7 chapters):
+1. Introduction — Why this destination matters and what the story is about
+2. Why Visit — The compelling reasons and unique appeal of this destination
+3. Top Experiences — The standout things to do, see, and feel here
+4. Food & Culture — Cuisine, local life, cultural highlights
+5. Best Time to Visit — Seasons, weather, events, and practical timing advice
+6. Travel Planning Tips — Flights, logistics, costs, how to prepare
+7. Felix Travel TV — How Felix Travel TV makes planning this trip effortless; call to action
 
-GOOD headline examples:
-- Chapter 1: "The City That Rewrites Every Expectation" / "Why Santiago Is the Story Everyone Is Missing"
-- Chapter 2: "The Souk at Sunrise — When the City Belongs to You" / "First Coffee, First Cobblestone, First Wonder"
-- Chapter 5: "€85 a Night, Rooftop Included — Here Is What to Know" / "The One Booking Mistake That Costs Most Travellers"
-- Chapter 8: "Felix Travel TV Plans the Trip You Have Been Dreaming Of" / "From Flights to Itinerary — We Handle the Detail"
-- Chapter 9: "Your Next Chapter Starts Here — Book With Felix Travel TV" / "The Trip Is Real. The Only Question Is When"
+TEMPLATE C — TRAVEL_DEAL (7 chapters):
+1. Trip Overview — What this deal or trip package is, where it goes, who offers it
+2. What's Included — Everything covered: hotels, flights, activities, meals, transfers
+3. Dates & Pricing — The available dates, price points, and how to secure the rate
+4. Highlights — The most exciting moments and experiences on this trip
+5. Who This Trip Is For — The ideal traveller profile: families, couples, adventurers, etc.
+6. Booking Information — How to book, deadlines, contact details, what to do next
+7. Felix Travel TV — Why Felix Travel TV is the right partner for this deal; call to action
 
-EXPLANATION: 2–3 crisp sentences written as Felix Abayomi speaking to camera. Warm, authoritative, direct. No filler. No Wikipedia. Speak like a trusted advisor giving real, specific, useful information. Read aloud in under 20 seconds.
+TEMPLATE D — TRAVEL_TOOL (7 chapters):
+1. The Problem — The travel challenge or frustration this tool solves
+2. The Solution — What this app, service, or tool is and what it does
+3. How It Works — Step-by-step explanation of the product
+4. Key Features — The standout capabilities and what makes it different
+5. Who It's For — The traveller types who benefit most
+6. Pricing & Access — Cost, free tier, subscription details, where to get it
+7. Felix Travel TV — Felix Travel TV's recommendation and how to start using it; call to action
 
-VOICE: Throughout all chapters, Felix speaks as a knowledgeable, confident travel advisor — descriptive for destination chapters, practical for tips, inspiring for the call to action.
+TEMPLATE E — ROAD_TRIP (7 chapters):
+1. Route Overview — Where the journey starts, ends, and what it covers
+2. Major Stops — The key destinations and places along the route
+3. Scenic Highlights — The most beautiful or dramatic moments on the road
+4. Food Stops — Where to eat, drink, and experience local flavour along the way
+5. Travel Tips — Driving advice, logistics, costs, best season, what to book ahead
+6. Recommended Schedule — A practical day-by-day or leg-by-leg breakdown
+7. Felix Travel TV — How Felix Travel TV helps plan and book this road trip; call to action
+
+TEMPLATE F — TRAVEL_TIPS (6 chapters):
+1. The Problem — The common travel mistake, challenge, or gap this addresses
+2. The Tips — The specific, actionable advice every traveller needs to know
+3. Real Examples — Concrete scenarios, case studies, or practical illustrations
+4. What to Avoid — The mistakes, traps, and wrong assumptions to steer clear of
+5. Recommendations — Felix's personal recommendations and trusted options
+6. Felix Travel TV — How to put these tips into action with Felix Travel TV; call to action
+
+TEMPLATE G — HOTEL_FEATURE (7 chapters):
+1. Hotel Overview — First impressions: what this property is, its positioning, its personality
+2. Location — Neighbourhood, accessibility, what's on the doorstep
+3. Rooms & Design — Room categories, interiors, views, quality, standout features
+4. Dining — Restaurants, bars, breakfast, room service, signature dishes
+5. Amenities — Pool, spa, gym, concierge, services, what sets it apart
+6. Who It's For — The ideal guest: couples, families, business, luxury seekers
+7. Felix Travel TV — Booking tips, best rates, and how Felix Travel TV secures this hotel; call to action
+
+TEMPLATE H — CRUISE_FEATURE (7 chapters):
+1. Cruise Overview — The line, ship, itinerary, and what kind of experience this is
+2. Ship Experience — Size, atmosphere, onboard highlights, what life is like at sea
+3. Destinations & Ports — Where the cruise goes and what to do at each stop
+4. Dining & Entertainment — Food quality, restaurants, shows, and onboard activities
+5. Cabins — Cabin categories, sizes, views, pricing tiers
+6. Who It's For — Families, couples, first-timers, luxury cruisers — who belongs on this ship
+7. Felix Travel TV — How Felix Travel TV books cruises and why to use them; call to action
+
+TEMPLATE I — GENERAL_TRAVEL (6 chapters):
+1. The Story — What this piece of travel content is about and why it matters
+2. Key Insights — The most important facts, findings, or revelations
+3. What It Means for Travellers — How this affects travel plans, decisions, or experiences
+4. Practical Takeaways — What travellers should actually do with this information
+5. Felix's Perspective — Felix Abayomi's expert take and personal recommendation
+6. Felix Travel TV — How Felix Travel TV helps travellers act on this; call to action
+
+---
+
+STEP 3 — WRITE EACH CHAPTER
+
+For every chapter in the selected template, produce:
+
+HEADLINE: A vivid, broadcast-quality title written specifically for this article's content.
+- Must reflect exactly what THIS chapter covers — not a generic label
+- Must sound like something Felix would say on air — specific, punchy, engaging
+- NEVER use the template section names literally as headlines
+- Forbidden words as standalone headlines: "Overview", "Introduction", "Tips", "Summary", "Conclusion", "Highlights", "Features", "Amenities", "Dining", "Location"
+
+GOOD headline examples by chapter purpose:
+- City overview: "The Pocket-Sized Capital That Punches Way Above Its Weight"
+- Food: "Tagines, Rooftops, and the Street Food Trail That Changes Everything"
+- Deal pricing: "Seven Nights in Ireland — $4,045 All In, and Worth Every Cent"
+- Hotel: "From the Moment You Walk Through the Door, This Hotel Gets It Right"
+- Who it's for: "Built for Families Who Want the Magic Without the Stress"
+- Felix CTA: "Felix Travel TV Handles the Detail — You Just Show Up and Enjoy"
+
+EXPLANATION: 2–3 crisp sentences in Felix Abayomi's voice — warm, direct, authoritative, specific. No filler. No Wikipedia language. Speak like a trusted advisor giving real, useful information. Must be readable aloud in under 20 seconds.
+
+IMAGE PROMPT: A photorealistic travel photography description specific to this chapter's exact subject. Describe the precise scene, location, atmosphere, people, lighting, and photographic style. Never generic — always specific to the chapter content.
 
 ---
 
 CRITICAL RULES:
-- All 9 chapters are required — never skip one
-- Every chapter must be specific to THIS article and destination — not generic
-- If article content is thin, use your knowledge of this specific place or topic
-- Headlines must be vivid broadcast titles — never section labels
-- Explanations must never repeat the headline
-- Always include real place names, real prices, real timing where possible
-- Chapter 8 must always reference Felix Travel TV by name and describe the service
-- Chapter 9 must always end with a clear, compelling invitation to book or plan
+- Produce ALL chapters required by the selected template — never skip one
+- Every chapter must be grounded in THIS article's actual content
+- If the article lacks detail for a section, use your knowledge of the specific subject
+- The final chapter of every template is always Felix Travel TV + call to action
+- Headlines must be vivid broadcast titles, never template section labels
+- Explanations must never repeat the headline word for word
+- Always include real names, real prices, and real specifics wherever possible
 
 ---
 
@@ -273,13 +324,13 @@ Respond with a JSON object ONLY (no markdown, no code block):
   "summary": "2-3 sentence summary of what this episode covers",
   "source": "The source outlet name (e.g. 'BBC Travel', 'Reuters', 'Felix Travel TV')",
   "publishedAt": "ISO 8601 date (use article date if found, otherwise: ${new Date().toISOString()})",
-  "contentType": "CITY_DISCOVERY | DESTINATION_FEATURE | TRAVEL_DEAL | TRAVEL_TOOL | ROAD_TRIP | TRAVEL_TIPS",
+  "contentType": "CITY_GUIDE | DESTINATION_FEATURE | TRAVEL_DEAL | TRAVEL_TOOL | ROAD_TRIP | TRAVEL_TIPS | HOTEL_FEATURE | CRUISE_FEATURE | GENERAL_TRAVEL",
   "snippets": [
     {
       "headline": "Vivid broadcast chapter title (max 12 words)",
       "caption": "One precise sentence capturing the key insight of this chapter",
-      "explanation": "2-3 sentences in Felix's voice — specific, warm, authoritative, useful. Real places, real prices, real advice.",
-      "imagePrompt": "Photorealistic travel photography prompt specific to this chapter's exact content. Describe the precise scene, location, people, mood, lighting, and style. Choose the correct visual approach: destination/city chapters use 'cinematic travel documentary photography, [specific scene], natural lighting, National Geographic style, high detail, 4k'; evening/culture chapters use 'warm evening travel photography, [specific scene], golden hour, atmospheric lighting, lifestyle, high detail'; luxury chapters use 'luxury travel photography, [specific hotel or experience], editorial style, soft lighting, aspirational, high detail'; tips/practical chapters use 'travel lifestyle photography, [specific practical scene], soft documentary lighting, realistic, relatable, high detail'; advisor/CTA chapters use 'professional travel advisor photography, Felix Travel TV style, warm confident presenter energy, broadcast quality'"
+      "explanation": "2-3 sentences in Felix's voice — specific, warm, authoritative. Real places, real prices, real advice.",
+      "imagePrompt": "Detailed photorealistic photography prompt specific to this chapter's exact content and subject"
     }
   ]
 }`;
