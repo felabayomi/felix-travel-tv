@@ -1831,6 +1831,7 @@ function AdminDashboard() {
   const [editingVideoId, setEditingVideoId] = useState<number | null>(null);
   const [exportingArticleId, setExportingArticleId] = useState<number | null>(null);
   const [regenImagesId, setRegenImagesId] = useState<number | null>(null);
+  const [regenChaptersId, setRegenChaptersId] = useState<number | null>(null);
   const [pendingImagesArticleId, setPendingImagesArticleId] = useState<number | null>(null);
   const [articleSearch, setArticleSearch] = useState('');
   const [videoSearch, setVideoSearch] = useState('');
@@ -2724,6 +2725,39 @@ function AdminDashboard() {
                           {regenImagesId === a.id
                             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             : <Images className="w-3.5 h-3.5" />
+                          }
+                        </button>
+                        <button
+                          onClick={async e => {
+                            e.stopPropagation();
+                            if (regenChaptersId === a.id) return;
+                            if (!window.confirm(`Regenerate all chapters for "${a.title}"?\n\nThis will delete the current chapters and re-create them using the latest AI prompt. New images will also be generated. This cannot be undone.`)) return;
+                            setRegenChaptersId(a.id);
+                            try {
+                              const res = await fetch(`/api/articles/${a.id}/regenerate-chapters`, { method: 'POST' });
+                              if (!res.ok) throw new Error(await res.text());
+                              const data = await res.json();
+                              console.info(`Article ${a.id}: regenerated ${data.chapters} chapters`);
+                              queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+                              setPendingImagesArticleId(a.id);
+                            } catch (err) {
+                              console.error('Regenerate chapters failed:', err);
+                            } finally {
+                              setRegenChaptersId(null);
+                            }
+                          }}
+                          disabled={regenChaptersId === a.id}
+                          className={cn(
+                            "p-1 rounded transition-all",
+                            regenChaptersId === a.id
+                              ? "text-amber-400 cursor-wait"
+                              : "text-muted-foreground hover:text-amber-400"
+                          )}
+                          title={regenChaptersId === a.id ? "Regenerating chapters…" : "Regenerate chapters with latest AI prompt"}
+                        >
+                          {regenChaptersId === a.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <RotateCcw className="w-3.5 h-3.5" />
                           }
                         </button>
                         <button

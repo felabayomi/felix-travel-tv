@@ -593,6 +593,66 @@ router.post("/", async (req, res) => {
   }
 });
 
+// POST /api/articles/:id/regenerate-chapters
+// Re-runs the full AI chapter generation for an existing article using the
+// latest prompt. Deletes all existing snippets and replaces them with fresh
+// ones. Responds immediately; image generation runs in the background.
+router.post("/:id/regenerate-chapters", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: "Invalid ID" });
+      return;
+    }
+
+    const articles = await db.select().from(articlesTable).where(eq(articlesTable.id, id));
+    if (articles.length === 0) {
+      res.status(404).json({ error: "Article not found" });
+      return;
+    }
+    const article = articles[0];
+
+    // Re-fetch the page and regenerate chapters using the current prompt
+    const page = await fetchPageData(article.url);
+    req.log.info({ url: article.url, bodyLen: page.bodyText.length }, "Regenerating chapters");
+
+    const content = await generateArticleContent(article.url, page);
+
+    // Keep the user-supplied source if they set one, otherwise use the AI source
+    const resolvedSource = article.source ?? content.source;
+
+    // Replace snippets atomically: delete old → insert new
+    await db.delete(snippetsTable).where(eq(snippetsTable.articleId, id));
+
+    const snippetRows = content.snippets.map((s, index) => ({
+      articleId: id,
+      snippetOrder: index,
+      headline: s.headline,
+      caption: s.caption,
+      explanation: s.explanation,
+      imageUrl: null as string | null,
+      imagePrompt: s.imagePrompt,
+    }));
+
+    const insertedSnippets = await db.insert(snippetsTable).values(snippetRows).returning();
+
+    // Update title/summary from the new generation
+    await db.update(articlesTable)
+      .set({ title: content.title, summary: content.summary, source: resolvedSource })
+      .where(eq(articlesTable.id, id));
+
+    // Respond right away — chapters are ready, images generate in background
+    res.json({ id, chapters: insertedSnippets.length, title: content.title });
+
+    generateAndSaveImages(insertedSnippets, req.log).catch(err =>
+      req.log.error({ err, articleId: id }, "Background image generation failed after chapter regen")
+    );
+  } catch (err) {
+    req.log.error({ err }, "Failed to regenerate chapters");
+    res.status(500).json({ error: "Failed to regenerate chapters" });
+  }
+});
+
 // POST /api/articles/:id/regenerate-images
 // Queues image generation for all snippets that are missing an image.
 // Responds immediately; generation runs in the background.
