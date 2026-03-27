@@ -655,43 +655,38 @@ export function PublicDisplay() {
   }, [snippetIndex]);
 
   // ── Voice narration on public display ────────────────────────────────────────
-  // The public display is a passive viewer — it speaks whichever snippet the
-  // server says is current, but it NEVER calls onEnded to drive advances.
-  // Advances are always driven by the server/admin (never from this side).
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  // Start MUTED by default. Browsers block autoplay until user interaction, so
+  // we let the user click the volume button (which IS user interaction) to start
+  // audio. When they unmute, the effect re-fires and speaks the current snippet.
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const { speak, stop } = useVoiceReader(voiceEnabled);
   const speakRef = useRef(speak);
   useEffect(() => { speakRef.current = speak; }, [speak]);
   const stopRef = useRef(stop);
   useEffect(() => { stopRef.current = stop; }, [stop]);
 
-  // Track which snippet was last spoken so we don't re-speak on unrelated re-renders
+  // Track which snippet was last spoken
   const lastSpokenRef = useRef<{ snippetId: number; articleId: number | null }>({ snippetId: -1, articleId: null });
 
   useEffect(() => {
-    // Stop voice when not on an article
-    if (itemType !== 'article' || !currentSnippet) {
+    // Not playing an article, or voice is off — stop and reset the guard so
+    // that re-enabling voice will immediately speak the current snippet.
+    if (itemType !== 'article' || !currentSnippet || !voiceEnabled) {
       stopRef.current();
       lastSpokenRef.current = { snippetId: -1, articleId: null };
       return;
     }
-    // Guard: don't re-speak the same snippet for the same article
+    // Guard: same snippet already speaking
     if (
       lastSpokenRef.current.snippetId === currentSnippet.id &&
       lastSpokenRef.current.articleId === articleId
     ) return;
     lastSpokenRef.current = { snippetId: currentSnippet.id, articleId: articleId ?? null };
-    // Speak with no onEnded — public display never drives queue advances
+    // No onEnded — public display never drives queue advances
     speakRef.current(currentSnippet.id);
-  }, [currentSnippet, itemType, articleId]);
-
-  // Stop audio immediately when entering interlude or video
-  useEffect(() => {
-    if (itemType !== 'article') {
-      stopRef.current();
-      lastSpokenRef.current = { snippetId: -1, articleId: null };
-    }
-  }, [itemType]);
+  // voiceEnabled is in deps: toggling it on re-runs this effect and speaks the current snippet.
+  // The click that toggles it satisfies the browser's autoplay policy.
+  }, [currentSnippet, itemType, articleId, voiceEnabled]);
 
   if (onAir && itemType === 'interlude') {
     return <InterludeScreen imageUrl={interludeImageUrl ?? ''} config={config} />;
@@ -996,15 +991,23 @@ export function PublicDisplay() {
       {/* Voice narration toggle — floats above the 120px ticker stack */}
       <button
         onClick={() => setVoiceEnabled(v => !v)}
-        title={voiceEnabled ? 'Mute voice narration' : 'Enable voice narration'}
+        title={voiceEnabled ? 'Mute voice narration' : 'Tap to enable voice narration'}
         className={cn(
-          "fixed bottom-[136px] right-4 p-3 rounded-full backdrop-blur-md transition-all duration-300 z-40",
+          "fixed bottom-[136px] right-4 backdrop-blur-md transition-all duration-300 z-40 flex items-center gap-2 rounded-full",
           voiceEnabled
-            ? "bg-primary/20 text-primary border border-primary/30"
-            : "bg-black/20 text-white/50 border border-white/10 hover:bg-black/50 hover:text-white"
+            ? "p-3 bg-primary/20 text-primary border border-primary/30"
+            : "px-4 py-2.5 bg-black/70 text-white border border-white/20 hover:bg-black/90 animate-pulse"
         )}
       >
-        {voiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+        {voiceEnabled
+          ? <Volume2 className="w-5 h-5" />
+          : <>
+              <VolumeX className="w-5 h-5 text-white/70" />
+              <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '12px', letterSpacing: '0.12em', fontWeight: 600 }}>
+                TAP FOR SOUND
+              </span>
+            </>
+        }
       </button>
 
     </main>
