@@ -5,10 +5,7 @@ import playbackRouter from "./playback";
 import videosRouter from "./videos";
 import { db, snippetsTable, articlesTable, videosTable, configStore } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { openai } from "@workspace/integrations-openai-ai-server";
 
-// In-memory TTS cache: snippetId → mp3 Buffer
-const ttsCache = new Map<number, Buffer>();
 
 // ── Waiting Screen Config (in-memory, admin pushes on load) ─────────────────
 interface WaitingConfig {
@@ -172,50 +169,27 @@ router.get("/snippets/:id/image", async (req, res) => {
   }
 });
 
-// Serve snippet TTS audio at /api/snippets/:id/audio
-router.get("/snippets/:id/audio", async (req, res) => {
+// Return snippet text for client-side TTS (Web Speech API).
+// The browser synthesises speech locally — no server audio processing needed,
+// which avoids VBR header issues from concatenated MP3 chunks and works
+// regardless of which AI provider supports audio endpoints.
+router.get("/snippets/:id/text", async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ error: "Invalid ID" });
-      return;
+      res.status(400).json({ error: "Invalid ID" }); return;
     }
-
-    // Return cached audio if available
-    if (ttsCache.has(id)) {
-      res.setHeader("Content-Type", "audio/mpeg");
-      res.setHeader("Cache-Control", "public, max-age=86400");
-      res.send(ttsCache.get(id));
-      return;
-    }
-
-    // Fetch snippet text from DB
     const rows = await db
       .select({ headline: snippetsTable.headline, caption: snippetsTable.caption, explanation: snippetsTable.explanation })
       .from(snippetsTable)
       .where(eq(snippetsTable.id, id));
     if (rows.length === 0) { res.status(404).end(); return; }
-
     const { headline, caption, explanation } = rows[0];
     const text = [headline, caption, explanation].filter(Boolean).join(". ");
-
-    // Single OpenAI TTS call — produces one properly-formed MP3 with correct
-    // duration headers. No chunking/concatenation (concatenated MP3s have multiple
-    // VBR headers that cause browsers to fire the `ended` event prematurely).
-    const ttsResponse = await openai.audio.speech.create({
-      model: 'tts-1',
-      voice: 'onyx',
-      input: text,
-      response_format: 'mp3',
-    });
-    const buffer = Buffer.from(await ttsResponse.arrayBuffer());
-    ttsCache.set(id, buffer);
-
-    res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Cache-Control", "public, max-age=86400");
-    res.send(buffer);
+    res.json({ text });
   } catch (err) {
-    console.error('[TTS] OpenAI audio error:', err);
+    console.error('[TTS text] error:', err);
     res.status(500).json({ error: String(err) });
   }
 });
