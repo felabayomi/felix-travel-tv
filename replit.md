@@ -73,9 +73,17 @@ Key invariants that MUST be preserved:
 ### 3. TTS audio endpoint (`artifacts/api-server/src/routes/index.ts`)
 - **MUST use OpenAI TTS** (`tts-1` model, `onyx` voice) — NOT Google Translate TTS
 - Google Translate TTS produced concatenated MP3 buffers with multiple VBR headers
-- Multiple VBR headers caused browsers to fire the audio `ended` event prematurely (at the end of the FIRST chunk, not the whole file), truncating voice mid-chapter
+- Multiple VBR headers caused browsers to fire the audio `ended` event prematurely, truncating voice mid-chapter
 - OpenAI TTS produces a single properly-formed MP3 per chapter — no chunking, no concatenation
 - Results are cached in-memory (`ttsCache: Map<number, Buffer>`) keyed by snippetId
+
+### Server-side snippet timer — admin presence logic (DO NOT regress this)
+- `ADMIN_PRESENCE_TIMEOUT_MS = 120_000` (2 min) — admin considered absent after 2 min without any PATCH
+- `SNIPPET_ADVANCE_ABSENT_MS = 15_000` — advance 15 s **after admin BECOMES absent**, NOT 15 s after the snippet started
+- The timer tracks `adminBecameAbsentAt` — only starts counting the 15 s when admin first goes absent
+- **Critical bug that was fixed**: the old code checked `elapsed >= threshold` where `elapsed` was measured from snippet start. Since a 35-second chapter exceeded the 15 s threshold before the 35 s presence timeout even expired, the server advanced mid-sentence the instant the admin was considered absent. Now it correctly waits 15 s of actual absence.
+- `PATCH /api/playback/presence` — lightweight heartbeat endpoint that refreshes `lastAdminSnippetPatch` without resetting the snippet timer
+- Admin sends this heartbeat every 20 s while voice is enabled, ensuring the server never treats an actively-reading admin as absent
 
 ### 4. Voice reader hook (`artifacts/travel-showcase/src/hooks/use-voice-reader.ts`)
 

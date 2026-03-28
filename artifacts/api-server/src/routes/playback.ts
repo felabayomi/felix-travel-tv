@@ -154,13 +154,15 @@ function resolveNextIndex(currentIndex: number): number | null {
 // This prevents the server from cutting off voice reading mid-sentence while
 // still keeping the broadcast alive when the admin tab is backgrounded or closed.
 
-const SNIPPET_ADVANCE_ABSENT_MS  = 15_000;  // fast advance when admin is gone
+const SNIPPET_ADVANCE_ABSENT_MS  = 15_000;  // advance 15 s AFTER admin becomes absent
 const SNIPPET_SAFETY_NET_MS      = 300_000; // absolute last resort when admin is present
-const ADMIN_PRESENCE_TIMEOUT_MS  = 35_000;  // no PATCH in 35 s → admin considered absent
+const ADMIN_PRESENCE_TIMEOUT_MS  = 120_000; // no PATCH in 120 s → admin considered absent
 const SNIPPET_CHECK_INTERVAL_MS  = 5_000;   // how often to re-evaluate
 
-// Timestamp of the last PATCH /queue/snippet call from the admin
+// Timestamp of the last PATCH /queue/snippet or /presence call from the admin
 let lastAdminSnippetPatch = 0;
+// When the admin first became absent (null = admin is present)
+let adminBecameAbsentAt: number | null = null;
 
 // Using setInterval so we can re-evaluate admin presence on every tick
 let snippetTimer: ReturnType<typeof setInterval> | null = null;
@@ -255,22 +257,35 @@ function scheduleNextSnippetAdvance() {
     }
 
     const elapsed = Date.now() - startedAt;
-    // Use a long safety-net when the admin is actively present; fast fallback when absent
     const adminIsPresent = Date.now() - lastAdminSnippetPatch < ADMIN_PRESENCE_TIMEOUT_MS;
-    const threshold = adminIsPresent ? SNIPPET_SAFETY_NET_MS : SNIPPET_ADVANCE_ABSENT_MS;
 
-    if (elapsed >= threshold) {
-      clearSnippetTimer();
-      const nextIndex = fromIndex + 1;
-      if (nextIndex < total) {
-        // Advance to next snippet
-        playbackState = { ...playbackState, snippetIndex: nextIndex, updatedAt: Date.now() };
-        scheduleNextSnippetAdvance();
-      } else {
-        // Article finished — advance the queue server-side if autoplay is on.
-        // This keeps the broadcast running when the admin tab is backgrounded or closed.
-        void serverAdvanceQueue();
-      }
+    if (adminIsPresent) {
+      // Admin is actively controlling — reset absent tracker, only fire 5-min safety net
+      adminBecameAbsentAt = null;
+      if (elapsed < SNIPPET_SAFETY_NET_MS) return;
+    } else {
+      // Admin is away — start counting absence duration from when they first disappeared.
+      // We require SNIPPET_ADVANCE_ABSENT_MS of *actual absence* before advancing,
+      // not just that the elapsed time since the snippet started exceeds the threshold.
+      // Without this, a 35-second chapter gets cut off the moment the 35s presence
+      // timeout expires, even though the admin was actively reading the whole time.
+      if (adminBecameAbsentAt === null) adminBecameAbsentAt = Date.now();
+      const absentFor = Date.now() - adminBecameAbsentAt;
+      if (absentFor < SNIPPET_ADVANCE_ABSENT_MS) return;
+    }
+
+    // Advance — thresholds already verified above
+    clearSnippetTimer();
+    adminBecameAbsentAt = null;
+    const nextIndex = fromIndex + 1;
+    if (nextIndex < total) {
+      // Advance to next snippet
+      playbackState = { ...playbackState, snippetIndex: nextIndex, updatedAt: Date.now() };
+      scheduleNextSnippetAdvance();
+    } else {
+      // Article finished — advance the queue server-side if autoplay is on.
+      // This keeps the broadcast running when the admin tab is backgrounded or closed.
+      void serverAdvanceQueue();
     }
   }, SNIPPET_CHECK_INTERVAL_MS);
 }
@@ -565,11 +580,20 @@ router.patch("/queue/snippet", (req, res) => {
   }
   // Record that the admin is present — prevents server fallback from firing mid-voice
   lastAdminSnippetPatch = Date.now();
+  adminBecameAbsentAt = null;
   playbackState = { ...playbackState, snippetIndex, updatedAt: Date.now() };
   persistState();
   // Reset the server-side timer from this new position
   scheduleNextSnippetAdvance();
   res.json(playbackState);
+});
+
+// Lightweight presence heartbeat — admin calls this every ~20 s while voice is playing
+// to prevent the server from treating them as absent and auto-advancing mid-sentence.
+router.patch("/presence", (_req, res) => {
+  lastAdminSnippetPatch = Date.now();
+  adminBecameAbsentAt = null;
+  res.status(204).end();
 });
 
 // Load persisted queue and state from DB on startup so production restarts

@@ -2214,6 +2214,18 @@ function AdminDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, serverItemType]);
 
+  // ── Presence heartbeat ───────────────────────────────────────────────────────
+  // While voice is ON and an article is playing, ping the server every 20 s so it
+  // never considers the admin "absent" mid-sentence and fires its fallback advance.
+  // This is the primary guard against the server cutting off voice reading.
+  useEffect(() => {
+    if (!voiceEnabled || !playingArticleId) return;
+    const ping = () => fetch('/api/playback/presence', { method: 'PATCH' }).catch(() => {});
+    ping(); // immediate ping when voice turns on
+    const id = setInterval(ping, 20_000);
+    return () => clearInterval(id);
+  }, [voiceEnabled, playingArticleId]);
+
   // Reset snippet index when the playing article changes
   useEffect(() => {
     setCurrentSnippetIndex(0);
