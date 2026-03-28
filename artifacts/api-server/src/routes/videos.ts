@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, videosTable } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -21,7 +21,7 @@ function formatVideo(v: typeof videosTable.$inferSelect) {
 // GET /api/videos
 router.get("/", async (_req, res) => {
   try {
-    const rows = await db.select().from(videosTable).orderBy(asc(videosTable.sortOrder), asc(videosTable.createdAt));
+    const rows = await db.select().from(videosTable).orderBy(desc(videosTable.createdAt));
     res.json(rows.map(formatVideo));
   } catch (err) {
     res.status(500).json({ error: String(err) });

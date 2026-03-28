@@ -458,7 +458,7 @@ router.get("/", async (req, res) => {
     const articles = await db
       .select()
       .from(articlesTable)
-      .orderBy(desc(articlesTable.publishedAt));
+      .orderBy(desc(articlesTable.createdAt));
 
     const articleIds = articles.map(a => a.id);
     let snippetCounts: Record<number, number> = {};
