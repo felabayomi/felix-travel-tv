@@ -70,14 +70,13 @@ Key invariants that MUST be preserved:
 - The voice effect (`speakRef.current(...)`) attaches `onEnded` that calls `advanceRef.current()`. `queueAutoplay` is accessed via `queueAutoplayRef` — NOT as a dep — so toggling autoplay never restarts the audio.
 - `snippetIndex` is intentionally NOT synced from the server in `loadQueue`. The admin drives all snippet advances. Syncing it caused race conditions that truncated voice mid-read.
 
-### 3. TTS — browser Web Speech API (`artifacts/travel-showcase/src/hooks/use-voice-reader.ts`)
-- **MUST use browser Web Speech API (`window.speechSynthesis`)** — NOT Google Translate TTS, NOT OpenAI TTS
-- Google Translate TTS: concatenated MP3 chunks with multiple VBR headers → browser fires `ended` at end of first chunk
-- OpenAI TTS (`POST /audio/speech`): **NOT SUPPORTED** by Replit's AI integration proxy (returns 400) — do not attempt
-- Web Speech API: built into every modern browser, `utterance.onend` fires only when speech truly finishes, no server audio download needed
-- The server still exposes `GET /api/snippets/:id/text` which returns `{ text }` (headline + caption + explanation joined) — the hook fetches this and feeds it to `SpeechSynthesisUtterance`
-- Text is cached in-memory (`textCache: Map<number, string>`) in the hook so repeated chapters don't re-fetch
-- `utterance.onerror` with `error === 'interrupted'` or `'canceled'` is silently ignored — this fires when `cancel()` is called to stop, not a real error
+### 3. TTS audio endpoint (`artifacts/api-server/src/routes/index.ts`)
+- **MUST use Google Translate TTS** — NOT OpenAI TTS (not supported by Replit AI proxy), NOT Web Speech API
+- Endpoint: `GET /api/snippets/:id/audio` → returns MP3 audio
+- Text is split into ≤185-char chunks (sentence boundaries first, then word boundaries) and fetched sequentially from Google TTS
+- All chunks are concatenated into one Buffer and cached in-memory (`ttsCache: Map<number, Buffer>`) per server run
+- The concatenated MP3 premature-ended issue was a red herring — the real cause of truncation was the server timer advancing chapters at 35s (now fixed separately)
+- **DO NOT switch to OpenAI TTS** — `POST /audio/speech` returns 400 from the Replit AI integration proxy every time; this causes the 2s error fallback to fire on every chapter, making it skip instantly
 
 ### Server-side snippet timer — admin presence logic (DO NOT regress this)
 - `ADMIN_PRESENCE_TIMEOUT_MS = 120_000` (2 min) — admin considered absent after 2 min without any PATCH

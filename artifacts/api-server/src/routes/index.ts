@@ -6,6 +6,9 @@ import videosRouter from "./videos";
 import { db, snippetsTable, articlesTable, videosTable, configStore } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+// In-memory TTS cache: snippetId → mp3 Buffer
+const ttsCache = new Map<number, Buffer>();
+
 
 // ── Waiting Screen Config (in-memory, admin pushes on load) ─────────────────
 interface WaitingConfig {
@@ -169,27 +172,87 @@ router.get("/snippets/:id/image", async (req, res) => {
   }
 });
 
-// Return snippet text for client-side TTS (Web Speech API).
-// The browser synthesises speech locally — no server audio processing needed,
-// which avoids VBR header issues from concatenated MP3 chunks and works
-// regardless of which AI provider supports audio endpoints.
-router.get("/snippets/:id/text", async (req, res) => {
+// Serve snippet TTS audio at /api/snippets/:id/audio
+// Uses Google Translate TTS, chunked to ≤185 chars per request then concatenated.
+// Results are cached in-memory so each chapter is only fetched once per server run.
+router.get("/snippets/:id/audio", async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ error: "Invalid ID" }); return;
+      res.status(400).json({ error: "Invalid ID" });
+      return;
     }
+
+    // Return cached audio if available
+    if (ttsCache.has(id)) {
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.send(ttsCache.get(id));
+      return;
+    }
+
+    // Fetch snippet text from DB
     const rows = await db
       .select({ headline: snippetsTable.headline, caption: snippetsTable.caption, explanation: snippetsTable.explanation })
       .from(snippetsTable)
       .where(eq(snippetsTable.id, id));
     if (rows.length === 0) { res.status(404).end(); return; }
+
     const { headline, caption, explanation } = rows[0];
     const text = [headline, caption, explanation].filter(Boolean).join(". ");
+
+    // Split text into ≤185-char chunks; sentence boundaries first, then word boundaries.
+    // Google Translate TTS rejects requests over ~200 chars.
+    function chunkText(input: string, maxLen = 185): string[] {
+      const chunks: string[] = [];
+      const sentences = input.match(/[^.!?]+[.!?]*/g) ?? [input];
+      let current = '';
+
+      for (const sentence of sentences) {
+        const trimmed = sentence.trimStart();
+        if (current && (current + trimmed).length > maxLen) {
+          chunks.push(current.trim());
+          current = '';
+        }
+        if (trimmed.length > maxLen) {
+          const words = trimmed.split(/\s+/);
+          let wordChunk = '';
+          for (const word of words) {
+            if ((wordChunk + ' ' + word).trim().length > maxLen && wordChunk) {
+              chunks.push(wordChunk.trim());
+              wordChunk = word;
+            } else {
+              wordChunk = wordChunk ? wordChunk + ' ' + word : word;
+            }
+          }
+          if (wordChunk.trim()) current = wordChunk + ' ';
+        } else {
+          current += trimmed;
+        }
+      }
+
+      if (current.trim()) chunks.push(current.trim());
+      return chunks.filter(c => c.length > 0);
+    }
+
+    const chunks = chunkText(text);
+    const parts: Buffer[] = [];
+    for (const chunk of chunks) {
+      const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=en&client=tw-ob`;
+      const ttsRes = await fetch(ttsUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' }
+      });
+      if (!ttsRes.ok) throw new Error(`Google TTS returned ${ttsRes.status}`);
+      parts.push(Buffer.from(await ttsRes.arrayBuffer()));
+    }
+    const buffer = Buffer.concat(parts);
+    ttsCache.set(id, buffer);
+
+    res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Cache-Control", "public, max-age=86400");
-    res.json({ text });
+    res.send(buffer);
   } catch (err) {
-    console.error('[TTS text] error:', err);
+    console.error('[TTS] audio error:', err);
     res.status(500).json({ error: String(err) });
   }
 });
