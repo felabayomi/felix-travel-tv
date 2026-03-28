@@ -5,6 +5,7 @@ import playbackRouter from "./playback";
 import videosRouter from "./videos";
 import { db, snippetsTable, articlesTable, videosTable, configStore } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { openai } from "@workspace/integrations-openai-ai-server";
 
 // In-memory TTS cache: snippetId → mp3 Buffer
 const ttsCache = new Map<number, Buffer>();
@@ -198,56 +199,16 @@ router.get("/snippets/:id/audio", async (req, res) => {
     const { headline, caption, explanation } = rows[0];
     const text = [headline, caption, explanation].filter(Boolean).join(". ");
 
-    // Split text into ≤185-char chunks; sentence boundaries first, then word boundaries
-    function chunkText(input: string, maxLen = 185): string[] {
-      const chunks: string[] = [];
-
-      // Split on sentence boundaries
-      const sentences = input.match(/[^.!?]+[.!?]*/g) ?? [input];
-      let current = '';
-
-      for (const sentence of sentences) {
-        const trimmed = sentence.trimStart();
-
-        // If adding this sentence would exceed the limit, flush current buffer
-        if (current && (current + trimmed).length > maxLen) {
-          chunks.push(current.trim());
-          current = '';
-        }
-
-        // If the sentence itself is too long, split on words
-        if (trimmed.length > maxLen) {
-          const words = trimmed.split(/\s+/);
-          let wordChunk = '';
-          for (const word of words) {
-            if ((wordChunk + ' ' + word).trim().length > maxLen && wordChunk) {
-              chunks.push(wordChunk.trim());
-              wordChunk = word;
-            } else {
-              wordChunk = wordChunk ? wordChunk + ' ' + word : word;
-            }
-          }
-          if (wordChunk.trim()) current = wordChunk + ' ';
-        } else {
-          current += trimmed;
-        }
-      }
-
-      if (current.trim()) chunks.push(current.trim());
-      return chunks.filter(c => c.length > 0);
-    }
-
-    const chunks = chunkText(text);
-    const parts: Buffer[] = [];
-    for (const chunk of chunks) {
-      const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=en&client=tw-ob`;
-      const ttsRes = await fetch(ttsUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsReader/1.0)' }
-      });
-      if (!ttsRes.ok) throw new Error(`Google TTS returned ${ttsRes.status}`);
-      parts.push(Buffer.from(await ttsRes.arrayBuffer()));
-    }
-    const buffer = Buffer.concat(parts);
+    // Single OpenAI TTS call — produces one properly-formed MP3 with correct
+    // duration headers. No chunking/concatenation (concatenated MP3s have multiple
+    // VBR headers that cause browsers to fire the `ended` event prematurely).
+    const ttsResponse = await openai.audio.speech.create({
+      model: 'tts-1',
+      voice: 'onyx',
+      input: text,
+      response_format: 'mp3',
+    });
+    const buffer = Buffer.from(await ttsResponse.arrayBuffer());
     ttsCache.set(id, buffer);
 
     res.setHeader("Content-Type", "audio/mpeg");

@@ -70,7 +70,14 @@ Key invariants that MUST be preserved:
 - The voice effect (`speakRef.current(...)`) attaches `onEnded` that calls `advanceRef.current()`. `queueAutoplay` is accessed via `queueAutoplayRef` — NOT as a dep — so toggling autoplay never restarts the audio.
 - `snippetIndex` is intentionally NOT synced from the server in `loadQueue`. The admin drives all snippet advances. Syncing it caused race conditions that truncated voice mid-read.
 
-### 3. Voice reader hook (`artifacts/travel-showcase/src/hooks/use-voice-reader.ts`)
+### 3. TTS audio endpoint (`artifacts/api-server/src/routes/index.ts`)
+- **MUST use OpenAI TTS** (`tts-1` model, `onyx` voice) — NOT Google Translate TTS
+- Google Translate TTS produced concatenated MP3 buffers with multiple VBR headers
+- Multiple VBR headers caused browsers to fire the audio `ended` event prematurely (at the end of the FIRST chunk, not the whole file), truncating voice mid-chapter
+- OpenAI TTS produces a single properly-formed MP3 per chapter — no chunking, no concatenation
+- Results are cached in-memory (`ttsCache: Map<number, Buffer>`) keyed by snippetId
+
+### 4. Voice reader hook (`artifacts/travel-showcase/src/hooks/use-voice-reader.ts`)
 
 Key invariants that MUST be preserved:
 - `genRef` (generation counter) prevents stale async callbacks: every `speak()` call increments the generation; after the fetch completes it checks `genRef.current !== myGen` and discards the result if a newer call has taken over.
