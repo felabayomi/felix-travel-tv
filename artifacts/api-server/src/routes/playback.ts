@@ -455,7 +455,13 @@ router.post("/queue/item", (req, res) => {
   if ((type !== 'article' && type !== 'video') || typeof title !== 'string') {
     res.status(400).json({ error: "type and title required" }); return;
   }
-  broadcastQueue.push({ type, articleId: articleId ?? null, videoId: videoId ?? null, title });
+  // Add to the FRONT so newest items appear at the top of the sidebar.
+  // If something is currently playing, shift its index by 1 to keep it pointing
+  // at the correct item after all existing items move one position down.
+  broadcastQueue.unshift({ type, articleId: articleId ?? null, videoId: videoId ?? null, title });
+  if (playbackState.queueIndex >= 0) {
+    playbackState = { ...playbackState, queueIndex: playbackState.queueIndex + 1, updatedAt: Date.now() };
+  }
   persistState();
   res.json({ items: broadcastQueue });
 });
