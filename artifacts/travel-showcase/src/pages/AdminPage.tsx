@@ -1853,7 +1853,9 @@ function AdminDashboard() {
   const [showAddVideoDrawer, setShowAddVideoDrawer] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<'articles' | 'videos'>('articles');
   const [videos, setVideos] = useState<VideoItem[]>([]);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(() => {
+    try { return localStorage.getItem('felix_voice_enabled') === 'true'; } catch { return false; }
+  });
   const [onAir, setOnAir] = useState(false);
   const [mainTab, setMainTab] = useState<'broadcast' | 'waiting' | 'archive'>('broadcast');
   const [mobilePanelOpen, setMobilePanelOpen] = useState<'library' | 'queue'>('library');
@@ -2215,6 +2217,11 @@ function AdminDashboard() {
   }, [queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, serverItemType]);
 
   // ── Presence heartbeat ───────────────────────────────────────────────────────
+  // Persist voice toggle so it survives page refreshes / re-deployments in production
+  useEffect(() => {
+    try { localStorage.setItem('felix_voice_enabled', voiceEnabled ? 'true' : 'false'); } catch {}
+  }, [voiceEnabled]);
+
   // While voice is ON and an article is playing, ping the server every 20 s so it
   // never considers the admin "absent" mid-sentence and fires its fallback advance.
   // This is the primary guard against the server cutting off voice reading.
