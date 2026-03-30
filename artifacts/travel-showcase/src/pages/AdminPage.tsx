@@ -1914,9 +1914,16 @@ function AdminDashboard() {
     return () => clearInterval(id);
   }, [loadQueue]);
 
-  // Derived: which article / video is currently playing from the queue
+  // Derived: which article / video is currently playing from the queue.
+  // During interludes, treat playingArticleId as null so that when the same article
+  // loops back (identical articleId), the playingArticleId dep goes null → articleId,
+  // which fires the reset effect (setCurrentSnippetIndex(0) / prevIndexRef clear)
+  // and restarts voice from chapter 1. Without this, a single-article looping queue
+  // gets stuck: the admin's local chapter index never resets after the interlude.
   const playingQueueItem = queue[playingQueueIndex] ?? null;
-  const playingArticleId = playingQueueItem?.type === 'article' ? (playingQueueItem.articleId ?? null) : null;
+  const playingArticleId = serverItemType === 'interlude'
+    ? null
+    : (playingQueueItem?.type === 'article' ? (playingQueueItem.articleId ?? null) : null);
   const playingVideoId   = playingQueueItem?.type === 'video'   ? (playingQueueItem.videoId   ?? null) : null;
 
   // Keep order in sync as articles load or change

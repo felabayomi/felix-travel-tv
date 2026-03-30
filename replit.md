@@ -93,6 +93,16 @@ Key invariants that MUST be preserved:
 - `stop()` clears `onended` and `ontimeupdate` before pausing, so no stale callback fires after stopping.
 - Audio fetch failures fall through to call `onEnded` after 2 s so the slideshow never freezes on a TTS error.
 
+### Server restart / deployment presence grace period (DO NOT regress)
+- On server boot, `loadPersistedState()` sets `lastAdminSnippetPatch = Date.now()` **before** calling `startSnippetSchedule()`.
+- This gives the admin a full `ADMIN_PRESENCE_TIMEOUT_MS` (120 s) window to reconnect after a deployment before the server ever considers them absent.
+- **Bug that was fixed**: without this, every new deployment caused `lastAdminSnippetPatch = 0`, making the server instantly treat the admin as absent and auto-advance snippets every 15 s.
+
+### playingArticleId nulled during interlude (DO NOT regress)
+- `playingArticleId` is derived as `null` whenever `serverItemType === 'interlude'`, even though `queue[queueIndex].articleId` is still the same article.
+- **Why**: when a single-article looping queue completes and loops back, the same `articleId` is reused. Without nulling it during interlude, the `useEffect([playingArticleId])` reset never fires (articleId didn't change), leaving `currentSnippetIndex` at the last chapter and `prevIndexRef` stale. Voice never restarts for the looped article.
+- **With the null**: articleId goes `75 → null → 75` across the interlude boundary, which fires the effect that resets `currentSnippetIndex = 0` and clears `prevIndexRef`, allowing voice to restart from chapter 1 on loop-back.
+
 ### Summary of what breaks when these are touched accidentally:
 | Symptom | Cause |
 |---|---|
@@ -101,6 +111,8 @@ Key invariants that MUST be preserved:
 | Double-advance cuts articles short | Auto-advance timer fires during interlude (missing `serverItemType` guard) |
 | Voice cuts off mid-sentence | `snippetIndex` synced from server in `loadQueue` |
 | Audio plays twice or overlaps | `genRef` logic removed or `onended` not cleared in `stop()` |
+| Chapters skip wildly after deployment | `lastAdminSnippetPatch` not initialized to `Date.now()` on server boot |
+| Single-article loop never restarts voice | `playingArticleId` not nulled during interlude (articleId unchanged across loop) |
 
 ---
 
