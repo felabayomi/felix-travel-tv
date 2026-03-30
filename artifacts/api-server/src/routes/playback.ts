@@ -92,8 +92,12 @@ async function loadPersistedState(): Promise<void> {
         loopQueue: s.loopQueue ?? false,
         updatedAt: Date.now(),
       };
-      // Resume the server-side snippet timer if we were mid-article
+      // Resume the server-side snippet timer if we were mid-article.
+      // Reset lastAdminSnippetPatch to now so the server gives the admin a full
+      // presence window (ADMIN_PRESENCE_TIMEOUT_MS) to reconnect before it starts
+      // auto-advancing — otherwise restarts would immediately treat admin as absent.
       if (playbackState.onAir && playbackState.itemType === 'article' && playbackState.articleId) {
+        lastAdminSnippetPatch = Date.now();
         void startSnippetSchedule(playbackState.articleId);
       }
     }
