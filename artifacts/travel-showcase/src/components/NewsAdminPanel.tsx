@@ -92,8 +92,6 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
   const createMutation = useCreateArticle({
     mutation: {
       onSuccess: (data: any) => {
-        setUrl('');
-        setArticleText('');
         setAddError('');
         const generationMode = data?.generation?.mode === 'fallback' ? 'fallback' : 'ai';
         const generationMessage = data?.generation?.message
@@ -104,10 +102,18 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
         queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
         onArticleAdded();
 
-        if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-        closeTimerRef.current = setTimeout(() => {
-          handleClose();
-        }, generationMode === 'fallback' ? 4500 : 2400);
+        if (generationMode === 'ai') {
+          // AI succeeded — clear fields and auto-close
+          setUrl('');
+          setArticleText('');
+          if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+          closeTimerRef.current = setTimeout(() => {
+            handleClose();
+          }, 2400);
+        } else {
+          // Fallback — keep panel open, expand textarea, prompt to paste text
+          setShowTextArea(true);
+        }
       },
       onError: (err: any) => {
         if (closeTimerRef.current) {
@@ -336,14 +342,19 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
                 )}
 
                 {addStatus && (
-                  <p className={cn(
-                    'text-xs rounded-lg px-3 py-2 border',
+                  <div className={cn(
+                    'text-xs rounded-lg px-3 py-2 border space-y-1',
                     addStatus.tone === 'fallback'
                       ? 'text-amber-200 bg-amber-500/10 border-amber-500/30'
                       : 'text-emerald-200 bg-emerald-500/10 border-emerald-500/30'
                   )}>
-                    {addStatus.message}
-                  </p>
+                    <p>{addStatus.message}</p>
+                    {addStatus.tone === 'fallback' && (
+                      <p className="text-amber-300/80">
+                        Open the article in your browser, copy all the text, paste it in the field above, and submit again for proper AI chapters.
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 {/* Processing indicator */}

@@ -598,21 +598,27 @@ router.post("/", async (req, res) => {
     let page: PageData;
 
     if (text && typeof text === "string" && text.trim().length > 100) {
-      // User pasted the article text directly — use it as the body
-      const domain = new URL(url).hostname.replace(/^www\./, "");
+      // User pasted article text — fetch URL metadata in parallel for og/date
+      // enrichment, but always use the pasted text as the body.
+      let metaPage: PageData | null = null;
+      try {
+        metaPage = await fetchPageData(url);
+      } catch {
+        // Metadata fetch failure is non-fatal when text is provided
+      }
       page = {
-        html: "",
-        metaTitle: titleOverride || "",
-        metaDescription: "",
-        ogTitle: titleOverride || "",
-        ogDescription: "",
-        ogImage: "",
-        publishedTime: "",
-        author: "",
-        jsonLd: "",
+        html: metaPage?.html ?? "",
+        metaTitle: titleOverride || metaPage?.metaTitle || "",
+        metaDescription: metaPage?.metaDescription || "",
+        ogTitle: titleOverride || metaPage?.ogTitle || "",
+        ogDescription: metaPage?.ogDescription || "",
+        ogImage: metaPage?.ogImage || "",
+        publishedTime: metaPage?.publishedTime || "",
+        author: metaPage?.author || "",
+        jsonLd: metaPage?.jsonLd || "",
         bodyText: text.trim().slice(0, 12000),
       };
-      req.log.info({ url, textLen: text.trim().length, source: sourceOverride || domain }, "Using pasted text");
+      req.log.info({ url, textLen: text.trim().length, hasMeta: !!metaPage?.ogTitle }, "Using pasted text with URL metadata");
     } else {
       // No text provided — try to fetch the URL
       page = await fetchPageData(url);
