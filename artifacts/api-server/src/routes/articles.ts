@@ -157,7 +157,93 @@ interface ArticleData {
   snippets: SnippetData[];
 }
 
-async function generateArticleContent(url: string, page: PageData): Promise<ArticleData> {
+type GenerationMode = "ai" | "fallback";
+
+interface GenerationMeta {
+  mode: GenerationMode;
+  message: string;
+  reason?: string;
+}
+
+interface GeneratedArticleResult {
+  content: ArticleData;
+  generation: GenerationMeta;
+}
+
+const ARTICLE_MODEL = process.env.TRAVEL_TV_ARTICLE_MODEL || "gpt-5.4";
+
+function sentenceChunks(text: string, maxChunks = 6): string[] {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (!cleaned) return [];
+
+  const sentences = cleaned
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  if (sentences.length === 0) return [cleaned.slice(0, 600)];
+
+  const targetSize = Math.max(2, Math.ceil(sentences.length / Math.min(maxChunks, sentences.length)));
+  const chunks: string[] = [];
+
+  for (let index = 0; index < sentences.length; index += targetSize) {
+    const chunk = sentences.slice(index, index + targetSize).join(" ").trim();
+    if (chunk) chunks.push(chunk.slice(0, 700));
+  }
+
+  return chunks.slice(0, maxChunks);
+}
+
+function compactTitle(input: string, fallback: string): string {
+  const title = input.replace(/\s+/g, " ").trim();
+  if (!title) return fallback;
+  return title.length <= 70 ? title : `${title.slice(0, 67).trim()}...`;
+}
+
+function buildFallbackArticleContent(url: string, page: PageData): ArticleData {
+  const source = new URL(url).hostname.replace(/^www\./, "");
+  const baseTitle = page.ogTitle || page.metaTitle || source;
+  const bodyChunks = sentenceChunks(page.bodyText || page.ogDescription || page.metaDescription, 6);
+  const chunks = bodyChunks.length > 0 ? bodyChunks : [
+    `This story comes from ${source} and could not be fully extracted automatically, but the source article is still available for review.`,
+    `Use the published source, timing, and location details from the original article to confirm the latest travel information before planning.`,
+    `Felix Travel TV can still turn this topic into a usable briefing once the full article text is pasted into the admin panel.`,
+  ];
+
+  const snippets = chunks.slice(0, 6).map((chunk, index) => {
+    const firstSentence = chunk.split(/(?<=[.!?])\s+/)[0]?.trim() || chunk;
+    return {
+      headline: compactTitle(index === 0 ? baseTitle : `Travel Brief ${index + 1}`, `Travel Brief ${index + 1}`),
+      caption: compactTitle(firstSentence, "Travel update and planning insight."),
+      explanation: chunk,
+      imagePrompt: `Photorealistic travel editorial photography for ${baseTitle}, focused on ${firstSentence.toLowerCase()}, natural light, authentic destination details, high-end magazine composition`,
+    };
+  });
+
+  while (snippets.length < 3) {
+    const sequence = snippets.length + 1;
+    snippets.push({
+      headline: `Travel Brief ${sequence}`,
+      caption: "Additional context from the source article.",
+      explanation: `Felix Travel TV needs more source detail for this section. Paste the full article text to generate richer destination chapters and planning advice.`,
+      imagePrompt: `Photorealistic travel newsroom visual for ${baseTitle}, editorial travel coverage, cinematic lighting, no text`,
+    });
+  }
+
+  return {
+    title: compactTitle(baseTitle, "Felix Travel TV Feature"),
+    summary: compactTitle(page.ogDescription || page.metaDescription || chunks[0], "Travel story briefing from Felix Travel TV."),
+    source,
+    publishedAt: page.publishedTime || new Date().toISOString(),
+    snippets,
+  };
+}
+
+async function generateArticleContent(
+  url: string,
+  page: PageData,
+  log?: { warn: (...args: any[]) => void },
+): Promise<GeneratedArticleResult> {
   const hasRichContent = page.bodyText.length > 200 || page.ogDescription.length > 50 || page.jsonLd.length > 100;
 
   const context = [
@@ -335,22 +421,22 @@ Respond with a JSON object ONLY (no markdown, no code block):
   ]
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-5.2",
-    max_completion_tokens: 8192,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const content = response.choices[0]?.message?.content ?? "{}";
   try {
+    const response = await openai.chat.completions.create({
+      model: ARTICLE_MODEL,
+      max_completion_tokens: 8192,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const content = response.choices[0]?.message?.content ?? "{}";
     const parsed = JSON.parse(content);
     const snippets: SnippetData[] = Array.isArray(parsed.snippets)
       ? parsed.snippets.slice(0, 9).map((s: any) => ({
-          headline: s.headline || "Travel Highlight",
-          caption: s.caption || "A key moment from this story.",
-          explanation: s.explanation || "More details are available about this travel story.",
-          imagePrompt: s.imagePrompt || "Cinematic travel photography, golden hour lighting, beautiful destination, high quality",
-        }))
+        headline: s.headline || "Travel Highlight",
+        caption: s.caption || "A key moment from this story.",
+        explanation: s.explanation || "More details are available about this travel story.",
+        imagePrompt: s.imagePrompt || "Cinematic travel photography, golden hour lighting, beautiful destination, high quality",
+      }))
       : [];
 
     if (snippets.length < 3) {
@@ -358,26 +444,28 @@ Respond with a JSON object ONLY (no markdown, no code block):
     }
 
     return {
-      title: parsed.title || "Felix Travel TV Feature",
-      summary: parsed.summary || "An important story is developing.",
-      source: parsed.source || new URL(url).hostname.replace(/^www\./, ""),
-      publishedAt: parsed.publishedAt || new Date().toISOString(),
-      snippets,
+      content: {
+        title: parsed.title || "Felix Travel TV Feature",
+        summary: parsed.summary || "An important story is developing.",
+        source: parsed.source || new URL(url).hostname.replace(/^www\./, ""),
+        publishedAt: parsed.publishedAt || new Date().toISOString(),
+        snippets,
+      },
+      generation: {
+        mode: "ai",
+        message: `AI generation completed with model ${ARTICLE_MODEL}.`,
+      },
     };
-  } catch {
+  } catch (err: any) {
+    const reason = err instanceof Error ? err.message : "Unknown AI generation error";
+    log?.warn({ err, url, model: ARTICLE_MODEL }, "AI article generation failed, using fallback content");
     return {
-      title: "Breaking News",
-      summary: "An important story is developing.",
-      source: new URL(url).hostname.replace(/^www\./, ""),
-      publishedAt: new Date().toISOString(),
-      snippets: [
-        {
-          headline: "Story Loading",
-          caption: "Content is being processed.",
-          explanation: "The article content could not be fully parsed. Please try adding the URL again.",
-          imagePrompt: "Newspaper press room, dramatic lighting, ink and paper",
-        },
-      ],
+      content: buildFallbackArticleContent(url, page),
+      generation: {
+        mode: "fallback",
+        message: "Fallback content was used because AI generation failed. Paste full article text for richer chapters.",
+        reason,
+      },
     };
   }
 }
@@ -524,7 +612,8 @@ router.post("/", async (req, res) => {
       req.log.info({ url, bodyLen: page.bodyText.length, hasOg: !!page.ogTitle }, "Fetched page data");
     }
 
-    const content = await generateArticleContent(url, page);
+    const generated = await generateArticleContent(url, page, req.log);
+    const { content, generation } = generated;
     if (sourceOverride && typeof sourceOverride === "string") {
       content.source = sourceOverride;
     }
@@ -565,7 +654,15 @@ router.post("/", async (req, res) => {
       .returning();
 
     // Respond immediately — the article is saved, chapters are ready.
-    res.status(201).json(formatArticle(article, insertedSnippets.length));
+    req.log.info({ articleId: article.id, generationMode: generation.mode, reason: generation.reason }, "Article created");
+
+    res.status(201).json({
+      ...formatArticle(article, insertedSnippets.length),
+      generation: {
+        mode: generation.mode,
+        message: generation.message,
+      },
+    });
 
     // Fire-and-forget: generate images in the background (parallel-first, then
     // sequential retry for any that failed). Never blocks the HTTP response.

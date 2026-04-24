@@ -19,6 +19,7 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
   const [articleDate, setArticleDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showTextArea, setShowTextArea] = useState(true);
   const [addError, setAddError] = useState('');
+  const [addStatus, setAddStatus] = useState<{ tone: 'ai' | 'fallback'; message: string } | null>(null);
 
   const CORRECT_PIN = import.meta.env.VITE_ADMIN_PIN ?? '1234';
   const STORAGE_KEY = 'newsreader_admin_auth';
@@ -34,6 +35,7 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
 
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleGearTap = () => {
     tapCountRef.current += 1;
@@ -68,28 +70,51 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
   };
 
   const handleClose = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
     setIsOpen(false);
+    setAddStatus(null);
     if (!keepSignedIn && !localStorage.getItem(STORAGE_KEY)) {
       sessionStorage.removeItem(STORAGE_KEY);
       setIsAuthenticated(false);
     }
   };
 
-  useEffect(() => () => { if (tapTimerRef.current) clearTimeout(tapTimerRef.current); }, []);
+  useEffect(() => () => {
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+  }, []);
 
   const queryClient = useQueryClient();
 
   const createMutation = useCreateArticle({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data: any) => {
         setUrl('');
         setArticleText('');
         setAddError('');
+        const generationMode = data?.generation?.mode === 'fallback' ? 'fallback' : 'ai';
+        const generationMessage = data?.generation?.message
+          || (generationMode === 'fallback'
+            ? 'Fallback content was used because AI generation failed.'
+            : 'AI generation completed successfully.');
+        setAddStatus({ tone: generationMode, message: generationMessage });
         queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
         onArticleAdded();
-        setIsOpen(false);
+
+        if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = setTimeout(() => {
+          handleClose();
+        }, generationMode === 'fallback' ? 4500 : 2400);
       },
       onError: (err: any) => {
+        if (closeTimerRef.current) {
+          clearTimeout(closeTimerRef.current);
+          closeTimerRef.current = null;
+        }
+        setAddStatus(null);
         setAddError(err?.data?.error || 'Failed to process — please check the URL and try again.');
       }
     }
@@ -102,6 +127,7 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
     e.preventDefault();
     if (!url.trim()) return;
     setAddError('');
+    setAddStatus(null);
     if (source.trim()) localStorage.setItem(SOURCE_KEY, source.trim());
     createMutation.mutate({
       data: {
@@ -307,6 +333,17 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
                 {/* Error */}
                 {addError && (
                   <p className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">{addError}</p>
+                )}
+
+                {addStatus && (
+                  <p className={cn(
+                    'text-xs rounded-lg px-3 py-2 border',
+                    addStatus.tone === 'fallback'
+                      ? 'text-amber-200 bg-amber-500/10 border-amber-500/30'
+                      : 'text-emerald-200 bg-emerald-500/10 border-emerald-500/30'
+                  )}>
+                    {addStatus.message}
+                  </p>
                 )}
 
                 {/* Processing indicator */}
