@@ -170,6 +170,13 @@ interface GeneratedArticleResult {
   generation: GenerationMeta;
 }
 
+function resolvePublishedDate(input: string | undefined): Date {
+  if (!input) return new Date();
+  const parsed = new Date(input);
+  if (Number.isNaN(parsed.getTime())) return new Date();
+  return parsed;
+}
+
 const ARTICLE_MODEL = process.env.TRAVEL_TV_ARTICLE_MODEL || "gpt-5.4";
 
 function sentenceChunks(text: string, maxChunks = 6): string[] {
@@ -623,7 +630,10 @@ router.post("/", async (req, res) => {
     if (publishedDate && typeof publishedDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(publishedDate)) {
       resolvedDate = new Date(publishedDate + "T12:00:00Z");
     } else {
-      resolvedDate = new Date(content.publishedAt);
+      resolvedDate = resolvePublishedDate(content.publishedAt);
+      if (!content.publishedAt || Number.isNaN(new Date(content.publishedAt).getTime())) {
+        req.log.warn({ publishedAt: content.publishedAt, url }, "Invalid generated publishedAt, defaulting to now");
+      }
     }
 
     const [article] = await db.insert(articlesTable).values({
@@ -671,7 +681,8 @@ router.post("/", async (req, res) => {
     );
   } catch (err) {
     req.log.error({ err }, "Failed to create article");
-    res.status(422).json({ error: "Failed to process URL" });
+    const detail = err instanceof Error ? err.message : "Unknown article processing error";
+    res.status(422).json({ error: "Failed to process URL", detail });
   }
 });
 

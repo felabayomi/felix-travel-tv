@@ -115,7 +115,7 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
           closeTimerRef.current = null;
         }
         setAddStatus(null);
-        setAddError(err?.data?.error || 'Failed to process — please check the URL and try again.');
+        setAddError(err?.data?.detail || err?.data?.error || 'Failed to process — please check the URL and try again.');
       }
     }
   });
