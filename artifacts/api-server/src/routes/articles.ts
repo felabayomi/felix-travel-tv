@@ -107,7 +107,7 @@ async function fetchPageData(url: string): Promise<PageData> {
 
   // Extract JSON-LD structured data
   const jsonLdMatches = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
-  const jsonLd = jsonLdMatches.map(m => m[1]).join("\n").slice(0, 3000);
+  const jsonLd = jsonLdMatches.map(m => m[1]).join("\n").slice(0, ARTICLE_JSONLD_MAX_CHARS);
 
   // Extract body text — prefer article/main tags
   let bodyText = "";
@@ -126,7 +126,7 @@ async function fetchPageData(url: string): Promise<PageData> {
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 8000);
+    .slice(0, ARTICLE_BODY_MAX_CHARS);
 
   return {
     html,
@@ -177,7 +177,28 @@ function resolvePublishedDate(input: string | undefined): Date {
   return parsed;
 }
 
-const ARTICLE_MODEL = process.env.TRAVEL_TV_ARTICLE_MODEL || "gpt-5.4";
+function envInt(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name];
+  const parsed = Number(raw);
+  if (!raw || Number.isNaN(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(parsed)));
+}
+
+const COST_SAVER_MODE = process.env.TRAVEL_TV_ENABLE_COST_SAVER !== "false";
+const ARTICLE_MODEL = COST_SAVER_MODE
+  ? (process.env.TRAVEL_TV_COST_SAVER_MODEL || "gpt-4.1-mini")
+  : (process.env.TRAVEL_TV_ARTICLE_MODEL || "gpt-4.1-mini");
+const ARTICLE_MAX_COMPLETION_TOKENS = envInt("TRAVEL_TV_ARTICLE_MAX_TOKENS", 1600, 600, 3000);
+const ARTICLE_TIMEOUT_MS = envInt("TRAVEL_TV_ARTICLE_TIMEOUT_MS", 45000, 10000, 120000);
+const ARTICLE_BODY_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_BODY_MAX_CHARS", 4500, 1000, 12000);
+const ARTICLE_JSONLD_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_JSONLD_MAX_CHARS", 1200, 200, 3000);
+const IMAGE_GENERATION_LIMIT = envInt("TRAVEL_TV_IMAGE_GENERATION_LIMIT", 1, 0, 9);
+const IMAGE_GENERATION_SIZE =
+  process.env.TRAVEL_TV_IMAGE_SIZE === "256x256"
+    ? "256x256"
+    : process.env.TRAVEL_TV_IMAGE_SIZE === "1024x1024"
+      ? "1024x1024"
+      : "512x512";
 
 function sentenceChunks(text: string, maxChunks = 6): string[] {
   const cleaned = text.replace(/\s+/g, " ").trim();
@@ -249,7 +270,7 @@ function buildFallbackArticleContent(url: string, page: PageData): ArticleData {
 async function generateArticleContent(
   url: string,
   page: PageData,
-  log?: { warn: (...args: any[]) => void },
+  log?: { warn: (...args: any[]) => void; info?: (...args: any[]) => void },
 ): Promise<GeneratedArticleResult> {
   const hasRichContent = page.bodyText.length > 200 || page.ogDescription.length > 50 || page.jsonLd.length > 100;
 
@@ -263,167 +284,33 @@ async function generateArticleContent(
     page.bodyText && `Article body:\n${page.bodyText}`,
   ].filter(Boolean).join("\n\n");
 
-  const prompt = `You are a travel content producer for Felix Travel TV — a professional travel channel presented by Felix Abayomi, trusted travel advisor.
-
-Your job is to transform the article below into a structured Felix Travel TV episode. Follow every step precisely.
+  const prompt = `Create Felix Travel TV chapter content from this article.
 
 URL: ${url}
 
-${hasRichContent ? `ARTICLE CONTENT:\n${context}` : `NOTE: This article's full text could not be extracted. Use the partial data below plus your own knowledge of this specific topic to create substantive content. Do NOT write generic placeholder text.
+SOURCE DATA:
+${hasRichContent ? context : context || `URL clues: ${url}`}
 
-${context || `URL clues: ${url}`}`}
+REQUIREMENTS:
+- Return valid JSON only.
+- 6 or 7 snippets.
+- Content must be specific and practical for travelers.
+- Last snippet must be a Felix travel advisor call-to-action.
+- Keep each explanation to 2 short sentences.
+- Keep headlines <= 12 words.
 
----
-
-STEP 1 — DETECT CONTENT TYPE
-
-Read the article and classify it as ONE of:
-
-- CITY_GUIDE — content about a specific city or town and its experiences
-- DESTINATION_FEATURE — a broader destination, country, or region feature
-- TRAVEL_DEAL — a deal, trip package, pricing offer, or booking promotion
-- TRAVEL_TOOL — an app, website, service, or travel product
-- ROAD_TRIP — a route, multi-stop journey, or driving feature
-- TRAVEL_TIPS — advice, how-to, or planning guidance
-- HOTEL_FEATURE — a hotel, resort, or accommodation review
-- CRUISE_FEATURE — a cruise line, ship, or sailing experience
-- GENERAL_TRAVEL — any other travel content
-
----
-
-STEP 2 — SELECT THE MATCHING TEMPLATE
-
-Based on the content type, use the correct template below. The template defines what each chapter must cover. Map the article's information into each section. If a section's data is missing from the article, draw on your own knowledge of the subject.
-
-TEMPLATE A — CITY_GUIDE (7 chapters):
-1. Overview — What makes this city unique and worth visiting
-2. Main Areas & Highlights — The key neighbourhoods, districts, and must-see spots
-3. Food & Culture — Local cuisine, markets, cultural traditions, and dining scenes
-4. Experiences & Activities — What to do, see, and explore
-5. Where to Stay — Accommodation options, neighbourhoods to base yourself, price ranges
-6. Travel Tips — Practical advice: transport, costs, timing, what to know before going
-7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, helps you plan and book this city trip; call to action
-
-TEMPLATE B — DESTINATION_FEATURE (7 chapters):
-1. Introduction — Why this destination matters and what the story is about
-2. Why Visit — The compelling reasons and unique appeal of this destination
-3. Top Experiences — The standout things to do, see, and feel here
-4. Food & Culture — Cuisine, local life, cultural highlights
-5. Best Time to Visit — Seasons, weather, events, and practical timing advice
-6. Travel Planning Tips — Flights, logistics, costs, how to prepare
-7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, makes planning this trip effortless; call to action
-
-TEMPLATE C — TRAVEL_DEAL (7 chapters):
-1. Trip Overview — What this deal or trip package is, where it goes, who offers it
-2. What's Included — Everything covered: hotels, flights, activities, meals, transfers
-3. Dates & Pricing — The available dates, price points, and how to secure the rate
-4. Highlights — The most exciting moments and experiences on this trip
-5. Who This Trip Is For — The ideal traveller profile: families, couples, adventurers, etc.
-6. Booking Information — How to book, deadlines, contact details, what to do next
-7. Felix, Your Travel Advisor — Why Felix, as your personal travel agent and advisor, is the right partner for this deal; call to action
-
-TEMPLATE D — TRAVEL_TOOL (7 chapters):
-1. The Problem — The travel challenge or frustration this tool solves
-2. The Solution — What this app, service, or tool is and what it does
-3. How It Works — Step-by-step explanation of the product
-4. Key Features — The standout capabilities and what makes it different
-5. Who It's For — The traveller types who benefit most
-6. Pricing & Access — Cost, free tier, subscription details, where to get it
-7. Felix, Your Travel Advisor — Felix's personal recommendation and how to start using it with his guidance; call to action
-
-TEMPLATE E — ROAD_TRIP (7 chapters):
-1. Route Overview — Where the journey starts, ends, and what it covers
-2. Major Stops — The key destinations and places along the route
-3. Scenic Highlights — The most beautiful or dramatic moments on the road
-4. Food Stops — Where to eat, drink, and experience local flavour along the way
-5. Travel Tips — Driving advice, logistics, costs, best season, what to book ahead
-6. Recommended Schedule — A practical day-by-day or leg-by-leg breakdown
-7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, helps you plan and book this road trip; call to action
-
-TEMPLATE F — TRAVEL_TIPS (6 chapters):
-1. The Problem — The common travel mistake, challenge, or gap this addresses
-2. The Tips — The specific, actionable advice every traveller needs to know
-3. Real Examples — Concrete scenarios, case studies, or practical illustrations
-4. What to Avoid — The mistakes, traps, and wrong assumptions to steer clear of
-5. Recommendations — Felix's personal recommendations and trusted options
-6. Felix, Your Travel Advisor — How to put these tips into action with Felix as your personal travel agent and advisor; call to action
-
-TEMPLATE G — HOTEL_FEATURE (7 chapters):
-1. Hotel Overview — First impressions: what this property is, its positioning, its personality
-2. Location — Neighbourhood, accessibility, what's on the doorstep
-3. Rooms & Design — Room categories, interiors, views, quality, standout features
-4. Dining — Restaurants, bars, breakfast, room service, signature dishes
-5. Amenities — Pool, spa, gym, concierge, services, what sets it apart
-6. Who It's For — The ideal guest: couples, families, business, luxury seekers
-7. Felix, Your Travel Advisor — Booking tips, best rates, and how Felix, as your personal travel agent and advisor, secures this hotel for you; call to action
-
-TEMPLATE H — CRUISE_FEATURE (7 chapters):
-1. Cruise Overview — The line, ship, itinerary, and what kind of experience this is
-2. Ship Experience — Size, atmosphere, onboard highlights, what life is like at sea
-3. Destinations & Ports — Where the cruise goes and what to do at each stop
-4. Dining & Entertainment — Food quality, restaurants, shows, and onboard activities
-5. Cabins — Cabin categories, sizes, views, pricing tiers
-6. Who It's For — Families, couples, first-timers, luxury cruisers — who belongs on this ship
-7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, books cruises and why travellers trust him; call to action
-
-TEMPLATE I — GENERAL_TRAVEL (6 chapters):
-1. The Story — What this piece of travel content is about and why it matters
-2. Key Insights — The most important facts, findings, or revelations
-3. What It Means for Travellers — How this affects travel plans, decisions, or experiences
-4. Practical Takeaways — What travellers should actually do with this information
-5. Felix's Perspective — Felix Abayomi's expert take and personal recommendation
-6. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, helps travellers act on this; call to action
-
----
-
-STEP 3 — WRITE EACH CHAPTER
-
-For every chapter in the selected template, produce:
-
-HEADLINE: A vivid, broadcast-quality title written specifically for this article's content.
-- Must reflect exactly what THIS chapter covers — not a generic label
-- Must sound like something Felix would say on air — specific, punchy, engaging
-- NEVER use the template section names literally as headlines
-- Forbidden words as standalone headlines: "Overview", "Introduction", "Tips", "Summary", "Conclusion", "Highlights", "Features", "Amenities", "Dining", "Location"
-
-GOOD headline examples by chapter purpose:
-- City overview: "The Pocket-Sized Capital That Punches Way Above Its Weight"
-- Food: "Tagines, Rooftops, and the Street Food Trail That Changes Everything"
-- Deal pricing: "Seven Nights in Ireland — $4,045 All In, and Worth Every Cent"
-- Hotel: "From the Moment You Walk Through the Door, This Hotel Gets It Right"
-- Who it's for: "Built for Families Who Want the Magic Without the Stress"
-- Felix CTA: "Felix, Your Travel Agent and Advisor — You Just Show Up and Enjoy"
-
-EXPLANATION: 2–3 crisp sentences in Felix Abayomi's voice — warm, direct, authoritative, specific. No filler. No Wikipedia language. Speak like a trusted advisor giving real, useful information. Must be readable aloud in under 20 seconds.
-
-IMAGE PROMPT: A photorealistic travel photography description specific to this chapter's exact subject. Describe the precise scene, location, atmosphere, people, lighting, and photographic style. Never generic — always specific to the chapter content.
-
----
-
-CRITICAL RULES:
-- Produce ALL chapters required by the selected template — never skip one
-- Every chapter must be grounded in THIS article's actual content
-- If the article lacks detail for a section, use your knowledge of the specific subject
-- The final chapter of every template is always Felix as your personal travel agent and advisor + call to action
-- Headlines must be vivid broadcast titles, never template section labels
-- Explanations must never repeat the headline word for word
-- Always include real names, real prices, and real specifics wherever possible
-
----
-
-Respond with a JSON object ONLY (no markdown, no code block):
+JSON SCHEMA:
 {
-  "title": "Concise, engaging headline for the full episode",
-  "summary": "2-3 sentence summary of what this episode covers",
-  "source": "The source outlet name (e.g. 'BBC Travel', 'Reuters', 'Felix Travel TV')",
-  "publishedAt": "ISO 8601 date (use article date if found, otherwise: ${new Date().toISOString()})",
-  "contentType": "CITY_GUIDE | DESTINATION_FEATURE | TRAVEL_DEAL | TRAVEL_TOOL | ROAD_TRIP | TRAVEL_TIPS | HOTEL_FEATURE | CRUISE_FEATURE | GENERAL_TRAVEL",
+  "title": "string",
+  "summary": "string",
+  "source": "string",
+  "publishedAt": "ISO 8601 string",
   "snippets": [
     {
-      "headline": "Vivid broadcast chapter title (max 12 words)",
-      "caption": "One precise sentence capturing the key insight of this chapter",
-      "explanation": "2-3 sentences in Felix's voice — specific, warm, authoritative. Real places, real prices, real advice.",
-      "imagePrompt": "Detailed photorealistic photography prompt specific to this chapter's exact content and subject"
+      "headline": "string",
+      "caption": "string",
+      "explanation": "string",
+      "imagePrompt": "string"
     }
   ]
 }`;
@@ -431,9 +318,22 @@ Respond with a JSON object ONLY (no markdown, no code block):
   try {
     const response = await openai.chat.completions.create({
       model: ARTICLE_MODEL,
-      max_completion_tokens: 8192,
+      max_completion_tokens: ARTICLE_MAX_COMPLETION_TOKENS,
       messages: [{ role: "user", content: prompt }],
+    }, {
+      timeout: ARTICLE_TIMEOUT_MS,
     });
+
+    log?.info?.(
+      {
+        url,
+        model: ARTICLE_MODEL,
+        promptTokens: response.usage?.prompt_tokens,
+        completionTokens: response.usage?.completion_tokens,
+        totalTokens: response.usage?.total_tokens,
+      },
+      "AI generation usage"
+    );
 
     const content = response.choices[0]?.message?.content ?? "{}";
     const parsed = JSON.parse(content);
@@ -482,7 +382,7 @@ async function generateImage(prompt: string): Promise<string | null> {
     const response = await openai.images.generate({
       model: "gpt-image-1",
       prompt: `High quality, photorealistic travel photography. No text, no logos, no watermarks. ${prompt}`,
-      size: "1024x1024",
+      size: IMAGE_GENERATION_SIZE,
     });
     const b64 = response.data?.[0]?.b64_json;
     if (!b64) return null;
@@ -507,9 +407,15 @@ async function generateAndSaveImages(
   snippets: Array<{ id: number; imagePrompt: string | null }>,
   log: { info: (...a: any[]) => void; error: (...a: any[]) => void }
 ) {
+  const targetSnippets = snippets.slice(0, IMAGE_GENERATION_LIMIT);
+  if (targetSnippets.length === 0) {
+    log.info({ total: snippets.length }, "Image generation skipped by config");
+    return;
+  }
+
   // ── Pass 1: parallel ──────────────────────────────────────────────────────
   const results = await Promise.allSettled(
-    snippets.map(async (snippet) => {
+    targetSnippets.map(async (snippet) => {
       if (!snippet.imagePrompt) return { id: snippet.id, ok: false };
       const imageUrl = await generateImage(snippet.imagePrompt);
       if (imageUrl) {
@@ -520,13 +426,13 @@ async function generateAndSaveImages(
     })
   );
 
-  const failed = snippets.filter((_, i) => {
+  const failed = targetSnippets.filter((_, i) => {
     const r = results[i];
     return r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok);
   });
 
   if (failed.length === 0) {
-    log.info({ total: snippets.length }, "Image generation complete (all parallel)");
+    log.info({ total: snippets.length, generated: targetSnippets.length }, "Image generation complete (all parallel)");
     return;
   }
 
@@ -544,7 +450,7 @@ async function generateAndSaveImages(
     }
   }
 
-  log.info({ total: snippets.length, retried }, "Image generation complete (with retries)");
+  log.info({ total: snippets.length, generated: targetSnippets.length, retried }, "Image generation complete (with retries)");
 }
 
 // GET /api/articles
@@ -617,7 +523,7 @@ router.post("/", async (req, res) => {
         publishedTime: metaPage?.publishedTime || "",
         author: metaPage?.author || "",
         jsonLd: metaPage?.jsonLd || "",
-        bodyText: text.trim().slice(0, 12000),
+        bodyText: text.trim().slice(0, ARTICLE_BODY_MAX_CHARS),
       };
       req.log.info({ url, textLen: text.trim().length, hasMeta: !!metaPage?.ogTitle }, "Using pasted text with URL metadata");
     } else {
