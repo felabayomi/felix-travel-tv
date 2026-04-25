@@ -10,4 +10,6 @@ services:
       - key: TRAVEL_TV_OPEN_AI_KEY
         sync: false
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: felix-travel-tv-db
+          property: connectionString
