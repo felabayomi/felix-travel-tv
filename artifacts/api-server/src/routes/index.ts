@@ -158,15 +158,26 @@ router.get("/snippets/:id/image", async (req, res) => {
     }
     const dataUrl = rows[0].imageUrl;
     const base64Match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (!base64Match) {
-      res.status(404).end();
+    if (base64Match) {
+      const mimeType = base64Match[1];
+      const buffer = Buffer.from(base64Match[2], "base64");
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+      res.send(buffer);
       return;
     }
-    const mimeType = base64Match[1];
-    const buffer = Buffer.from(base64Match[2], "base64");
-    res.setHeader("Content-Type", mimeType);
-    res.setHeader("Cache-Control", "public, max-age=86400, immutable");
-    res.send(buffer);
+
+    const utf8Match = dataUrl.match(/^data:([^;,]+)(?:;charset=[^,]+)?,(.*)$/);
+    if (utf8Match) {
+      const mimeType = utf8Match[1];
+      const decoded = decodeURIComponent(utf8Match[2]);
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+      res.send(decoded);
+      return;
+    }
+
+    res.status(404).end();
   } catch {
     res.status(500).end();
   }

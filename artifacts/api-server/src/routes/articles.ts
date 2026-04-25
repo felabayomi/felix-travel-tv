@@ -221,6 +221,18 @@ const IMAGE_GENERATION_SIZE =
       ? "1024x1024"
       : "512x512";
 
+function createPlaceholderImageDataUrl(text: string): string {
+  const title = text.replace(/\s+/g, " ").trim().slice(0, 72) || "Felix Travel TV";
+  const escaped = title
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0f172a"/><stop offset="100%" stop-color="#1e293b"/></linearGradient></defs><rect width="1200" height="800" fill="url(#g)"/><rect x="64" y="64" width="1072" height="672" rx="28" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.22)"/><text x="96" y="160" fill="#f8fafc" font-family="Arial, sans-serif" font-size="48" font-weight="700">Felix Travel TV</text><text x="96" y="230" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="34">${escaped}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 function sentenceChunks(text: string, maxChunks = 6): string[] {
   const cleaned = text.replace(/\s+/g, " ").trim();
   if (!cleaned) return [];
@@ -399,18 +411,6 @@ JSON SCHEMA:
 }
 
 async function generateImage(prompt: string): Promise<string | null> {
-  const makePlaceholder = (text: string): string => {
-    const title = text.replace(/\s+/g, " ").trim().slice(0, 72) || "Felix Travel TV";
-    const escaped = title
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0f172a"/><stop offset="100%" stop-color="#1e293b"/></linearGradient></defs><rect width="1200" height="800" fill="url(#g)"/><rect x="64" y="64" width="1072" height="672" rx="28" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.22)"/><text x="96" y="160" fill="#f8fafc" font-family="Arial, sans-serif" font-size="48" font-weight="700">Felix Travel TV</text><text x="96" y="230" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="34">${escaped}</text></svg>`;
-    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-  };
-
   try {
     const response = await openai.images.generate({
       model: "gpt-image-1",
@@ -418,10 +418,10 @@ async function generateImage(prompt: string): Promise<string | null> {
       size: IMAGE_GENERATION_SIZE,
     });
     const b64 = response.data?.[0]?.b64_json;
-    if (!b64) return makePlaceholder(prompt);
+    if (!b64) return createPlaceholderImageDataUrl(prompt);
     return `data:image/png;base64,${b64}`;
   } catch (err: any) {
-    return makePlaceholder(prompt);
+    return createPlaceholderImageDataUrl(prompt);
   }
 }
 
@@ -620,7 +620,7 @@ router.post("/", async (req, res) => {
       headline: s.headline,
       caption: s.caption,
       explanation: s.explanation,
-      imageUrl: null as string | null,
+      imageUrl: createPlaceholderImageDataUrl(s.headline || s.caption || s.imagePrompt || content.title),
       imagePrompt: s.imagePrompt,
     }));
 
@@ -707,7 +707,7 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
       headline: s.headline,
       caption: s.caption,
       explanation: s.explanation,
-      imageUrl: null as string | null,
+      imageUrl: createPlaceholderImageDataUrl(s.headline || s.caption || s.imagePrompt || content.title),
       imagePrompt: s.imagePrompt,
     }));
 
