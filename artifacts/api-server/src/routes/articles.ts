@@ -5,6 +5,25 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 
 const router: IRouter = Router();
 
+const URL_FETCH_TIMEOUT_MS = Number(process.env.TRAVEL_TV_URL_FETCH_TIMEOUT_MS || 5000);
+const URL_FETCH_TOTAL_BUDGET_MS = Number(process.env.TRAVEL_TV_URL_FETCH_TOTAL_BUDGET_MS || 10000);
+const PASTED_TEXT_META_TIMEOUT_MS = Number(process.env.TRAVEL_TV_PASTED_TEXT_META_TIMEOUT_MS || 2500);
+
+function emptyPageData(): PageData {
+  return {
+    html: "",
+    metaTitle: "",
+    metaDescription: "",
+    ogTitle: "",
+    ogDescription: "",
+    ogImage: "",
+    publishedTime: "",
+    author: "",
+    jsonLd: "",
+    bodyText: "",
+  };
+}
+
 function snippetImageUrl(id: number): string {
   return `/api/snippets/${id}/image`;
 }
@@ -51,7 +70,7 @@ interface PageData {
 }
 
 async function fetchPageData(url: string): Promise<PageData> {
-  const empty: PageData = { html: "", metaTitle: "", metaDescription: "", ogTitle: "", ogDescription: "", ogImage: "", publishedTime: "", author: "", jsonLd: "", bodyText: "" };
+  const empty = emptyPageData();
 
   const userAgents = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -61,7 +80,9 @@ async function fetchPageData(url: string): Promise<PageData> {
   ];
 
   let html = "";
+  const startedAt = Date.now();
   for (const ua of userAgents) {
+    if (Date.now() - startedAt >= URL_FETCH_TOTAL_BUDGET_MS) break;
     try {
       const res = await fetch(url, {
         headers: {
@@ -73,7 +94,7 @@ async function fetchPageData(url: string): Promise<PageData> {
           "Pragma": "no-cache",
         },
         redirect: "follow",
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(URL_FETCH_TIMEOUT_MS),
       });
       if (res.ok) {
         html = await res.text();
@@ -189,7 +210,7 @@ const ARTICLE_MODEL = COST_SAVER_MODE
   ? (process.env.TRAVEL_TV_COST_SAVER_MODEL || "gpt-4.1-mini")
   : (process.env.TRAVEL_TV_ARTICLE_MODEL || "gpt-4.1-mini");
 const ARTICLE_MAX_COMPLETION_TOKENS = envInt("TRAVEL_TV_ARTICLE_MAX_TOKENS", 1600, 600, 3000);
-const ARTICLE_TIMEOUT_MS = envInt("TRAVEL_TV_ARTICLE_TIMEOUT_MS", 45000, 10000, 120000);
+const ARTICLE_TIMEOUT_MS = envInt("TRAVEL_TV_ARTICLE_TIMEOUT_MS", 12000, 5000, 120000);
 const ARTICLE_BODY_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_BODY_MAX_CHARS", 4500, 1000, 12000);
 const ARTICLE_JSONLD_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_JSONLD_MAX_CHARS", 1200, 200, 3000);
 const IMAGE_GENERATION_LIMIT = envInt("TRAVEL_TV_IMAGE_GENERATION_LIMIT", 1, 0, 9);
@@ -509,7 +530,12 @@ router.post("/", async (req, res) => {
       // enrichment, but always use the pasted text as the body.
       let metaPage: PageData | null = null;
       try {
-        metaPage = await fetchPageData(url);
+        metaPage = await Promise.race([
+          fetchPageData(url),
+          new Promise<PageData>((resolve) => {
+            setTimeout(() => resolve(emptyPageData()), PASTED_TEXT_META_TIMEOUT_MS);
+          }),
+        ]);
       } catch {
         // Metadata fetch failure is non-fatal when text is provided
       }
