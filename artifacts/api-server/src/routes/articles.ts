@@ -596,7 +596,7 @@ router.post("/", async (req, res) => {
     }
 
     let page: PageData;
-    const hasUserText = text && typeof text === "string" && text.trim().length > 100;
+    const hasUserText = text && typeof text === "string" && text.trim().length > 20;
 
     if (hasUserText) {
       // User pasted article text — fetch URL metadata in parallel for og/date

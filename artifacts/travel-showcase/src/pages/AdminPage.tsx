@@ -1368,6 +1368,17 @@ function AddArticleDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: 
   const [showText, setShowText] = useState(true);
   const [error, setError] = useState('');
 
+  const resolveErrorMessage = (err: any): string => {
+    return (
+      err?.data?.detail ||
+      err?.data?.error ||
+      err?.response?.data?.detail ||
+      err?.response?.data?.error ||
+      err?.message ||
+      'Failed to process article.'
+    );
+  };
+
   const createMutation = useCreateArticle({
     mutation: {
       onSuccess: (data) => {
@@ -1377,11 +1388,14 @@ function AddArticleDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: 
         onAdded(data.id);
         onClose();
       },
-      onError: (err: any) => setError(err?.data?.error || 'Failed to process article.'),
+      onError: (err: any) => {
+        setShowText(true);
+        setError(resolveErrorMessage(err));
+      },
     },
   });
 
-  const hasText = text.trim().length > 100;
+  const hasText = text.trim().length > 20;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1452,12 +1466,19 @@ function AddArticleDrawer({ onClose, onAdded }: { onClose: () => void; onAdded: 
               {showText ? <ChevronUp className="w-3.5 h-3.5 ml-auto opacity-50" /> : <ChevronDown className="w-3.5 h-3.5 ml-auto opacity-50" />}
             </button>
             {showText && (
-              <textarea
-                placeholder="Select all text in the article (Ctrl+A), copy and paste here..."
-                value={text} onChange={e => setText(e.target.value)} disabled={createMutation.isPending}
-                rows={16}
-                className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 resize-none"
-              />
+              <>
+                <textarea
+                  placeholder="Select all text in the article (Ctrl+A), copy and paste here..."
+                  value={text} onChange={e => setText(e.target.value)} disabled={createMutation.isPending}
+                  rows={16}
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 resize-none"
+                />
+                <p className="text-[11px] text-muted-foreground/60">
+                  {hasText
+                    ? 'Pasted text detected - this will be sent with the URL for better chapter generation.'
+                    : 'Paste at least a short excerpt so generation does not rely only on the URL.'}
+                </p>
+              </>
             )}
           </div>
           {error && <p className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">{error}</p>}
