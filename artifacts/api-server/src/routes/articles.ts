@@ -213,8 +213,8 @@ const ARTICLE_MAX_COMPLETION_TOKENS = envInt("TRAVEL_TV_ARTICLE_MAX_TOKENS", 160
 const ARTICLE_TIMEOUT_MS = envInt("TRAVEL_TV_ARTICLE_TIMEOUT_MS", 12000, 5000, 120000);
 const ARTICLE_BODY_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_BODY_MAX_CHARS", 4500, 1000, 12000);
 const ARTICLE_JSONLD_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_JSONLD_MAX_CHARS", 1200, 200, 3000);
-const IMAGE_GENERATION_LIMIT = envInt("TRAVEL_TV_IMAGE_GENERATION_LIMIT", 1, 0, 9);
-const HERO_IMAGE_REUSE_COUNT = envInt("TRAVEL_TV_HERO_IMAGE_REUSE_COUNT", 7, 1, 9);
+const IMAGE_GENERATION_LIMIT = envInt("TRAVEL_TV_IMAGE_GENERATION_LIMIT", 2, 0, 9);
+const IMAGE_GROUP_COUNT = envInt("TRAVEL_TV_IMAGE_GROUP_COUNT", 2, 1, 4);
 const IMAGE_GENERATION_SIZE =
   process.env.TRAVEL_TV_IMAGE_SIZE === "256x256"
     ? "256x256"
@@ -482,52 +482,64 @@ async function generateAndSaveImages(
     return;
   }
 
-  const heroSnippet = targetSnippets[0];
-  if (!heroSnippet?.imagePrompt) {
-    log.info({ total: snippets.length }, "Image generation skipped because no hero prompt was available");
+  const desiredGroupCount = Math.min(IMAGE_GROUP_COUNT, IMAGE_GENERATION_LIMIT, targetSnippets.length);
+  const groupCount = Math.max(1, desiredGroupCount);
+  const baseGroupSize = Math.ceil(snippets.length / groupCount);
+
+  let generatedGroups = 0;
+  for (let groupIndex = 0; groupIndex < groupCount; groupIndex++) {
+    const groupStart = groupIndex * baseGroupSize;
+    if (groupStart >= snippets.length) break;
+
+    const groupEnd = Math.min(snippets.length, groupStart + baseGroupSize);
+    const promptSource = targetSnippets[groupIndex] ?? targetSnippets[0];
+    if (!promptSource?.imagePrompt) continue;
+
+    const groupBaseImageUrl = await generateAiImage(promptSource.imagePrompt);
+    if (!groupBaseImageUrl) continue;
+
+    const groupSnippets = snippets.slice(groupStart, groupEnd);
+    await Promise.all(
+      groupSnippets.map((snippet, index) => {
+        const variantImageUrl = index === 0
+          ? groupBaseImageUrl
+          : createChapterVariantImageDataUrl(
+              groupBaseImageUrl,
+              snippet.imagePrompt || `Chapter ${groupStart + index + 1}`,
+              `${groupIndex}:${snippet.id}:${snippet.imagePrompt || "chapter"}`
+            );
+        return db.update(snippetsTable).set({ imageUrl: variantImageUrl }).where(eq(snippetsTable.id, snippet.id));
+      })
+    );
+
+    generatedGroups++;
+  }
+
+  if (generatedGroups === 0) {
+    log.info({ total: snippets.length }, "Grouped AI image generation failed; placeholders remain in place");
     return;
   }
 
-  const heroImageUrl = await generateAiImage(heroSnippet.imagePrompt);
-  if (!heroImageUrl) {
-    log.info({ total: snippets.length }, "Hero AI image generation failed; placeholders remain in place");
-    return;
-  }
+  if (IMAGE_GENERATION_LIMIT > groupCount) {
+    let generatedUnique = generatedGroups;
+    for (const snippet of targetSnippets.slice(groupCount)) {
+      if (!snippet.imagePrompt) continue;
+      const imageUrl = await generateAiImage(snippet.imagePrompt);
+      if (!imageUrl) continue;
+      await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
+      generatedUnique++;
+    }
 
-  const reuseTargets = snippets.slice(0, Math.min(HERO_IMAGE_REUSE_COUNT, snippets.length));
-  await Promise.all(
-    reuseTargets.map((snippet, index) => {
-      const variantImageUrl = index === 0
-        ? heroImageUrl
-        : createChapterVariantImageDataUrl(
-            heroImageUrl,
-            snippet.imagePrompt || `Chapter ${index + 1}`,
-            `${snippet.id}:${snippet.imagePrompt || "chapter"}`
-          );
-      return db.update(snippetsTable).set({ imageUrl: variantImageUrl }).where(eq(snippetsTable.id, snippet.id));
-    })
-  );
-
-  if (IMAGE_GENERATION_LIMIT <= 1) {
     log.info(
-      { total: snippets.length, heroGenerated: true, reusedAcross: reuseTargets.length },
-      "Hero image generated and reused across article"
+      { total: snippets.length, groupCount: generatedGroups, uniqueGenerated: generatedUnique },
+      "Grouped hero images generated and applied across article"
     );
     return;
   }
 
-  let generatedUnique = 1;
-  for (const snippet of targetSnippets.slice(1)) {
-    if (!snippet.imagePrompt) continue;
-    const imageUrl = await generateAiImage(snippet.imagePrompt);
-    if (!imageUrl) continue;
-    await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
-    generatedUnique++;
-  }
-
   log.info(
-    { total: snippets.length, heroGenerated: true, reusedAcross: reuseTargets.length, uniqueGenerated: generatedUnique },
-    "Hero image generated and applied across article"
+    { total: snippets.length, groupCount: generatedGroups, groupSize: baseGroupSize },
+    "Grouped hero images generated and reused across article"
   );
 }
 
