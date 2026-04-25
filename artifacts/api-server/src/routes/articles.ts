@@ -596,8 +596,9 @@ router.post("/", async (req, res) => {
     }
 
     let page: PageData;
+    const hasUserText = text && typeof text === "string" && text.trim().length > 100;
 
-    if (text && typeof text === "string" && text.trim().length > 100) {
+    if (hasUserText) {
       // User pasted article text — fetch URL metadata in parallel for og/date
       // enrichment, but always use the pasted text as the body.
       let metaPage: PageData | null = null;
@@ -623,6 +624,21 @@ router.post("/", async (req, res) => {
       // No text provided — try to fetch the URL
       page = await fetchPageData(url);
       req.log.info({ url, bodyLen: page.bodyText.length, hasOg: !!page.ogTitle }, "Fetched page data");
+
+      // Content quality check: if we couldn't extract enough text from the URL,
+      // the site might be SPA-rendered or behind a paywall. Reject and ask user to paste.
+      const extractedText = page.bodyText || page.ogDescription || page.metaDescription || "";
+      if (extractedText.trim().length < 200) {
+        req.log.warn(
+          { url, extractedLen: extractedText.length, hasBodyText: !!page.bodyText, hasOg: !!page.ogDescription },
+          "URL did not contain enough extractable content; requesting user to paste article text"
+        );
+        res.status(400).json({
+          error: "URL content could not be extracted",
+          detail: `This article page (${new URL(url).hostname}) appears to be a single-page app or requires client-side rendering. Please open the article in your browser, copy the full text (Ctrl+A, Ctrl+C), and paste it in the text field below, then resubmit.`,
+        });
+        return;
+      }
     }
 
     const generated = await generateArticleContent(url, page, req.log);

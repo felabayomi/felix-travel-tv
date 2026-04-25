@@ -121,7 +121,12 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
           closeTimerRef.current = null;
         }
         setAddStatus(null);
-        setAddError(err?.data?.detail || err?.data?.error || 'Failed to process — please check the URL and try again.');
+        const errorMsg = err?.data?.detail || err?.data?.error || 'Failed to process — please check the URL and try again.';
+        setAddError(errorMsg);
+        // If the error suggests pasting text, auto-expand the textarea
+        if (errorMsg.toLowerCase().includes('paste') || errorMsg.toLowerCase().includes('text')) {
+          setShowTextArea(true);
+        }
       }
     }
   });
