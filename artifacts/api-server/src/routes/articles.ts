@@ -214,6 +214,7 @@ const ARTICLE_TIMEOUT_MS = envInt("TRAVEL_TV_ARTICLE_TIMEOUT_MS", 12000, 5000, 1
 const ARTICLE_BODY_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_BODY_MAX_CHARS", 4500, 1000, 12000);
 const ARTICLE_JSONLD_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_JSONLD_MAX_CHARS", 1200, 200, 3000);
 const IMAGE_GENERATION_LIMIT = envInt("TRAVEL_TV_IMAGE_GENERATION_LIMIT", 1, 0, 9);
+const HERO_IMAGE_REUSE_COUNT = envInt("TRAVEL_TV_HERO_IMAGE_REUSE_COUNT", 7, 1, 9);
 const IMAGE_GENERATION_SIZE =
   process.env.TRAVEL_TV_IMAGE_SIZE === "256x256"
     ? "256x256"
@@ -410,7 +411,7 @@ JSON SCHEMA:
   }
 }
 
-async function generateImage(prompt: string): Promise<string | null> {
+async function generateAiImage(prompt: string): Promise<string | null> {
   try {
     const response = await openai.images.generate({
       model: "gpt-image-1",
@@ -418,10 +419,10 @@ async function generateImage(prompt: string): Promise<string | null> {
       size: IMAGE_GENERATION_SIZE,
     });
     const b64 = response.data?.[0]?.b64_json;
-    if (!b64) return createPlaceholderImageDataUrl(prompt);
+    if (!b64) return null;
     return `data:image/png;base64,${b64}`;
-  } catch (err: any) {
-    return createPlaceholderImageDataUrl(prompt);
+  } catch {
+    return null;
   }
 }
 
@@ -446,44 +447,46 @@ async function generateAndSaveImages(
     return;
   }
 
-  // ── Pass 1: parallel ──────────────────────────────────────────────────────
-  const results = await Promise.allSettled(
-    targetSnippets.map(async (snippet) => {
-      if (!snippet.imagePrompt) return { id: snippet.id, ok: false };
-      const imageUrl = await generateImage(snippet.imagePrompt);
-      if (imageUrl) {
-        await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
-        return { id: snippet.id, ok: true };
-      }
-      return { id: snippet.id, ok: false };
-    })
-  );
-
-  const failed = targetSnippets.filter((_, i) => {
-    const r = results[i];
-    return r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok);
-  });
-
-  if (failed.length === 0) {
-    log.info({ total: snippets.length, generated: targetSnippets.length }, "Image generation complete (all parallel)");
+  const heroSnippet = targetSnippets[0];
+  if (!heroSnippet?.imagePrompt) {
+    log.info({ total: snippets.length }, "Image generation skipped because no hero prompt was available");
     return;
   }
 
-  log.info({ failed: failed.length }, "Retrying failed images sequentially");
-
-  // ── Pass 2: sequential retry for failures ─────────────────────────────────
-  let retried = 0;
-  for (const snippet of failed) {
-    if (!snippet.imagePrompt) continue;
-    await new Promise(r => setTimeout(r, 1200));
-    const imageUrl = await generateImage(snippet.imagePrompt);
-    if (imageUrl) {
-      await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
-      retried++;
-    }
+  const heroImageUrl = await generateAiImage(heroSnippet.imagePrompt);
+  if (!heroImageUrl) {
+    log.info({ total: snippets.length }, "Hero AI image generation failed; placeholders remain in place");
+    return;
   }
 
-  log.info({ total: snippets.length, generated: targetSnippets.length, retried }, "Image generation complete (with retries)");
+  const reuseTargets = snippets.slice(0, Math.min(HERO_IMAGE_REUSE_COUNT, snippets.length));
+  await Promise.all(
+    reuseTargets.map((snippet) =>
+      db.update(snippetsTable).set({ imageUrl: heroImageUrl }).where(eq(snippetsTable.id, snippet.id))
+    )
+  );
+
+  if (IMAGE_GENERATION_LIMIT <= 1) {
+    log.info(
+      { total: snippets.length, heroGenerated: true, reusedAcross: reuseTargets.length },
+      "Hero image generated and reused across article"
+    );
+    return;
+  }
+
+  let generatedUnique = 1;
+  for (const snippet of targetSnippets.slice(1)) {
+    if (!snippet.imagePrompt) continue;
+    const imageUrl = await generateAiImage(snippet.imagePrompt);
+    if (!imageUrl) continue;
+    await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
+    generatedUnique++;
+  }
+
+  log.info(
+    { total: snippets.length, heroGenerated: true, reusedAcross: reuseTargets.length, uniqueGenerated: generatedUnique },
+    "Hero image generated and applied across article"
+  );
 }
 
 // GET /api/articles
