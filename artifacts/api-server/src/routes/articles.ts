@@ -234,6 +234,41 @@ function createPlaceholderImageDataUrl(text: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+function stringSeed(input: string): number {
+  let value = 0;
+  for (let index = 0; index < input.length; index++) {
+    value = (value * 31 + input.charCodeAt(index)) >>> 0;
+  }
+  return value;
+}
+
+function shortChapterLabel(text: string): string {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (!cleaned) return "Felix Travel TV";
+  return cleaned.length <= 56 ? cleaned : `${cleaned.slice(0, 53).trim()}...`;
+}
+
+function escapeXml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function createChapterVariantImageDataUrl(baseImageUrl: string, chapterText: string, seedSource: string): string {
+  const seed = stringSeed(seedSource);
+  const hueA = seed % 360;
+  const hueB = (seed * 7) % 360;
+  const offsetX = -120 - (seed % 180);
+  const offsetY = -60 - (seed % 120);
+  const scale = 1.12 + ((seed % 9) * 0.02);
+  const label = escapeXml(shortChapterLabel(chapterText));
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><clipPath id="card"><rect x="56" y="56" width="1088" height="688" rx="30" ry="30"/></clipPath><linearGradient id="wash" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="hsla(${hueA},70%,50%,0.22)"/><stop offset="100%" stop-color="hsla(${hueB},70%,50%,0.14)"/></linearGradient><linearGradient id="fade" x1="0" y1="1" x2="0" y2="0"><stop offset="0%" stop-color="rgba(2,6,23,0.88)"/><stop offset="55%" stop-color="rgba(2,6,23,0.28)"/><stop offset="100%" stop-color="rgba(2,6,23,0.12)"/></linearGradient></defs><rect width="1200" height="800" fill="#020617"/><g clip-path="url(#card)"><image href="${baseImageUrl}" x="${offsetX}" y="${offsetY}" width="${Math.round(1200 * scale)}" height="${Math.round(800 * scale)}" preserveAspectRatio="xMidYMid slice"/><rect x="56" y="56" width="1088" height="688" fill="url(#wash)"/><rect x="56" y="56" width="1088" height="688" fill="url(#fade)"/></g><rect x="56" y="56" width="1088" height="688" rx="30" ry="30" fill="none" stroke="rgba(255,255,255,0.18)"/><text x="96" y="118" fill="rgba(255,255,255,0.72)" font-family="Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="2">FELIX TRAVEL TV</text><foreignObject x="92" y="580" width="1016" height="120"><div xmlns="http://www.w3.org/1999/xhtml" style="color:#f8fafc;font-family:Arial,sans-serif;font-size:42px;font-weight:700;line-height:1.12;">${label}</div></foreignObject></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 function sentenceChunks(text: string, maxChunks = 6): string[] {
   const cleaned = text.replace(/\s+/g, " ").trim();
   if (!cleaned) return [];
@@ -461,9 +496,16 @@ async function generateAndSaveImages(
 
   const reuseTargets = snippets.slice(0, Math.min(HERO_IMAGE_REUSE_COUNT, snippets.length));
   await Promise.all(
-    reuseTargets.map((snippet) =>
-      db.update(snippetsTable).set({ imageUrl: heroImageUrl }).where(eq(snippetsTable.id, snippet.id))
-    )
+    reuseTargets.map((snippet, index) => {
+      const variantImageUrl = index === 0
+        ? heroImageUrl
+        : createChapterVariantImageDataUrl(
+            heroImageUrl,
+            snippet.imagePrompt || `Chapter ${index + 1}`,
+            `${snippet.id}:${snippet.imagePrompt || "chapter"}`
+          );
+      return db.update(snippetsTable).set({ imageUrl: variantImageUrl }).where(eq(snippetsTable.id, snippet.id));
+    })
   );
 
   if (IMAGE_GENERATION_LIMIT <= 1) {
