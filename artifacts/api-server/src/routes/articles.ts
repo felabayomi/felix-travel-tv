@@ -352,7 +352,7 @@ function buildStockImageUrl(seedSource: string, promptText: string): string {
   const keywords = extractImageKeywords(promptText);
   const terms = keywords.length > 0 ? keywords.join(",") : "nature,landscape,travel";
   const seed = stringSeed(`${seedSource}:${terms}`);
-  return `https://source.unsplash.com/1600x900/?${encodeURIComponent(terms)}&sig=${seed}`;
+  return `https://loremflickr.com/1600/900/${encodeURIComponent(terms)}?lock=${seed}`;
 }
 
 function initialClipImageUrl(
