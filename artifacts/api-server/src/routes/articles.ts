@@ -294,7 +294,7 @@ const IMAGE_MODELS = (process.env.TRAVEL_TV_IMAGE_MODELS || "gpt-image-1,dall-e-
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
-const IMAGE_PROVIDER = (process.env.TRAVEL_TV_IMAGE_PROVIDER || "stock").toLowerCase();
+const IMAGE_PROVIDER = (process.env.TRAVEL_TV_IMAGE_PROVIDER || "ai").toLowerCase();
 const IMAGE_GENERATION_SIZE =
   process.env.TRAVEL_TV_IMAGE_SIZE === "256x256"
     ? "256x256"
@@ -1042,14 +1042,22 @@ router.post("/:id/regenerate-images", async (req, res) => {
       .where(eq(snippetsTable.articleId, id))
       .orderBy(asc(snippetsTable.snippetOrder));
 
+    const force =
+      req.body?.force === true
+      || req.query.force === "1"
+      || req.query.force === "true";
+
     const missing = snippets.filter(s => (!s.imageUrl || isPlaceholderStoredImage(s.imageUrl)) && s.imagePrompt);
+    const target = force
+      ? snippets.filter(s => !!s.imagePrompt)
+      : missing;
 
     // Respond immediately so the request never times out.
-    res.json({ total: snippets.length, missing: missing.length, started: true });
+    res.json({ total: snippets.length, missing: missing.length, target: target.length, force, started: true });
 
     // Generate in the background using the same parallel-first strategy.
-    if (missing.length > 0) {
-      generateAndSaveImages(missing, req.log).catch(err =>
+    if (target.length > 0) {
+      generateAndSaveImages(target, req.log).catch(err =>
         req.log.error({ err, articleId: id }, "Regenerate images failed")
       );
     }
