@@ -177,6 +177,34 @@ interface GeneratedArticleResult {
   generation: GenerationMeta;
 }
 
+function isLikelyErrorDocument(page: PageData): { isError: boolean; reason: string } {
+  const combined = [
+    page.metaTitle,
+    page.ogTitle,
+    page.metaDescription,
+    page.ogDescription,
+    page.bodyText.slice(0, 1600),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  const errorPatterns: Array<[RegExp, string]> = [
+    [/\berror\s*404\b/, "404 page"],
+    [/\bpage not found\b/, "page not found"],
+    [/\bcan't find the page\b|\bcannot find the page\b/, "missing page"],
+    [/\brequested page could not be found\b/, "missing page"],
+    [/\bthis page is no longer here\b/, "missing page"],
+  ];
+
+  for (const [pattern, reason] of errorPatterns) {
+    if (pattern.test(combined)) {
+      return { isError: true, reason };
+    }
+  }
+
+  return { isError: false, reason: "" };
+}
+
 function resolvePublishedDate(input: string | undefined): Date {
   if (!input) return new Date();
   const parsed = new Date(input);
@@ -611,6 +639,16 @@ router.post("/", async (req, res) => {
       // No text provided — try to fetch the URL
       page = await fetchPageData(url);
       req.log.info({ url, bodyLen: page.bodyText.length, hasOg: !!page.ogTitle }, "Fetched page data");
+
+      const pageError = isLikelyErrorDocument(page);
+      if (pageError.isError) {
+        req.log.warn({ url, reason: pageError.reason }, "URL resolved to an error document");
+        res.status(400).json({
+          error: "Invalid or unavailable article URL",
+          detail: `This URL appears to return an error page (${pageError.reason}) instead of a full article. Open the article in your browser and copy the final working URL, or paste the article text directly.`,
+        });
+        return;
+      }
 
       const extractedText = page.bodyText || page.ogDescription || page.metaDescription || "";
       if (extractedText.trim().length < 200) {
