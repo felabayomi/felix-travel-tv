@@ -9,6 +9,8 @@ const router: IRouter = Router();
 const URL_FETCH_TIMEOUT_MS = Number(process.env.TRAVEL_TV_URL_FETCH_TIMEOUT_MS || 5000);
 const URL_FETCH_TOTAL_BUDGET_MS = Number(process.env.TRAVEL_TV_URL_FETCH_TOTAL_BUDGET_MS || 10000);
 const PASTED_TEXT_META_TIMEOUT_MS = Number(process.env.TRAVEL_TV_PASTED_TEXT_META_TIMEOUT_MS || 2500);
+const PAGE_FETCH_HARD_TIMEOUT_MS = Number(process.env.TRAVEL_TV_PAGE_FETCH_HARD_TIMEOUT_MS || 8000);
+const CHAPTER_GENERATION_HARD_TIMEOUT_MS = Number(process.env.TRAVEL_TV_CHAPTER_GENERATION_HARD_TIMEOUT_MS || 14000);
 
 function emptyPageData(): PageData {
   return {
@@ -151,6 +153,15 @@ async function fetchPageData(url: string): Promise<PageData> {
     jsonLd,
     bodyText: extracted.bodyText.slice(0, ARTICLE_BODY_MAX_CHARS),
   };
+}
+
+async function fetchPageDataWithHardTimeout(url: string): Promise<PageData> {
+  return await Promise.race([
+    fetchPageData(url),
+    new Promise<PageData>((resolve) => {
+      setTimeout(() => resolve(emptyPageData()), PAGE_FETCH_HARD_TIMEOUT_MS);
+    }),
+  ]);
 }
 
 interface SnippetData {
@@ -538,6 +549,37 @@ JSON SCHEMA:
   }
 }
 
+async function generateArticleContentWithHardTimeout(
+  url: string,
+  page: PageData,
+  log?: { warn: (...args: any[]) => void; info?: (...args: any[]) => void },
+): Promise<GeneratedArticleResult> {
+  const timeoutFallback: GeneratedArticleResult = {
+    content: buildFallbackArticleContent(url, page),
+    generation: {
+      mode: "fallback",
+      message: "Fallback content was used because generation timed out.",
+      reason: `generation hard-timeout after ${CHAPTER_GENERATION_HARD_TIMEOUT_MS}ms`,
+    },
+  };
+
+  const result = await Promise.race([
+    generateArticleContent(url, page, log),
+    new Promise<GeneratedArticleResult>((resolve) => {
+      setTimeout(() => resolve(timeoutFallback), CHAPTER_GENERATION_HARD_TIMEOUT_MS);
+    }),
+  ]);
+
+  if (result.generation.mode === "fallback" && result.generation.reason?.includes("hard-timeout")) {
+    log?.warn?.(
+      { url, timeoutMs: CHAPTER_GENERATION_HARD_TIMEOUT_MS },
+      "Article generation hit hard-timeout; returned fallback to avoid request timeout"
+    );
+  }
+
+  return result;
+}
+
 async function generateAiImage(prompt: string): Promise<string | null> {
   try {
     const response = await openai.images.generate({
@@ -719,7 +761,7 @@ router.post("/", async (req, res) => {
       req.log.info({ url, textLen: text.trim().length, hasMeta: !!metaPage?.ogTitle }, "Using pasted text with URL metadata");
     } else {
       // No text provided — try to fetch the URL
-      page = await fetchPageData(url);
+      page = await fetchPageDataWithHardTimeout(url);
       req.log.info({ url, bodyLen: page.bodyText.length, hasOg: !!page.ogTitle }, "Fetched page data");
 
       const pageError = isLikelyErrorDocument(page);
@@ -741,7 +783,7 @@ router.post("/", async (req, res) => {
       }
     }
 
-    const generated = await generateArticleContent(url, page, req.log);
+    const generated = await generateArticleContentWithHardTimeout(url, page, req.log);
     const { content, generation } = generated;
     if (sourceOverride && typeof sourceOverride === "string") {
       content.source = sourceOverride;
@@ -846,11 +888,12 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
       };
       req.log.info({ articleId: id, bodyLen: article.bodyText.length }, "Regenerating chapters from stored body text");
     } else {
-      page = await fetchPageData(article.url);
+      page = await fetchPageDataWithHardTimeout(article.url);
       req.log.info({ articleId: id, url: article.url, bodyLen: page.bodyText.length }, "Regenerating chapters by re-fetching URL");
     }
 
-    const content = await generateArticleContent(article.url, page);
+    const generated = await generateArticleContentWithHardTimeout(article.url, page, req.log);
+    const content = generated.content;
 
     // Keep the user-supplied source if they set one, otherwise use the AI source
     const resolvedSource = article.source ?? content.source;
