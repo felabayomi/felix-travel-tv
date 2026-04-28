@@ -29,6 +29,10 @@ function snippetImageUrl(id: number): string {
   return `/api/snippets/${id}/image`;
 }
 
+function snippetImageUrlWithVersion(id: number, version: string): string {
+  return `${snippetImageUrl(id)}?v=${encodeURIComponent(version)}`;
+}
+
 function formatArticle(a: typeof articlesTable.$inferSelect, snippetCount: number) {
   return {
     id: a.id,
@@ -304,6 +308,11 @@ function resolveFallbackSourceImage(candidate: string | null | undefined, pageUr
   } catch {
     return null;
   }
+}
+
+function stockFallbackImageUrl(seedSource: string): string {
+  const seed = stringSeed(seedSource || "travel");
+  return `https://picsum.photos/seed/felix-travel-${seed}/1280/720`;
 }
 
 function stringSeed(input: string): number {
@@ -588,19 +597,18 @@ async function generateAndSaveImages(
 
   const failedAfterRetry = failed.length - retried;
   let fallbackApplied = 0;
-  if (fallbackImageUrl) {
-    for (const snippet of failed) {
-      const row = await db
-        .select({ imageUrl: snippetsTable.imageUrl })
-        .from(snippetsTable)
-        .where(eq(snippetsTable.id, snippet.id));
+  for (const snippet of failed) {
+    const row = await db
+      .select({ imageUrl: snippetsTable.imageUrl })
+      .from(snippetsTable)
+      .where(eq(snippetsTable.id, snippet.id));
 
-      if (row.length === 0) continue;
-      if (row[0].imageUrl && !isPlaceholderStoredImage(row[0].imageUrl)) continue;
+    if (row.length === 0) continue;
+    if (row[0].imageUrl && !isPlaceholderStoredImage(row[0].imageUrl)) continue;
 
-      await db.update(snippetsTable).set({ imageUrl: fallbackImageUrl }).where(eq(snippetsTable.id, snippet.id));
-      fallbackApplied++;
-    }
+    const fallbackForSnippet = fallbackImageUrl || stockFallbackImageUrl(`${snippet.id}:${snippet.imagePrompt || "travel"}`);
+    await db.update(snippetsTable).set({ imageUrl: fallbackForSnippet }).where(eq(snippetsTable.id, snippet.id));
+    fallbackApplied++;
   }
 
   log.info(
@@ -956,6 +964,7 @@ router.get("/:id/snippets", async (req, res) => {
         explanation: snippetsTable.explanation,
         hasImage: sql<boolean>`(${snippetsTable.imageUrl} IS NOT NULL)`,
         hasRealImage: sql<boolean>`(${snippetsTable.imageUrl} IS NOT NULL AND ${snippetsTable.imageUrl} NOT LIKE 'data:image/svg+xml%')`,
+        imageVersion: sql<string>`md5(coalesce(${snippetsTable.imageUrl}, ''))`,
         imagePrompt: snippetsTable.imagePrompt,
         createdAt: snippetsTable.createdAt,
       })
@@ -971,7 +980,7 @@ router.get("/:id/snippets", async (req, res) => {
       headline: s.headline,
       caption: s.caption,
       explanation: s.explanation,
-      imageUrl: s.hasImage ? snippetImageUrl(s.id) : null,
+      imageUrl: s.hasImage ? snippetImageUrlWithVersion(s.id, s.imageVersion) : null,
       imageReady: s.hasRealImage,
       imagePrompt: s.imagePrompt,
       createdAt: s.createdAt,
