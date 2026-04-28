@@ -340,12 +340,12 @@ const PRESETS: Array<{ name: string; description: string; config: Partial<Waitin
         'Subscribe for weekly travel tips, tools and destination guides',
       ],
       rotatingNames: [
-        { name: 'The Travel Blueprint',  tagline: 'Smart planning for unforgettable trips' },
+        { name: 'The Travel Blueprint', tagline: 'Smart planning for unforgettable trips' },
         { name: 'Plan Less Travel More', tagline: 'I handle the details. You enjoy the journey' },
-        { name: 'Where To Next?',        tagline: "Tell me your dream destination — I'll make it happen" },
-        { name: 'Done For You Travel',   tagline: 'I plan, price, and book everything for you' },
-        { name: 'The Traveler Hub',      tagline: 'Travel planning for every type of traveler' },
-        { name: 'Your Travel Advisor',   tagline: 'Your personal planner, booker, and travel expert' },
+        { name: 'Where To Next?', tagline: "Tell me your dream destination — I'll make it happen" },
+        { name: 'Done For You Travel', tagline: 'I plan, price, and book everything for you' },
+        { name: 'The Traveler Hub', tagline: 'Travel planning for every type of traveler' },
+        { name: 'Your Travel Advisor', tagline: 'Your personal planner, booker, and travel expert' },
       ],
     },
   },
@@ -406,7 +406,7 @@ function WaitingScreenPanel() {
     fetch('/api/sources', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : [])
       .then((list: string[]) => setSources(list))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
   const [newRotatingTagline, setNewRotatingTagline] = useState('');
   const [newTopic, setNewTopic] = useState('');
@@ -431,7 +431,7 @@ function WaitingScreenPanel() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cfg),
-    }).catch(() => {});
+    }).catch(() => { });
 
   // On mount: pull server config first; if server has data, use it.
   // Only push local data to server if server is empty (e.g. fresh restart with no DB record yet).
@@ -1205,9 +1205,8 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
           <label className="flex items-center gap-2.5 cursor-pointer select-none group">
             <div
               onClick={() => setRemember(v => !v)}
-              className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
-                remember ? 'bg-primary border-primary' : 'border-border bg-background group-hover:border-primary/50'
-              }`}
+              className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${remember ? 'bg-primary border-primary' : 'border-border bg-background group-hover:border-primary/50'
+                }`}
             >
               {remember && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
             </div>
@@ -1934,9 +1933,9 @@ function AdminDashboard() {
         const res = await fetch(`/api/articles/${articleId}/snippets`, { cache: 'no-store' });
         if (!res.ok) throw new Error(`Failed to load snippets for ${articleId}`);
 
-        const snips: Array<{ imageUrl: string | null }> = await res.json();
+        const snips: Array<{ imageUrl: string | null; imageReady?: boolean }> = await res.json();
         const total = snips.length;
-        const done = snips.filter(s => !!s.imageUrl).length;
+        const done = snips.filter(s => s.imageReady ?? !!s.imageUrl).length;
         const allDone = total > 0 && done >= total;
 
         setRegenImageProgress(prev => ({
@@ -2008,7 +2007,7 @@ function AdminDashboard() {
   const playingArticleId = serverItemType === 'interlude'
     ? null
     : (playingQueueItem?.type === 'article' ? (playingQueueItem.articleId ?? null) : null);
-  const playingVideoId   = playingQueueItem?.type === 'video'   ? (playingQueueItem.videoId   ?? null) : null;
+  const playingVideoId = playingQueueItem?.type === 'video' ? (playingQueueItem.videoId ?? null) : null;
 
   // Keep order in sync as articles load or change
   useEffect(() => {
@@ -2031,17 +2030,17 @@ function AdminDashboard() {
   const activeArticles = sortedArticles.filter(a => !a.archived);
   const filteredArticles = articleSearch.trim()
     ? activeArticles.filter(a => {
-        const q = articleSearch.trim().toLowerCase();
-        const domain = (() => { try { return new URL(a.url).hostname.replace('www.', ''); } catch { return ''; } })();
-        const dateStr = a.publishedAt ? new Date(a.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toLowerCase() : '';
-        return (
-          a.title?.toLowerCase().includes(q) ||
-          (a.source ?? '').toLowerCase().includes(q) ||
-          (a.summary ?? '').toLowerCase().includes(q) ||
-          domain.toLowerCase().includes(q) ||
-          dateStr.includes(q)
-        );
-      })
+      const q = articleSearch.trim().toLowerCase();
+      const domain = (() => { try { return new URL(a.url).hostname.replace('www.', ''); } catch { return ''; } })();
+      const dateStr = a.publishedAt ? new Date(a.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toLowerCase() : '';
+      return (
+        a.title?.toLowerCase().includes(q) ||
+        (a.source ?? '').toLowerCase().includes(q) ||
+        (a.summary ?? '').toLowerCase().includes(q) ||
+        domain.toLowerCase().includes(q) ||
+        dateStr.includes(q)
+      );
+    })
     : activeArticles;
   const archivedArticles = articles.filter(a => a.archived).sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
@@ -2071,7 +2070,7 @@ function AdminDashboard() {
         refetchInterval: (query) => {
           const data = query.state.data;
           if (!Array.isArray(data) || data.length === 0) return false;
-          const allLoaded = data.every((s: { imageUrl: string | null }) => s.imageUrl !== null);
+          const allLoaded = data.every((s: { imageUrl: string | null; imageReady?: boolean }) => (s.imageReady ?? (s.imageUrl !== null)));
           return allLoaded ? false : 4000;
         },
       }
@@ -2089,7 +2088,7 @@ function AdminDashboard() {
         refetchInterval: (query) => {
           const data = query.state.data;
           if (!Array.isArray(data) || data.length === 0) return 4000;
-          const allLoaded = data.every((s: { imageUrl: string | null }) => s.imageUrl !== null);
+          const allLoaded = data.every((s: { imageUrl: string | null; imageReady?: boolean }) => (s.imageReady ?? (s.imageUrl !== null)));
           if (allLoaded) {
             // All images ready — stop polling and refresh the article list
             setPendingImagesArticleId(null);
@@ -2284,10 +2283,10 @@ function AdminDashboard() {
     speakRef.current(snippets[currentSnippetIndex].id, () => {
       if (queueAutoplayRef.current) advanceRef.current();
     });
-  // queueAutoplay is intentionally NOT in deps — accessed via ref so toggling it
-  // never restarts the currently-playing audio or resets the "already spoken" guard.
-  // voiceRestartToken IS in deps so the effect can be force-triggered when needed.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // queueAutoplay is intentionally NOT in deps — accessed via ref so toggling it
+    // never restarts the currently-playing audio or resets the "already spoken" guard.
+    // voiceRestartToken IS in deps so the effect can be force-triggered when needed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSnippetIndex, snippets, voiceEnabled, playingArticleId, voiceRestartToken]);
 
   // ── Auto-advance timer ────────────────────────────────────────────────────────
@@ -2304,13 +2303,13 @@ function AdminDashboard() {
     const delay = voiceEnabled ? VOICE_FALLBACK_SECONDS * 1000 : AUTO_PLAY_SECONDS * 1000;
     const timer = setTimeout(() => advanceRef.current(), delay);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, serverItemType]);
 
   // ── Presence heartbeat ───────────────────────────────────────────────────────
   // Persist voice toggle so it survives page refreshes / re-deployments in production
   useEffect(() => {
-    try { localStorage.setItem('felix_voice_enabled', voiceEnabled ? 'true' : 'false'); } catch {}
+    try { localStorage.setItem('felix_voice_enabled', voiceEnabled ? 'true' : 'false'); } catch { }
   }, [voiceEnabled]);
 
   // While voice is ON and an article is playing, ping the server every 20 s so it
@@ -2318,7 +2317,7 @@ function AdminDashboard() {
   // This is the primary guard against the server cutting off voice reading.
   useEffect(() => {
     if (!voiceEnabled || !playingArticleId) return;
-    const ping = () => fetch('/api/playback/presence', { method: 'PATCH' }).catch(() => {});
+    const ping = () => fetch('/api/playback/presence', { method: 'PATCH' }).catch(() => { });
     ping(); // immediate ping when voice turns on
     const id = setInterval(ping, 20_000);
     return () => clearInterval(id);
@@ -2355,14 +2354,14 @@ function AdminDashboard() {
   const activeVideos = videos.filter(v => !v.archived);
   const filteredVideos = videoSearch.trim()
     ? activeVideos.filter(v => {
-        const q = videoSearch.trim().toLowerCase();
-        const domain = (() => { try { return new URL(v.url).hostname.replace('www.', ''); } catch { return ''; } })();
-        return (
-          v.title?.toLowerCase().includes(q) ||
-          (v.source ?? '').toLowerCase().includes(q) ||
-          domain.toLowerCase().includes(q)
-        );
-      })
+      const q = videoSearch.trim().toLowerCase();
+      const domain = (() => { try { return new URL(v.url).hostname.replace('www.', ''); } catch { return ''; } })();
+      return (
+        v.title?.toLowerCase().includes(q) ||
+        (v.source ?? '').toLowerCase().includes(q) ||
+        domain.toLowerCase().includes(q)
+      );
+    })
     : activeVideos;
 
   const publicUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
@@ -2380,7 +2379,7 @@ function AdminDashboard() {
           onClick={() => {
             const next = !onAir;
             setOnAir(next);
-            setOnAirState(next).catch(() => {});
+            setOnAirState(next).catch(() => { });
           }}
           className={cn(
             "flex items-center gap-1.5 px-2.5 md:px-4 py-2 rounded-xl border text-xs md:text-sm font-bold tracking-widest uppercase transition-all shrink-0",
@@ -2510,7 +2509,7 @@ function AdminDashboard() {
                       onClick={async () => {
                         const items = activeArticles.filter(a => selectedArticleIds.has(a.id));
                         for (const a of items) {
-                          await archiveArticle(a.id, true).catch(() => {});
+                          await archiveArticle(a.id, true).catch(() => { });
                         }
                         queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
                         setSelectedArticleIds(new Set());
@@ -2580,7 +2579,7 @@ function AdminDashboard() {
                       onClick={async () => {
                         const items = activeVideos.filter(v => selectedVideoIds.has(v.id));
                         for (const v of items) {
-                          await archiveVideo(v.id, true).catch(() => {});
+                          await archiveVideo(v.id, true).catch(() => { });
                         }
                         reloadVideos();
                         setSelectedVideoIds(new Set());
@@ -2665,415 +2664,415 @@ function AdminDashboard() {
           )}
 
           <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          {sidebarTab === 'videos' ? (
-            activeVideos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                <Play className="w-8 h-8 text-muted-foreground/30 mb-3" />
-                <p className="text-xs text-muted-foreground">No videos yet</p>
-                <p className="text-[11px] text-muted-foreground/50 mt-1">Add a YouTube, Vimeo, or direct video URL</p>
-              </div>
-            ) : filteredVideos.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-                <Search className="w-6 h-6 text-muted-foreground/25 mb-2" />
-                <p className="text-xs text-muted-foreground/60">No videos match "{videoSearch}"</p>
-                <button onClick={() => setVideoSearch('')} className="mt-2 text-xs text-primary underline underline-offset-2">Clear search</button>
-              </div>
-            ) : (
-              filteredVideos.map(video => {
-                const isPlaying = video.id === playingVideoId && onAir;
-                const isEditingV = editingVideoId === video.id;
-                return (
-                  <div key={video.id} className={cn(
-                    "rounded-xl border transition-all",
-                    isEditingV
-                      ? "border-primary/40 bg-primary/5"
-                      : isPlaying
-                        ? "bg-primary/20 border-primary/50"
-                        : "border-transparent hover:bg-white/5"
-                  )}>
-                    <div
-                      className={cn("group flex items-start gap-1.5 p-3 transition-all",
-                        isPlaying || isEditingV ? "text-white" : "text-white/60 hover:text-white/80",
-                        videoSelectMode && "cursor-pointer"
-                      )}
-                      onClick={videoSelectMode ? () => setSelectedVideoIds(prev => {
-                        const next = new Set(prev);
-                        next.has(video.id) ? next.delete(video.id) : next.add(video.id);
-                        return next;
-                      }) : undefined}
-                    >
-                      {videoSelectMode && (
-                        <div className="shrink-0 pt-0.5">
-                          {selectedVideoIds.has(video.id)
-                            ? <CheckSquare className="w-4 h-4 text-primary" />
-                            : <Square className="w-4 h-4 text-muted-foreground/50" />
-                          }
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          {isPlaying
-                            ? <span className="flex items-center gap-1 text-[10px] font-bold text-primary shrink-0 uppercase tracking-wider">
+            {sidebarTab === 'videos' ? (
+              activeVideos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                  <Play className="w-8 h-8 text-muted-foreground/30 mb-3" />
+                  <p className="text-xs text-muted-foreground">No videos yet</p>
+                  <p className="text-[11px] text-muted-foreground/50 mt-1">Add a YouTube, Vimeo, or direct video URL</p>
+                </div>
+              ) : filteredVideos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                  <Search className="w-6 h-6 text-muted-foreground/25 mb-2" />
+                  <p className="text-xs text-muted-foreground/60">No videos match "{videoSearch}"</p>
+                  <button onClick={() => setVideoSearch('')} className="mt-2 text-xs text-primary underline underline-offset-2">Clear search</button>
+                </div>
+              ) : (
+                filteredVideos.map(video => {
+                  const isPlaying = video.id === playingVideoId && onAir;
+                  const isEditingV = editingVideoId === video.id;
+                  return (
+                    <div key={video.id} className={cn(
+                      "rounded-xl border transition-all",
+                      isEditingV
+                        ? "border-primary/40 bg-primary/5"
+                        : isPlaying
+                          ? "bg-primary/20 border-primary/50"
+                          : "border-transparent hover:bg-white/5"
+                    )}>
+                      <div
+                        className={cn("group flex items-start gap-1.5 p-3 transition-all",
+                          isPlaying || isEditingV ? "text-white" : "text-white/60 hover:text-white/80",
+                          videoSelectMode && "cursor-pointer"
+                        )}
+                        onClick={videoSelectMode ? () => setSelectedVideoIds(prev => {
+                          const next = new Set(prev);
+                          next.has(video.id) ? next.delete(video.id) : next.add(video.id);
+                          return next;
+                        }) : undefined}
+                      >
+                        {videoSelectMode && (
+                          <div className="shrink-0 pt-0.5">
+                            {selectedVideoIds.has(video.id)
+                              ? <CheckSquare className="w-4 h-4 text-primary" />
+                              : <Square className="w-4 h-4 text-muted-foreground/50" />
+                            }
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            {isPlaying
+                              ? <span className="flex items-center gap-1 text-[10px] font-bold text-primary shrink-0 uppercase tracking-wider">
                                 <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />LIVE
                               </span>
-                            : <Play className="w-3 h-3 text-primary/60 shrink-0" />
-                          }
-                          <p className="text-sm font-medium leading-snug line-clamp-2">{video.title}</p>
+                              : <Play className="w-3 h-3 text-primary/60 shrink-0" />
+                            }
+                            <p className="text-sm font-medium leading-snug line-clamp-2">{video.title}</p>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            {video.maxDurationSecs
+                              ? `Max ${Math.floor(video.maxDurationSecs / 60)}m ${video.maxDurationSecs % 60}s`
+                              : 'No time limit'
+                            }
+                            {video.loop ? ' · Loop' : ''}
+                          </p>
                         </div>
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                          {video.maxDurationSecs
-                            ? `Max ${Math.floor(video.maxDurationSecs / 60)}m ${video.maxDurationSecs % 60}s`
-                            : 'No time limit'
-                          }
-                          {video.loop ? ' · Loop' : ''}
-                        </p>
-                      </div>
-                      {!videoSelectMode && (
-                      <div className="flex flex-col gap-1 md:opacity-0 md:group-hover:opacity-100 shrink-0 transition-opacity">
-                        <button
-                          onClick={async e => {
-                            e.stopPropagation();
-                            const newItems = await apiAddToQueue({ type: 'video', videoId: video.id, title: video.title });
-                            setQueue(newItems);
-                            setMainTab('broadcast');
-                          }}
-                          className="p-1 rounded text-muted-foreground hover:text-primary transition-all"
-                          title="Add to queue"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            setEditingVideoId(prev => prev === video.id ? null : video.id);
-                          }}
-                          className={cn(
-                            "p-1 rounded transition-all",
-                            isEditingV ? "text-primary" : "text-muted-foreground hover:text-white"
-                          )}
-                          title="Edit video"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            archiveVideo(video.id, true).then(() => { reloadVideos(); });
-                          }}
-                          className="p-1 rounded text-muted-foreground hover:text-amber-400 transition-all"
-                          title="Archive video"
-                        >
-                          <Archive className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            deleteVideo(video.id).then(() => { reloadVideos(); });
-                          }}
-                          className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
-                          title="Delete video"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      )}
-                    </div>
-                    {isEditingV && (
-                      <SidebarVideoEditor
-                        video={video}
-                        onClose={() => setEditingVideoId(null)}
-                        onSaved={() => reloadVideos()}
-                      />
-                    )}
-                  </div>
-                );
-              })
-            )
-          ) : (<>
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-primary/40" />
-              </div>
-            ) : activeArticles.length === 0 && archivedArticles.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-8">No articles yet</p>
-            ) : activeArticles.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">
-                All articles archived.{' '}
-                <button onClick={() => setMainTab('archive')} className="text-primary underline underline-offset-2">View archive</button>
-              </p>
-            ) : filteredArticles.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-                <Search className="w-6 h-6 text-muted-foreground/25 mb-2" />
-                <p className="text-xs text-muted-foreground/60">No articles match "{articleSearch}"</p>
-                <button onClick={() => setArticleSearch('')} className="mt-2 text-xs text-primary underline underline-offset-2">Clear search</button>
-              </div>
-            ) : (
-              filteredArticles.map((article, listIdx) => {
-                const a = { ...article, ...articleOverrides[article.id] };
-                const isSelected = a.id === selectedArticleId;
-                const isEditing = editingArticleId === a.id;
-                return (
-                  <div key={a.id} className={cn(
-                    "rounded-xl border transition-all",
-                    isEditing
-                      ? "border-primary/40 bg-primary/5"
-                      : isSelected
-                        ? "bg-primary/10 border-primary/30"
-                        : "border-transparent hover:bg-white/5"
-                  )}>
-                    {/* Row */}
-                    <div
-                      className={cn("group flex items-start gap-1.5 p-3 transition-all",
-                        isSelected || isEditing ? "text-white" : "text-white/60 hover:text-white/80",
-                        articleSelectMode ? "cursor-pointer" : "cursor-pointer"
-                      )}
-                      onClick={articleSelectMode ? () => setSelectedArticleIds(prev => {
-                        const next = new Set(prev);
-                        next.has(a.id) ? next.delete(a.id) : next.add(a.id);
-                        return next;
-                      }) : undefined}
-                    >
-                      {articleSelectMode && (
-                        <div className="shrink-0 pt-0.5">
-                          {selectedArticleIds.has(a.id)
-                            ? <CheckSquare className="w-4 h-4 text-primary" />
-                            : <Square className="w-4 h-4 text-muted-foreground/50" />
-                          }
-                        </div>
-                      )}
-                      {/* Reorder buttons */}
-                      <div className="flex flex-col gap-0.5 pt-0.5 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={e => { e.stopPropagation(); moveArticle(a.id, -1); }}
-                          disabled={listIdx === 0}
-                          className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-                          title="Move up"
-                        >
-                          <ChevronUp className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); moveArticle(a.id, 1); }}
-                          disabled={listIdx === filteredArticles.length - 1}
-                          className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-                          title="Move down"
-                        >
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">
-                          {a.source || 'Unknown'} · {new Date(a.publishedAt).toLocaleDateString()}
-                        </p>
-                        <p className="text-sm font-medium leading-snug line-clamp-2">{a.title}</p>
-                        {regenImageProgress[a.id] && (
-                          <div className="mt-1.5">
-                            <div className="h-1.5 w-full max-w-44 rounded-full bg-white/10 overflow-hidden">
-                              <div
-                                className="h-full bg-sky-400 transition-all duration-500"
-                                style={{
-                                  width: `${Math.max(
-                                    0,
-                                    Math.min(
-                                      100,
-                                      regenImageProgress[a.id].total > 0
-                                        ? (regenImageProgress[a.id].done / regenImageProgress[a.id].total) * 100
-                                        : 0
-                                    )
-                                  )}%`
-                                }}
-                              />
-                            </div>
-                            <p className="text-[10px] text-muted-foreground mt-1">
-                              {regenImageProgress[a.id].active ? 'Generating images' : 'Images ready'} · {regenImageProgress[a.id].done}/{regenImageProgress[a.id].total}
-                            </p>
+                        {!videoSelectMode && (
+                          <div className="flex flex-col gap-1 md:opacity-0 md:group-hover:opacity-100 shrink-0 transition-opacity">
+                            <button
+                              onClick={async e => {
+                                e.stopPropagation();
+                                const newItems = await apiAddToQueue({ type: 'video', videoId: video.id, title: video.title });
+                                setQueue(newItems);
+                                setMainTab('broadcast');
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-primary transition-all"
+                              title="Add to queue"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                setEditingVideoId(prev => prev === video.id ? null : video.id);
+                              }}
+                              className={cn(
+                                "p-1 rounded transition-all",
+                                isEditingV ? "text-primary" : "text-muted-foreground hover:text-white"
+                              )}
+                              title="Edit video"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                archiveVideo(video.id, true).then(() => { reloadVideos(); });
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-amber-400 transition-all"
+                              title="Archive video"
+                            >
+                              <Archive className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                deleteVideo(video.id).then(() => { reloadVideos(); });
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
+                              title="Delete video"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         )}
                       </div>
-                      {!articleSelectMode && (
-                      <div className="flex flex-col gap-1 md:opacity-0 md:group-hover:opacity-100 shrink-0 transition-opacity">
-                        <button
-                          onClick={async e => {
-                            e.stopPropagation();
-                            const newItems = await apiAddToQueue({ type: 'article', articleId: a.id, title: a.title });
-                            setQueue(newItems);
-                            setMainTab('broadcast');
-                          }}
-                          className="p-1 rounded text-muted-foreground hover:text-primary transition-all"
-                          title="Add to queue"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            setEditingArticleId(prev => prev === a.id ? null : a.id);
-                          }}
-                          className={cn(
-                            "p-1 rounded transition-all",
-                            isEditing ? "text-primary" : "text-muted-foreground hover:text-white"
-                          )}
-                          title="Edit article"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            archiveArticle(a.id, true).then(() => {
-                              queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
-                            });
-                          }}
-                          className="p-1 rounded text-muted-foreground hover:text-amber-400 transition-all"
-                          title="Archive article"
-                        >
-                          <Archive className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={async e => {
-                            e.stopPropagation();
-                            if (regenImagesId === a.id) return;
-                            setRegenImagesId(a.id);
-                            try {
-                              const res = await fetch(`/api/articles/${a.id}/regenerate-images`, { method: 'POST' });
-                              const data = await res.json();
-                              if (data.missing === 0) {
-                                console.info(`Article ${a.id}: all images already present`);
-                                setRegenImageProgress(prev => ({
-                                  ...prev,
-                                  [a.id]: {
-                                    total: data.total ?? 0,
-                                    done: data.total ?? 0,
-                                    active: false,
-                                  },
-                                }));
-                              } else {
-                                console.info(`Article ${a.id}: regenerated ${data.regenerated}/${data.missing} missing images`);
-                                setRegenImageProgress(prev => ({
-                                  ...prev,
-                                  [a.id]: {
-                                    total: data.total ?? 0,
-                                    done: Math.max(0, (data.total ?? 0) - (data.missing ?? 0)),
-                                    active: true,
-                                  },
-                                }));
-                                pollRegenProgress(a.id);
-                                queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
-                              }
-                            } catch (err) {
-                              console.error('Regenerate images failed:', err);
-                            } finally {
-                              setRegenImagesId(null);
-                            }
-                          }}
-                          disabled={regenImagesId === a.id}
-                          className={cn(
-                            "p-1 rounded transition-all",
-                            regenImagesId === a.id
-                              ? "text-primary cursor-wait"
-                              : "text-muted-foreground hover:text-sky-400"
-                          )}
-                          title={regenImagesId === a.id ? "Regenerating images…" : "Regenerate missing images"}
-                        >
-                          {regenImagesId === a.id
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <Images className="w-3.5 h-3.5" />
-                          }
-                        </button>
-                        <button
-                          onClick={async e => {
-                            e.stopPropagation();
-                            if (regenChaptersId === a.id) return;
-                            if (!window.confirm(`Regenerate all chapters for "${a.title}"?\n\nThis will delete the current chapters and re-create them using the latest AI prompt. New images will also be generated. This cannot be undone.`)) return;
-                            setRegenChaptersId(a.id);
-                            try {
-                              const res = await fetch(`/api/articles/${a.id}/regenerate-chapters`, { method: 'POST' });
-                              if (!res.ok) throw new Error(await res.text());
-                              const data = await res.json();
-                              console.info(`Article ${a.id}: regenerated ${data.chapters} chapters`);
-                              queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
-                              setPendingImagesArticleId(a.id);
-                            } catch (err) {
-                              console.error('Regenerate chapters failed:', err);
-                            } finally {
-                              setRegenChaptersId(null);
-                            }
-                          }}
-                          disabled={regenChaptersId === a.id}
-                          className={cn(
-                            "p-1 rounded transition-all",
-                            regenChaptersId === a.id
-                              ? "text-amber-400 cursor-wait"
-                              : "text-muted-foreground hover:text-amber-400"
-                          )}
-                          title={regenChaptersId === a.id ? "Regenerating chapters…" : "Regenerate chapters with latest AI prompt"}
-                        >
-                          {regenChaptersId === a.id
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <RotateCcw className="w-3.5 h-3.5" />
-                          }
-                        </button>
-                        <button
-                          onClick={async e => {
-                            e.stopPropagation();
-                            if (exportingArticleId === a.id) return;
-                            setExportingArticleId(a.id);
-                            setExportProgress(0);
-                            try {
-                              const res = await fetch(`/api/articles/${a.id}/snippets`);
-                              const snippets = await res.json();
-                              await exportArticleToMp4(
-                                { title: a.title, source: a.source || 'News', publishedAt: a.publishedAt },
-                                snippets,
-                                pct => setExportProgress(pct)
-                              );
-                            } catch (err) {
-                              console.error('Export failed:', err);
-                            } finally {
-                              setExportingArticleId(null);
-                              setExportProgress(0);
-                            }
-                          }}
-                          disabled={exportingArticleId !== null}
-                          className={cn(
-                            "p-1 rounded transition-all",
-                            exportingArticleId === a.id
-                              ? "text-primary cursor-wait"
-                              : "text-muted-foreground hover:text-green-400"
-                          )}
-                          title={exportingArticleId === a.id ? `Exporting… ${exportProgress}%` : "Export as MP4"}
-                        >
-                          {exportingArticleId === a.id
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <Download className="w-3.5 h-3.5" />
-                          }
-                        </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); deleteMutation.mutate({ id: a.id }); }}
-                          disabled={deleteMutation.isPending}
-                          className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
-                          title="Delete article"
-                        >
-                          {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
+                      {isEditingV && (
+                        <SidebarVideoEditor
+                          video={video}
+                          onClose={() => setEditingVideoId(null)}
+                          onSaved={() => reloadVideos()}
+                        />
                       )}
                     </div>
-                    {/* Inline edit panel */}
-                    {isEditing && (
-                      <SidebarArticleEditor
-                        article={a}
-                        onClose={() => setEditingArticleId(null)}
-                        onSaved={updated => {
-                          setArticleOverrides(prev => ({ ...prev, [updated.id]: updated }));
-                          queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
-                        }}
-                      />
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </>)}
+                  );
+                })
+              )
+            ) : (<>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary/40" />
+                </div>
+              ) : activeArticles.length === 0 && archivedArticles.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">No articles yet</p>
+              ) : activeArticles.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">
+                  All articles archived.{' '}
+                  <button onClick={() => setMainTab('archive')} className="text-primary underline underline-offset-2">View archive</button>
+                </p>
+              ) : filteredArticles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                  <Search className="w-6 h-6 text-muted-foreground/25 mb-2" />
+                  <p className="text-xs text-muted-foreground/60">No articles match "{articleSearch}"</p>
+                  <button onClick={() => setArticleSearch('')} className="mt-2 text-xs text-primary underline underline-offset-2">Clear search</button>
+                </div>
+              ) : (
+                filteredArticles.map((article, listIdx) => {
+                  const a = { ...article, ...articleOverrides[article.id] };
+                  const isSelected = a.id === selectedArticleId;
+                  const isEditing = editingArticleId === a.id;
+                  return (
+                    <div key={a.id} className={cn(
+                      "rounded-xl border transition-all",
+                      isEditing
+                        ? "border-primary/40 bg-primary/5"
+                        : isSelected
+                          ? "bg-primary/10 border-primary/30"
+                          : "border-transparent hover:bg-white/5"
+                    )}>
+                      {/* Row */}
+                      <div
+                        className={cn("group flex items-start gap-1.5 p-3 transition-all",
+                          isSelected || isEditing ? "text-white" : "text-white/60 hover:text-white/80",
+                          articleSelectMode ? "cursor-pointer" : "cursor-pointer"
+                        )}
+                        onClick={articleSelectMode ? () => setSelectedArticleIds(prev => {
+                          const next = new Set(prev);
+                          next.has(a.id) ? next.delete(a.id) : next.add(a.id);
+                          return next;
+                        }) : undefined}
+                      >
+                        {articleSelectMode && (
+                          <div className="shrink-0 pt-0.5">
+                            {selectedArticleIds.has(a.id)
+                              ? <CheckSquare className="w-4 h-4 text-primary" />
+                              : <Square className="w-4 h-4 text-muted-foreground/50" />
+                            }
+                          </div>
+                        )}
+                        {/* Reorder buttons */}
+                        <div className="flex flex-col gap-0.5 pt-0.5 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={e => { e.stopPropagation(); moveArticle(a.id, -1); }}
+                            disabled={listIdx === 0}
+                            className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                            title="Move up"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); moveArticle(a.id, 1); }}
+                            disabled={listIdx === filteredArticles.length - 1}
+                            className="p-0.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                            title="Move down"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">
+                            {a.source || 'Unknown'} · {new Date(a.publishedAt).toLocaleDateString()}
+                          </p>
+                          <p className="text-sm font-medium leading-snug line-clamp-2">{a.title}</p>
+                          {regenImageProgress[a.id] && (
+                            <div className="mt-1.5">
+                              <div className="h-1.5 w-full max-w-44 rounded-full bg-white/10 overflow-hidden">
+                                <div
+                                  className="h-full bg-sky-400 transition-all duration-500"
+                                  style={{
+                                    width: `${Math.max(
+                                      0,
+                                      Math.min(
+                                        100,
+                                        regenImageProgress[a.id].total > 0
+                                          ? (regenImageProgress[a.id].done / regenImageProgress[a.id].total) * 100
+                                          : 0
+                                      )
+                                    )}%`
+                                  }}
+                                />
+                              </div>
+                              <p className="text-[10px] text-muted-foreground mt-1">
+                                {regenImageProgress[a.id].active ? 'Generating images' : 'Images ready'} · {regenImageProgress[a.id].done}/{regenImageProgress[a.id].total}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        {!articleSelectMode && (
+                          <div className="flex flex-col gap-1 md:opacity-0 md:group-hover:opacity-100 shrink-0 transition-opacity">
+                            <button
+                              onClick={async e => {
+                                e.stopPropagation();
+                                const newItems = await apiAddToQueue({ type: 'article', articleId: a.id, title: a.title });
+                                setQueue(newItems);
+                                setMainTab('broadcast');
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-primary transition-all"
+                              title="Add to queue"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                setEditingArticleId(prev => prev === a.id ? null : a.id);
+                              }}
+                              className={cn(
+                                "p-1 rounded transition-all",
+                                isEditing ? "text-primary" : "text-muted-foreground hover:text-white"
+                              )}
+                              title="Edit article"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                archiveArticle(a.id, true).then(() => {
+                                  queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+                                });
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-amber-400 transition-all"
+                              title="Archive article"
+                            >
+                              <Archive className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={async e => {
+                                e.stopPropagation();
+                                if (regenImagesId === a.id) return;
+                                setRegenImagesId(a.id);
+                                try {
+                                  const res = await fetch(`/api/articles/${a.id}/regenerate-images`, { method: 'POST' });
+                                  const data = await res.json();
+                                  if (data.missing === 0) {
+                                    console.info(`Article ${a.id}: all images already present`);
+                                    setRegenImageProgress(prev => ({
+                                      ...prev,
+                                      [a.id]: {
+                                        total: data.total ?? 0,
+                                        done: data.total ?? 0,
+                                        active: false,
+                                      },
+                                    }));
+                                  } else {
+                                    console.info(`Article ${a.id}: regenerated ${data.regenerated}/${data.missing} missing images`);
+                                    setRegenImageProgress(prev => ({
+                                      ...prev,
+                                      [a.id]: {
+                                        total: data.total ?? 0,
+                                        done: Math.max(0, (data.total ?? 0) - (data.missing ?? 0)),
+                                        active: true,
+                                      },
+                                    }));
+                                    pollRegenProgress(a.id);
+                                    queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+                                  }
+                                } catch (err) {
+                                  console.error('Regenerate images failed:', err);
+                                } finally {
+                                  setRegenImagesId(null);
+                                }
+                              }}
+                              disabled={regenImagesId === a.id}
+                              className={cn(
+                                "p-1 rounded transition-all",
+                                regenImagesId === a.id
+                                  ? "text-primary cursor-wait"
+                                  : "text-muted-foreground hover:text-sky-400"
+                              )}
+                              title={regenImagesId === a.id ? "Regenerating images…" : "Regenerate missing images"}
+                            >
+                              {regenImagesId === a.id
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <Images className="w-3.5 h-3.5" />
+                              }
+                            </button>
+                            <button
+                              onClick={async e => {
+                                e.stopPropagation();
+                                if (regenChaptersId === a.id) return;
+                                if (!window.confirm(`Regenerate all chapters for "${a.title}"?\n\nThis will delete the current chapters and re-create them using the latest AI prompt. New images will also be generated. This cannot be undone.`)) return;
+                                setRegenChaptersId(a.id);
+                                try {
+                                  const res = await fetch(`/api/articles/${a.id}/regenerate-chapters`, { method: 'POST' });
+                                  if (!res.ok) throw new Error(await res.text());
+                                  const data = await res.json();
+                                  console.info(`Article ${a.id}: regenerated ${data.chapters} chapters`);
+                                  queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+                                  setPendingImagesArticleId(a.id);
+                                } catch (err) {
+                                  console.error('Regenerate chapters failed:', err);
+                                } finally {
+                                  setRegenChaptersId(null);
+                                }
+                              }}
+                              disabled={regenChaptersId === a.id}
+                              className={cn(
+                                "p-1 rounded transition-all",
+                                regenChaptersId === a.id
+                                  ? "text-amber-400 cursor-wait"
+                                  : "text-muted-foreground hover:text-amber-400"
+                              )}
+                              title={regenChaptersId === a.id ? "Regenerating chapters…" : "Regenerate chapters with latest AI prompt"}
+                            >
+                              {regenChaptersId === a.id
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <RotateCcw className="w-3.5 h-3.5" />
+                              }
+                            </button>
+                            <button
+                              onClick={async e => {
+                                e.stopPropagation();
+                                if (exportingArticleId === a.id) return;
+                                setExportingArticleId(a.id);
+                                setExportProgress(0);
+                                try {
+                                  const res = await fetch(`/api/articles/${a.id}/snippets`);
+                                  const snippets = await res.json();
+                                  await exportArticleToMp4(
+                                    { title: a.title, source: a.source || 'News', publishedAt: a.publishedAt },
+                                    snippets,
+                                    pct => setExportProgress(pct)
+                                  );
+                                } catch (err) {
+                                  console.error('Export failed:', err);
+                                } finally {
+                                  setExportingArticleId(null);
+                                  setExportProgress(0);
+                                }
+                              }}
+                              disabled={exportingArticleId !== null}
+                              className={cn(
+                                "p-1 rounded transition-all",
+                                exportingArticleId === a.id
+                                  ? "text-primary cursor-wait"
+                                  : "text-muted-foreground hover:text-green-400"
+                              )}
+                              title={exportingArticleId === a.id ? `Exporting… ${exportProgress}%` : "Export as MP4"}
+                            >
+                              {exportingArticleId === a.id
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <Download className="w-3.5 h-3.5" />
+                              }
+                            </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); deleteMutation.mutate({ id: a.id }); }}
+                              disabled={deleteMutation.isPending}
+                              className="p-1 rounded text-muted-foreground hover:text-destructive transition-all"
+                              title="Delete article"
+                            >
+                              {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {/* Inline edit panel */}
+                      {isEditing && (
+                        <SidebarArticleEditor
+                          article={a}
+                          onClose={() => setEditingArticleId(null)}
+                          onSaved={updated => {
+                            setArticleOverrides(prev => ({ ...prev, [updated.id]: updated }));
+                            queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </>)}
           </div>
         </aside>
 
@@ -3120,487 +3119,487 @@ function AdminDashboard() {
           </div>
 
           <div className="space-y-6">
-          {mainTab === 'archive' ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 mb-4">
-                <Archive className="w-4 h-4 text-amber-400" />
-                <h2 className="text-sm font-semibold text-foreground">Archived Articles</h2>
-                <span className="text-xs text-muted-foreground">({archivedArticles.length})</span>
-              </div>
-              {archivedArticles.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-48 text-center">
-                  <Archive className="w-8 h-8 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground">No archived articles</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">Archived articles will appear here</p>
+            {mainTab === 'archive' ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 mb-4">
+                  <Archive className="w-4 h-4 text-amber-400" />
+                  <h2 className="text-sm font-semibold text-foreground">Archived Articles</h2>
+                  <span className="text-xs text-muted-foreground">({archivedArticles.length})</span>
                 </div>
-              ) : (
-                archivedArticles.map(article => (
-                  <div key={article.id} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-card/30 hover:bg-card/50 transition-all">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">
-                        {article.source || 'Unknown'} · {new Date(article.publishedAt).toLocaleDateString()}
-                      </p>
-                      <p className="text-sm font-medium text-white/70 leading-snug">{article.title}</p>
-                      {article.snippetCount > 0 && (
-                        <p className="text-[10px] text-muted-foreground/50 mt-1">{article.snippetCount} chapters (off ticker)</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        onClick={() => {
-                          archiveArticle(article.id, false).then(() =>
-                            queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() })
-                          );
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-all"
-                        title="Restore article"
-                      >
-                        <ArchiveRestore className="w-3.5 h-3.5" /> Restore
-                      </button>
-                      <button
-                        onClick={() => deleteMutation.mutate({ id: article.id })}
-                        disabled={deleteMutation.isPending}
-                        className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all"
-                        title="Delete permanently"
-                      >
-                        {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
+                {archivedArticles.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-48 text-center">
+                    <Archive className="w-8 h-8 text-muted-foreground/30 mb-3" />
+                    <p className="text-sm text-muted-foreground">No archived articles</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Archived articles will appear here</p>
                   </div>
-                ))
-              )}
-            </div>
-          ) : mainTab === 'waiting' ? (
-            <WaitingScreenPanel />
-          ) : (
-            /* ── Broadcast Queue Panel ─────────────────────────────── */
-            <div className="space-y-4">
-
-              {/* Queue header + controls */}
-              <div className="bg-card border border-border rounded-2xl p-4">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Radio className="w-4 h-4 text-primary shrink-0" />
-                    <span className="text-sm font-semibold">Broadcast Queue</span>
-                    <span className="text-xs text-muted-foreground">({queue.length} item{queue.length !== 1 ? 's' : ''})</span>
-                    {onAir && (
-                      <span className="flex items-center gap-1 text-[10px] font-bold text-primary uppercase tracking-wider ml-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> ON AIR
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Autoplay toggle */}
-                  <button
-                    onClick={async () => {
-                      const next = !queueAutoplay;
-                      setQueueAutoplay(next);
-                      await apiSetQueueAutoplay(next);
-                    }}
-                    title={queueAutoplay ? 'Autoplay on — queue advances automatically' : 'Autoplay off — manually choose what plays next'}
-                    className={cn(
-                      "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all",
-                      queueAutoplay
-                        ? "bg-green-500/20 border-green-500/40 text-green-400"
-                        : "border-border text-white/50 hover:text-white hover:bg-white/5"
-                    )}
-                  >
-                    <Play className={cn("w-3.5 h-3.5", !queueAutoplay && "opacity-40")} />
-                    Autoplay {queueAutoplay ? 'On' : 'Off'}
-                  </button>
-
-                  {/* Loop toggle */}
-                  <button
-                    onClick={async () => {
-                      const next = !queueLoop;
-                      setQueueLoop(next);
-                      await apiSetQueueLoop(next);
-                    }}
-                    title={queueLoop ? 'Loop on — queue restarts from the beginning when it finishes' : 'Loop off — queue stops after the last item'}
-                    className={cn(
-                      "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all",
-                      queueLoop
-                        ? "bg-blue-500/20 border-blue-500/40 text-blue-400"
-                        : "border-border text-white/50 hover:text-white hover:bg-white/5"
-                    )}
-                  >
-                    <Repeat className={cn("w-3.5 h-3.5", !queueLoop && "opacity-40")} />
-                    Loop {queueLoop ? 'On' : 'Off'}
-                  </button>
-
-                  {/* Play All */}
-                  {!queueSelectMode && (
-                    <button
-                      onClick={async () => {
-                        if (queue.length === 0) return;
-                        setVoiceEnabled(true);
-                        await apiSetQueueAutoplay(true);
-                        await apiPlayQueueItem(0);
-                        await loadQueue();
-                      }}
-                      disabled={queue.length === 0}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-all"
-                    >
-                      <Play className="w-4 h-4" /> Play All
-                    </button>
-                  )}
-
-                  {/* Select mode toggle */}
-                  {queue.length > 0 && !queueSelectMode && (
-                    <button
-                      onClick={() => { setQueueSelectMode(true); setSelectedQueueIndices(new Set()); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-white hover:bg-white/5 transition-all"
-                      title="Select items to remove"
-                    >
-                      <ListChecks className="w-3.5 h-3.5" /> Select
-                    </button>
-                  )}
-
-                  {/* Clear All */}
-                  {queue.length > 0 && !queueSelectMode && (
-                    <button
-                      onClick={async () => {
-                        if (!window.confirm(`Remove all ${queue.length} item${queue.length !== 1 ? 's' : ''} from the queue?`)) return;
-                        setQueue([]);
-                        await apiReorderQueue([]);
-                        setPlayingQueueIndex(-1);
-                        setOnAir(false);
-                        stop();
-                        await fetch('/api/playback/queue/stop', { method: 'POST' });
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/30 text-destructive/60 text-xs hover:text-destructive hover:bg-destructive/10 transition-all"
-                      title="Clear entire queue"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Clear All
-                    </button>
-                  )}
-
-                  {/* Select mode actions */}
-                  {queueSelectMode && (
-                    <>
-                      <button
-                        onClick={() => {
-                          if (selectedQueueIndices.size === queue.length) {
-                            setSelectedQueueIndices(new Set());
-                          } else {
-                            setSelectedQueueIndices(new Set(queue.map((_, i) => i)));
-                          }
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-white hover:bg-white/5 transition-all"
-                      >
-                        {selectedQueueIndices.size === queue.length ? <Square className="w-3.5 h-3.5" /> : <CheckSquare className="w-3.5 h-3.5" />}
-                        {selectedQueueIndices.size === queue.length ? 'Deselect All' : 'Select All'}
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (selectedQueueIndices.size === 0) return;
-                          const remaining = queue.filter((_, i) => !selectedQueueIndices.has(i));
-                          setQueue(remaining);
-                          await apiReorderQueue(remaining);
-                          if (selectedQueueIndices.has(playingQueueIndex)) {
-                            setPlayingQueueIndex(-1);
-                            setOnAir(false);
-                            stop();
-                            await fetch('/api/playback/queue/stop', { method: 'POST' });
-                          }
-                          setQueueSelectMode(false);
-                          setSelectedQueueIndices(new Set());
-                        }}
-                        disabled={selectedQueueIndices.size === 0}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-destructive/20 border border-destructive/40 text-destructive text-xs font-semibold hover:bg-destructive/30 disabled:opacity-40 transition-all"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Remove {selectedQueueIndices.size > 0 ? `(${selectedQueueIndices.size})` : ''}
-                      </button>
-                      <button
-                        onClick={() => { setQueueSelectMode(false); setSelectedQueueIndices(new Set()); }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-white hover:bg-white/5 transition-all"
-                      >
-                        <X className="w-3.5 h-3.5" /> Cancel
-                      </button>
-                    </>
-                  )}
-
-                  {/* Pause / Resume / Stop */}
-                  {onAir && (
-                    <button
-                      onClick={async () => {
-                        stop();
-                        setOnAir(false);
-                        await fetch('/api/playback/queue/pause', { method: 'POST' });
-                      }}
-                      title="Pause — keeps your place in the queue"
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl border border-yellow-500/40 text-yellow-400 text-sm hover:bg-yellow-500/10 transition-all"
-                    >
-                      <Pause className="w-4 h-4" /> Pause
-                    </button>
-                  )}
-                  {!onAir && playingQueueIndex >= 0 && (
-                    <button
-                      onClick={async () => {
-                        setVoiceEnabled(true);
-                        await apiSetQueueAutoplay(true);
-                        await apiPlayQueueItem(playingQueueIndex);
-                        await loadQueue();
-                      }}
-                      title="Resume from where you paused"
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl border border-green-500/40 text-green-400 text-sm hover:bg-green-500/10 transition-all"
-                    >
-                      <Play className="w-4 h-4" /> Resume
-                    </button>
-                  )}
-                  {(onAir || playingQueueIndex >= 0) && (
-                    <button
-                      onClick={async () => {
-                        setOnAir(false);
-                        setPlayingQueueIndex(-1);
-                        setVoiceEnabled(false);
-                        stop();
-                        await fetch('/api/playback/queue/stop', { method: 'POST' });
-                        await loadQueue();
-                      }}
-                      title="Stop and clear queue position"
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl border border-destructive/30 text-destructive/70 text-sm hover:bg-destructive/10 transition-all"
-                    >
-                      <X className="w-4 h-4" /> Stop
-                    </button>
-                  )}
-                </div>
-
-                {queue.length === 0 && (
-                  <p className="text-xs text-muted-foreground/60 mt-3 pl-6">
-                    Hover an article or video in the sidebar and click <span className="text-primary font-semibold">+</span> to add it here.
-                  </p>
-                )}
-              </div>
-
-              {/* Queue list */}
-              {queue.length > 0 && (
-                <div className="space-y-2">
-                  {queue.map((item, idx) => {
-                    const isActive = idx === playingQueueIndex && onAir;
-                    return (
-                      <div
-                        key={idx}
-                        onClick={queueSelectMode ? () => {
-                          setSelectedQueueIndices(prev => {
-                            const next = new Set(prev);
-                            next.has(idx) ? next.delete(idx) : next.add(idx);
-                            return next;
-                          });
-                        } : undefined}
-                        className={cn(
-                          "group flex items-center gap-3 p-4 rounded-xl border transition-all",
-                          queueSelectMode && "cursor-pointer",
-                          queueSelectMode && selectedQueueIndices.has(idx)
-                            ? "bg-destructive/10 border-destructive/40"
-                            : isActive
-                              ? "bg-primary/12 border-primary/35"
-                              : "border-border bg-card/20 hover:bg-card/40"
+                ) : (
+                  archivedArticles.map(article => (
+                    <div key={article.id} className="flex items-start gap-4 p-4 rounded-xl border border-border bg-card/30 hover:bg-card/50 transition-all">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">
+                          {article.source || 'Unknown'} · {new Date(article.publishedAt).toLocaleDateString()}
+                        </p>
+                        <p className="text-sm font-medium text-white/70 leading-snug">{article.title}</p>
+                        {article.snippetCount > 0 && (
+                          <p className="text-[10px] text-muted-foreground/50 mt-1">{article.snippetCount} chapters (off ticker)</p>
                         )}
-                      >
-                        {/* Checkbox (select mode) or position / live dot */}
-                        <div className="w-5 shrink-0 text-center">
-                          {queueSelectMode
-                            ? selectedQueueIndices.has(idx)
-                              ? <CheckSquare className="w-4 h-4 text-destructive" />
-                              : <Square className="w-4 h-4 text-muted-foreground/50" />
-                            : isActive
-                              ? <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
-                              : <span className="text-xs text-muted-foreground/40">{idx + 1}</span>
-                          }
-                        </div>
-
-                        {/* Type icon */}
-                        {item.type === 'article'
-                          ? <FileText className="w-4 h-4 shrink-0 text-blue-400/70" />
-                          : <Play className="w-4 h-4 shrink-0 text-purple-400/70" />
-                        }
-
-                        {/* Title + status */}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium line-clamp-1 text-white/85">{item.title}</p>
-                          <p className="text-[10px] uppercase tracking-wide mt-0.5">
-                            <span className="text-muted-foreground">{item.type === 'article' ? 'Article' : 'Video'}</span>
-                            {isActive && <span className="ml-2 text-primary font-semibold">● LIVE</span>}
-                          </p>
-                        </div>
-
-                        {/* Reorder + remove (on hover) — hidden in select mode */}
-                        <div className={cn("flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity", queueSelectMode && "hidden")}>
-                          <button
-                            onClick={async () => {
-                              if (idx === 0) return;
-                              const newQ = [...queue];
-                              [newQ[idx - 1], newQ[idx]] = [newQ[idx], newQ[idx - 1]];
-                              setQueue(newQ);
-                              await apiReorderQueue(newQ);
-                            }}
-                            disabled={idx === 0}
-                            className="p-1.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 transition-colors"
-                            title="Move up"
-                          >
-                            <ChevronUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={async () => {
-                              if (idx === queue.length - 1) return;
-                              const newQ = [...queue];
-                              [newQ[idx], newQ[idx + 1]] = [newQ[idx + 1], newQ[idx]];
-                              setQueue(newQ);
-                              await apiReorderQueue(newQ);
-                            }}
-                            disabled={idx === queue.length - 1}
-                            className="p-1.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 transition-colors"
-                            title="Move down"
-                          >
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={async () => {
-                              const newItems = await apiRemoveFromQueue(idx);
-                              setQueue(newItems);
-                              await loadQueue();
-                            }}
-                            className="p-1.5 rounded text-muted-foreground hover:text-destructive transition-colors"
-                            title="Remove from queue"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        {/* Play button — hidden in select mode */}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            await apiPlayQueueItem(idx);
-                            await loadQueue();
+                          onClick={() => {
+                            archiveArticle(article.id, false).then(() =>
+                              queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() })
+                            );
                           }}
-                          style={{ display: queueSelectMode ? 'none' : undefined }}
-                          className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
-                            isActive
-                              ? "bg-primary/20 border-primary/40 text-primary"
-                              : "border-border text-white/50 hover:text-white hover:bg-white/10 hover:border-white/20"
-                          )}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-all"
+                          title="Restore article"
                         >
-                          <Play className="w-3 h-3" />
-                          {isActive ? 'Playing' : 'Play'}
+                          <ArchiveRestore className="w-3.5 h-3.5" /> Restore
+                        </button>
+                        <button
+                          onClick={() => deleteMutation.mutate({ id: article.id })}
+                          disabled={deleteMutation.isPending}
+                          className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-all"
+                          title="Delete permanently"
+                        >
+                          {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                         </button>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : mainTab === 'waiting' ? (
+              <WaitingScreenPanel />
+            ) : (
+              /* ── Broadcast Queue Panel ─────────────────────────────── */
+              <div className="space-y-4">
 
-              {/* Article chapter controls — shown when an article is playing */}
-              {playingArticleId !== null && onAir && (
-                <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <FileText className="w-4 h-4 text-blue-400" />
-                    <span className="text-sm font-semibold text-white/80">Chapter Controls</span>
-                    <span className="text-xs text-muted-foreground">
-                      — {playingQueueItem?.title}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={handlePrev}
-                      disabled={currentSnippetIndex === 0 || isLoadingSnippets}
-                      className="p-2.5 rounded-xl border border-border text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                    >
-                      {isLoadingSnippets ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronLeft className="w-5 h-5" />}
-                    </button>
-
-                    <div className="flex-1 text-center">
-                      {isLoadingSnippets ? (
-                        <Loader2 className="w-4 h-4 animate-spin mx-auto text-primary/40" />
-                      ) : currentSnippet ? (
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-0.5">
-                            Chapter {currentSnippetIndex + 1} of {snippets.length}
-                          </p>
-                          <p className="text-sm font-semibold text-white line-clamp-1">{currentSnippet.headline}</p>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">No chapters</p>
+                {/* Queue header + controls */}
+                <div className="bg-card border border-border rounded-2xl p-4">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <Radio className="w-4 h-4 text-primary shrink-0" />
+                      <span className="text-sm font-semibold">Broadcast Queue</span>
+                      <span className="text-xs text-muted-foreground">({queue.length} item{queue.length !== 1 ? 's' : ''})</span>
+                      {onAir && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-primary uppercase tracking-wider ml-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> ON AIR
+                        </span>
                       )}
                     </div>
 
-                    <button
-                      onClick={() => advance()}
-                      disabled={isLoadingSnippets}
-                      className="p-2.5 rounded-xl border border-border text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                    >
-                      {isLoadingSnippets ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
-                    </button>
-
+                    {/* Autoplay toggle */}
                     <button
                       onClick={async () => {
                         const next = !queueAutoplay;
                         setQueueAutoplay(next);
                         await apiSetQueueAutoplay(next);
-                        if (next) {
-                          // Turning autoplay ON: reset the "already spoken" guard and
-                          // bump voiceRestartToken so the voice effect re-fires even if
-                          // currentSnippetIndex didn't change (e.g. still at chapter 0).
-                          // Preserve article ID so isNewArticle stays false on next advance.
-                          prevIndexRef.current = { index: -1, articleId: playingArticleIdRef.current };
-                          setVoiceRestartToken(t => t + 1);
-                        }
                       }}
-                      title={queueAutoplay ? 'Autoplay on — click to disable' : 'Enable autoplay (voice reads and advances automatically)'}
+                      title={queueAutoplay ? 'Autoplay on — queue advances automatically' : 'Autoplay off — manually choose what plays next'}
                       className={cn(
-                        "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all",
+                        "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all",
                         queueAutoplay
                           ? "bg-green-500/20 border-green-500/40 text-green-400"
                           : "border-border text-white/50 hover:text-white hover:bg-white/5"
                       )}
                     >
-                      {queueAutoplay ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                      {queueAutoplay ? 'Auto' : 'Manual'}
+                      <Play className={cn("w-3.5 h-3.5", !queueAutoplay && "opacity-40")} />
+                      Autoplay {queueAutoplay ? 'On' : 'Off'}
                     </button>
 
+                    {/* Loop toggle */}
                     <button
-                      onClick={() => { setVoiceEnabled(v => !v); if (voiceEnabled) stop(); }}
+                      onClick={async () => {
+                        const next = !queueLoop;
+                        setQueueLoop(next);
+                        await apiSetQueueLoop(next);
+                      }}
+                      title={queueLoop ? 'Loop on — queue restarts from the beginning when it finishes' : 'Loop off — queue stops after the last item'}
                       className={cn(
-                        "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all",
-                        voiceEnabled
-                          ? "bg-primary/20 border-primary/40 text-primary"
+                        "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all",
+                        queueLoop
+                          ? "bg-blue-500/20 border-blue-500/40 text-blue-400"
                           : "border-border text-white/50 hover:text-white hover:bg-white/5"
                       )}
                     >
-                      {isVoiceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : voiceEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-                      {voiceEnabled ? 'Voice On' : 'Voice Off'}
+                      <Repeat className={cn("w-3.5 h-3.5", !queueLoop && "opacity-40")} />
+                      Loop {queueLoop ? 'On' : 'Off'}
                     </button>
 
+                    {/* Play All */}
+                    {!queueSelectMode && (
+                      <button
+                        onClick={async () => {
+                          if (queue.length === 0) return;
+                          setVoiceEnabled(true);
+                          await apiSetQueueAutoplay(true);
+                          await apiPlayQueueItem(0);
+                          await loadQueue();
+                        }}
+                        disabled={queue.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-all"
+                      >
+                        <Play className="w-4 h-4" /> Play All
+                      </button>
+                    )}
+
+                    {/* Select mode toggle */}
+                    {queue.length > 0 && !queueSelectMode && (
+                      <button
+                        onClick={() => { setQueueSelectMode(true); setSelectedQueueIndices(new Set()); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-white hover:bg-white/5 transition-all"
+                        title="Select items to remove"
+                      >
+                        <ListChecks className="w-3.5 h-3.5" /> Select
+                      </button>
+                    )}
+
+                    {/* Clear All */}
+                    {queue.length > 0 && !queueSelectMode && (
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm(`Remove all ${queue.length} item${queue.length !== 1 ? 's' : ''} from the queue?`)) return;
+                          setQueue([]);
+                          await apiReorderQueue([]);
+                          setPlayingQueueIndex(-1);
+                          setOnAir(false);
+                          stop();
+                          await fetch('/api/playback/queue/stop', { method: 'POST' });
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/30 text-destructive/60 text-xs hover:text-destructive hover:bg-destructive/10 transition-all"
+                        title="Clear entire queue"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Clear All
+                      </button>
+                    )}
+
+                    {/* Select mode actions */}
+                    {queueSelectMode && (
+                      <>
+                        <button
+                          onClick={() => {
+                            if (selectedQueueIndices.size === queue.length) {
+                              setSelectedQueueIndices(new Set());
+                            } else {
+                              setSelectedQueueIndices(new Set(queue.map((_, i) => i)));
+                            }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-white hover:bg-white/5 transition-all"
+                        >
+                          {selectedQueueIndices.size === queue.length ? <Square className="w-3.5 h-3.5" /> : <CheckSquare className="w-3.5 h-3.5" />}
+                          {selectedQueueIndices.size === queue.length ? 'Deselect All' : 'Select All'}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (selectedQueueIndices.size === 0) return;
+                            const remaining = queue.filter((_, i) => !selectedQueueIndices.has(i));
+                            setQueue(remaining);
+                            await apiReorderQueue(remaining);
+                            if (selectedQueueIndices.has(playingQueueIndex)) {
+                              setPlayingQueueIndex(-1);
+                              setOnAir(false);
+                              stop();
+                              await fetch('/api/playback/queue/stop', { method: 'POST' });
+                            }
+                            setQueueSelectMode(false);
+                            setSelectedQueueIndices(new Set());
+                          }}
+                          disabled={selectedQueueIndices.size === 0}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-destructive/20 border border-destructive/40 text-destructive text-xs font-semibold hover:bg-destructive/30 disabled:opacity-40 transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Remove {selectedQueueIndices.size > 0 ? `(${selectedQueueIndices.size})` : ''}
+                        </button>
+                        <button
+                          onClick={() => { setQueueSelectMode(false); setSelectedQueueIndices(new Set()); }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-white hover:bg-white/5 transition-all"
+                        >
+                          <X className="w-3.5 h-3.5" /> Cancel
+                        </button>
+                      </>
+                    )}
+
+                    {/* Pause / Resume / Stop */}
+                    {onAir && (
+                      <button
+                        onClick={async () => {
+                          stop();
+                          setOnAir(false);
+                          await fetch('/api/playback/queue/pause', { method: 'POST' });
+                        }}
+                        title="Pause — keeps your place in the queue"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-yellow-500/40 text-yellow-400 text-sm hover:bg-yellow-500/10 transition-all"
+                      >
+                        <Pause className="w-4 h-4" /> Pause
+                      </button>
+                    )}
+                    {!onAir && playingQueueIndex >= 0 && (
+                      <button
+                        onClick={async () => {
+                          setVoiceEnabled(true);
+                          await apiSetQueueAutoplay(true);
+                          await apiPlayQueueItem(playingQueueIndex);
+                          await loadQueue();
+                        }}
+                        title="Resume from where you paused"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-green-500/40 text-green-400 text-sm hover:bg-green-500/10 transition-all"
+                      >
+                        <Play className="w-4 h-4" /> Resume
+                      </button>
+                    )}
+                    {(onAir || playingQueueIndex >= 0) && (
+                      <button
+                        onClick={async () => {
+                          setOnAir(false);
+                          setPlayingQueueIndex(-1);
+                          setVoiceEnabled(false);
+                          stop();
+                          await fetch('/api/playback/queue/stop', { method: 'POST' });
+                          await loadQueue();
+                        }}
+                        title="Stop and clear queue position"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-destructive/30 text-destructive/70 text-sm hover:bg-destructive/10 transition-all"
+                      >
+                        <X className="w-4 h-4" /> Stop
+                      </button>
+                    )}
                   </div>
 
-                  {/* Chapter list */}
-                  {snippets.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t border-border">
-                      <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">
-                        Chapters ({snippets.length}) · Click to jump
-                      </p>
-                      <div className="space-y-1.5">
-                        {snippets.map((snippet, i) => (
-                          <SnippetRow
-                            key={snippet.id}
-                            snippet={snippet}
-                            index={i}
-                            totalChapters={snippets.length}
-                            isOnAir={i === currentSnippetIndex}
-                            onSelect={() => handleSelectChapter(i)}
-                          />
-                        ))}
-                      </div>
-                    </div>
+                  {queue.length === 0 && (
+                    <p className="text-xs text-muted-foreground/60 mt-3 pl-6">
+                      Hover an article or video in the sidebar and click <span className="text-primary font-semibold">+</span> to add it here.
+                    </p>
                   )}
                 </div>
-              )}
 
-            </div>
-          )}
+                {/* Queue list */}
+                {queue.length > 0 && (
+                  <div className="space-y-2">
+                    {queue.map((item, idx) => {
+                      const isActive = idx === playingQueueIndex && onAir;
+                      return (
+                        <div
+                          key={idx}
+                          onClick={queueSelectMode ? () => {
+                            setSelectedQueueIndices(prev => {
+                              const next = new Set(prev);
+                              next.has(idx) ? next.delete(idx) : next.add(idx);
+                              return next;
+                            });
+                          } : undefined}
+                          className={cn(
+                            "group flex items-center gap-3 p-4 rounded-xl border transition-all",
+                            queueSelectMode && "cursor-pointer",
+                            queueSelectMode && selectedQueueIndices.has(idx)
+                              ? "bg-destructive/10 border-destructive/40"
+                              : isActive
+                                ? "bg-primary/12 border-primary/35"
+                                : "border-border bg-card/20 hover:bg-card/40"
+                          )}
+                        >
+                          {/* Checkbox (select mode) or position / live dot */}
+                          <div className="w-5 shrink-0 text-center">
+                            {queueSelectMode
+                              ? selectedQueueIndices.has(idx)
+                                ? <CheckSquare className="w-4 h-4 text-destructive" />
+                                : <Square className="w-4 h-4 text-muted-foreground/50" />
+                              : isActive
+                                ? <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
+                                : <span className="text-xs text-muted-foreground/40">{idx + 1}</span>
+                            }
+                          </div>
+
+                          {/* Type icon */}
+                          {item.type === 'article'
+                            ? <FileText className="w-4 h-4 shrink-0 text-blue-400/70" />
+                            : <Play className="w-4 h-4 shrink-0 text-purple-400/70" />
+                          }
+
+                          {/* Title + status */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium line-clamp-1 text-white/85">{item.title}</p>
+                            <p className="text-[10px] uppercase tracking-wide mt-0.5">
+                              <span className="text-muted-foreground">{item.type === 'article' ? 'Article' : 'Video'}</span>
+                              {isActive && <span className="ml-2 text-primary font-semibold">● LIVE</span>}
+                            </p>
+                          </div>
+
+                          {/* Reorder + remove (on hover) — hidden in select mode */}
+                          <div className={cn("flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity", queueSelectMode && "hidden")}>
+                            <button
+                              onClick={async () => {
+                                if (idx === 0) return;
+                                const newQ = [...queue];
+                                [newQ[idx - 1], newQ[idx]] = [newQ[idx], newQ[idx - 1]];
+                                setQueue(newQ);
+                                await apiReorderQueue(newQ);
+                              }}
+                              disabled={idx === 0}
+                              className="p-1.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 transition-colors"
+                              title="Move up"
+                            >
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (idx === queue.length - 1) return;
+                                const newQ = [...queue];
+                                [newQ[idx], newQ[idx + 1]] = [newQ[idx + 1], newQ[idx]];
+                                setQueue(newQ);
+                                await apiReorderQueue(newQ);
+                              }}
+                              disabled={idx === queue.length - 1}
+                              className="p-1.5 rounded text-muted-foreground hover:text-white disabled:opacity-20 transition-colors"
+                              title="Move down"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const newItems = await apiRemoveFromQueue(idx);
+                                setQueue(newItems);
+                                await loadQueue();
+                              }}
+                              className="p-1.5 rounded text-muted-foreground hover:text-destructive transition-colors"
+                              title="Remove from queue"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Play button — hidden in select mode */}
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await apiPlayQueueItem(idx);
+                              await loadQueue();
+                            }}
+                            style={{ display: queueSelectMode ? 'none' : undefined }}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0",
+                              isActive
+                                ? "bg-primary/20 border-primary/40 text-primary"
+                                : "border-border text-white/50 hover:text-white hover:bg-white/10 hover:border-white/20"
+                            )}
+                          >
+                            <Play className="w-3 h-3" />
+                            {isActive ? 'Playing' : 'Play'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Article chapter controls — shown when an article is playing */}
+                {playingArticleId !== null && onAir && (
+                  <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <FileText className="w-4 h-4 text-blue-400" />
+                      <span className="text-sm font-semibold text-white/80">Chapter Controls</span>
+                      <span className="text-xs text-muted-foreground">
+                        — {playingQueueItem?.title}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handlePrev}
+                        disabled={currentSnippetIndex === 0 || isLoadingSnippets}
+                        className="p-2.5 rounded-xl border border-border text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      >
+                        {isLoadingSnippets ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronLeft className="w-5 h-5" />}
+                      </button>
+
+                      <div className="flex-1 text-center">
+                        {isLoadingSnippets ? (
+                          <Loader2 className="w-4 h-4 animate-spin mx-auto text-primary/40" />
+                        ) : currentSnippet ? (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-0.5">
+                              Chapter {currentSnippetIndex + 1} of {snippets.length}
+                            </p>
+                            <p className="text-sm font-semibold text-white line-clamp-1">{currentSnippet.headline}</p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No chapters</p>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => advance()}
+                        disabled={isLoadingSnippets}
+                        className="p-2.5 rounded-xl border border-border text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      >
+                        {isLoadingSnippets ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          const next = !queueAutoplay;
+                          setQueueAutoplay(next);
+                          await apiSetQueueAutoplay(next);
+                          if (next) {
+                            // Turning autoplay ON: reset the "already spoken" guard and
+                            // bump voiceRestartToken so the voice effect re-fires even if
+                            // currentSnippetIndex didn't change (e.g. still at chapter 0).
+                            // Preserve article ID so isNewArticle stays false on next advance.
+                            prevIndexRef.current = { index: -1, articleId: playingArticleIdRef.current };
+                            setVoiceRestartToken(t => t + 1);
+                          }
+                        }}
+                        title={queueAutoplay ? 'Autoplay on — click to disable' : 'Enable autoplay (voice reads and advances automatically)'}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all",
+                          queueAutoplay
+                            ? "bg-green-500/20 border-green-500/40 text-green-400"
+                            : "border-border text-white/50 hover:text-white hover:bg-white/5"
+                        )}
+                      >
+                        {queueAutoplay ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                        {queueAutoplay ? 'Auto' : 'Manual'}
+                      </button>
+
+                      <button
+                        onClick={() => { setVoiceEnabled(v => !v); if (voiceEnabled) stop(); }}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all",
+                          voiceEnabled
+                            ? "bg-primary/20 border-primary/40 text-primary"
+                            : "border-border text-white/50 hover:text-white hover:bg-white/5"
+                        )}
+                      >
+                        {isVoiceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : voiceEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                        {voiceEnabled ? 'Voice On' : 'Voice Off'}
+                      </button>
+
+                    </div>
+
+                    {/* Chapter list */}
+                    {snippets.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-border">
+                        <p className="text-xs text-muted-foreground uppercase tracking-widest font-medium">
+                          Chapters ({snippets.length}) · Click to jump
+                        </p>
+                        <div className="space-y-1.5">
+                          {snippets.map((snippet, i) => (
+                            <SnippetRow
+                              key={snippet.id}
+                              snippet={snippet}
+                              index={i}
+                              totalChapters={snippets.length}
+                              isOnAir={i === currentSnippetIndex}
+                              onSelect={() => handleSelectChapter(i)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              </div>
+            )}
           </div>
         </main>
       </div>

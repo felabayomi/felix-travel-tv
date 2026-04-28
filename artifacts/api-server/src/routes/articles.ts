@@ -292,6 +292,11 @@ function createPlaceholderImageDataUrl(text: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+function isPlaceholderStoredImage(imageUrl: string | null | undefined): boolean {
+  if (!imageUrl) return false;
+  return imageUrl.startsWith("data:image/svg+xml");
+}
+
 function stringSeed(input: string): number {
   let value = 0;
   for (let index = 0; index < input.length; index++) {
@@ -847,7 +852,7 @@ router.post("/:id/regenerate-images", async (req, res) => {
       .where(eq(snippetsTable.articleId, id))
       .orderBy(asc(snippetsTable.snippetOrder));
 
-    const missing = snippets.filter(s => !s.imageUrl && s.imagePrompt);
+    const missing = snippets.filter(s => (!s.imageUrl || isPlaceholderStoredImage(s.imageUrl)) && s.imagePrompt);
 
     // Respond immediately so the request never times out.
     res.json({ total: snippets.length, missing: missing.length, started: true });
@@ -913,6 +918,7 @@ router.get("/:id/snippets", async (req, res) => {
         caption: snippetsTable.caption,
         explanation: snippetsTable.explanation,
         hasImage: sql<boolean>`(${snippetsTable.imageUrl} IS NOT NULL)`,
+        hasRealImage: sql<boolean>`(${snippetsTable.imageUrl} IS NOT NULL AND ${snippetsTable.imageUrl} NOT LIKE 'data:image/svg+xml%')`,
         imagePrompt: snippetsTable.imagePrompt,
         createdAt: snippetsTable.createdAt,
       })
@@ -929,6 +935,7 @@ router.get("/:id/snippets", async (req, res) => {
       caption: s.caption,
       explanation: s.explanation,
       imageUrl: s.hasImage ? snippetImageUrl(s.id) : null,
+      imageReady: s.hasRealImage,
       imagePrompt: s.imagePrompt,
       createdAt: s.createdAt,
     })));
