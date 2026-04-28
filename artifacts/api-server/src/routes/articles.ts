@@ -277,6 +277,8 @@ const ARTICLE_TIMEOUT_MS = envInt("TRAVEL_TV_ARTICLE_TIMEOUT_MS", 12000, 5000, 1
 const ARTICLE_BODY_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_BODY_MAX_CHARS", 4500, 1000, 12000);
 const ARTICLE_JSONLD_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_JSONLD_MAX_CHARS", 1200, 200, 3000);
 const IMAGE_GENERATION_LIMIT = envInt("TRAVEL_TV_IMAGE_GENERATION_LIMIT", 9, 0, 9);
+const IMAGE_GENERATION_RETRIES = envInt("TRAVEL_TV_IMAGE_RETRIES", 3, 1, 6);
+const IMAGE_RETRY_BASE_DELAY_MS = envInt("TRAVEL_TV_IMAGE_RETRY_DELAY_MS", 1200, 300, 5000);
 const IMAGE_GENERATION_SIZE =
   process.env.TRAVEL_TV_IMAGE_SIZE === "256x256"
     ? "256x256"
@@ -313,6 +315,15 @@ function resolveFallbackSourceImage(candidate: string | null | undefined, pageUr
 function stockFallbackImageUrl(seedSource: string): string {
   const seed = stringSeed(seedSource || "travel");
   return `https://picsum.photos/seed/felix-travel-${seed}/1280/720`;
+}
+
+function looksLikeLogoUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  return /logo|icon|favicon|brandmark|avatar|badge|wordmark/.test(lower);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function stringSeed(input: string): number {
@@ -542,6 +553,19 @@ async function generateAiImage(prompt: string): Promise<string | null> {
   }
 }
 
+async function generateAiImageWithRetries(prompt: string): Promise<string | null> {
+  for (let attempt = 1; attempt <= IMAGE_GENERATION_RETRIES; attempt++) {
+    const imageUrl = await generateAiImage(prompt);
+    if (imageUrl) return imageUrl;
+
+    if (attempt < IMAGE_GENERATION_RETRIES) {
+      await sleep(IMAGE_RETRY_BASE_DELAY_MS * attempt);
+    }
+  }
+
+  return null;
+}
+
 /**
  * Generate and persist images for a list of snippets.
  *
@@ -564,38 +588,36 @@ async function generateAndSaveImages(
     return;
   }
 
-  const results = await Promise.allSettled(
-    targetSnippets.map(async (snippet) => {
-      if (!snippet.imagePrompt) return { id: snippet.id, ok: false };
-      const imageUrl = await generateAiImage(snippet.imagePrompt);
-      if (!imageUrl) return { id: snippet.id, ok: false };
+  let generated = 0;
+  const failed: Array<{ id: number; imagePrompt: string | null }> = [];
 
-      await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
-      return { id: snippet.id, ok: true };
-    })
-  );
+  // Use sequential generation to reduce rate-limit bursts and preserve per-clip uniqueness.
+  for (const snippet of targetSnippets) {
+    if (!snippet.imagePrompt) {
+      failed.push(snippet);
+      continue;
+    }
 
-  const failed = targetSnippets.filter((_, index) => {
-    const result = results[index];
-    return result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok);
-  });
+    const imageUrl = await generateAiImageWithRetries(snippet.imagePrompt);
+    if (!imageUrl) {
+      failed.push(snippet);
+      continue;
+    }
+
+    await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
+    generated++;
+  }
 
   if (failed.length === 0) {
-    log.info({ total: snippets.length, generated: targetSnippets.length }, "Generated themed image for each slide");
+    log.info({ total: snippets.length, generated }, "Generated themed image for each slide");
     return;
   }
 
-  let retried = 0;
-  for (const snippet of failed) {
-    if (!snippet.imagePrompt) continue;
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    const imageUrl = await generateAiImage(snippet.imagePrompt);
-    if (!imageUrl) continue;
-    await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
-    retried++;
-  }
+  const safeSourceFallback =
+    fallbackImageUrl && !looksLikeLogoUrl(fallbackImageUrl)
+      ? fallbackImageUrl
+      : null;
 
-  const failedAfterRetry = failed.length - retried;
   let fallbackApplied = 0;
   for (const snippet of failed) {
     const row = await db
@@ -606,13 +628,13 @@ async function generateAndSaveImages(
     if (row.length === 0) continue;
     if (row[0].imageUrl && !isPlaceholderStoredImage(row[0].imageUrl)) continue;
 
-    const fallbackForSnippet = fallbackImageUrl || stockFallbackImageUrl(`${snippet.id}:${snippet.imagePrompt || "travel"}`);
+    const fallbackForSnippet = safeSourceFallback || stockFallbackImageUrl(`${snippet.id}:${snippet.imagePrompt || "travel"}`);
     await db.update(snippetsTable).set({ imageUrl: fallbackForSnippet }).where(eq(snippetsTable.id, snippet.id));
     fallbackApplied++;
   }
 
   log.info(
-    { total: snippets.length, generated: targetSnippets.length - failed.length, retried, failed: Math.max(0, failedAfterRetry - fallbackApplied), fallbackApplied },
+    { total: snippets.length, generated, failed: Math.max(0, failed.length - fallbackApplied), fallbackApplied },
     "Completed per-slide themed image generation"
   );
 }
