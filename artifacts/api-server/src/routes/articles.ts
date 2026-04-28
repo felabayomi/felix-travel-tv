@@ -314,40 +314,6 @@ function isPlaceholderStoredImage(imageUrl: string | null | undefined): boolean 
   return imageUrl.startsWith("data:image/svg+xml");
 }
 
-function resolveFallbackSourceImage(candidate: string | null | undefined, pageUrl: string): string | null {
-  if (!candidate) return null;
-  try {
-    return new URL(candidate, pageUrl).toString();
-  } catch {
-    return null;
-  }
-}
-
-function stockFallbackImageUrl(seedSource: string): string {
-  const seed = stringSeed(seedSource || "travel");
-  return `https://picsum.photos/seed/felix-travel-${seed}/1280/720`;
-}
-
-function themedFallbackImageUrl(seedSource: string, prompt: string | null | undefined): string {
-  const cleaned = (prompt || "travel landscape nature city skyline").toLowerCase();
-  const keywords = cleaned
-    .replace(/[^a-z0-9\s-]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter((word) => word.length >= 4)
-    .filter((word) => !/^(photo|image|travel|high|quality|with|from|this|that|city|scene|view)$/.test(word))
-    .slice(0, 4);
-
-  const tagPart = keywords.length > 0 ? keywords.join(",") : "nature,landscape,travel";
-  const seed = stringSeed(`${seedSource}:${tagPart}`);
-  return `https://loremflickr.com/1280/720/${encodeURIComponent(tagPart)}?lock=${seed}`;
-}
-
-function looksLikeLogoUrl(url: string): boolean {
-  const lower = url.toLowerCase();
-  return /logo|icon|favicon|brandmark|avatar|badge|wordmark/.test(lower);
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -636,8 +602,7 @@ async function generateAiImageWithRetries(prompt: string): Promise<string | null
  */
 async function generateAndSaveImages(
   snippets: Array<{ id: number; imagePrompt: string | null }>,
-  log: { info: (...a: any[]) => void; error: (...a: any[]) => void },
-  fallbackImageUrl?: string | null
+  log: { info: (...a: any[]) => void; error: (...a: any[]) => void }
 ) {
   const targetSnippets = snippets.slice(0, IMAGE_GENERATION_LIMIT);
   if (targetSnippets.length === 0) {
@@ -670,32 +635,9 @@ async function generateAndSaveImages(
     return;
   }
 
-  const safeSourceFallback =
-    fallbackImageUrl && !looksLikeLogoUrl(fallbackImageUrl)
-      ? fallbackImageUrl
-      : null;
-
-  let fallbackApplied = 0;
-  for (const snippet of failed) {
-    const row = await db
-      .select({ imageUrl: snippetsTable.imageUrl })
-      .from(snippetsTable)
-      .where(eq(snippetsTable.id, snippet.id));
-
-    if (row.length === 0) continue;
-    if (row[0].imageUrl && !isPlaceholderStoredImage(row[0].imageUrl)) continue;
-
-    const fallbackForSnippet =
-      themedFallbackImageUrl(`${snippet.id}`, snippet.imagePrompt) ||
-      safeSourceFallback ||
-      stockFallbackImageUrl(`${snippet.id}:${snippet.imagePrompt || "travel"}`);
-    await db.update(snippetsTable).set({ imageUrl: fallbackForSnippet }).where(eq(snippetsTable.id, snippet.id));
-    fallbackApplied++;
-  }
-
   log.info(
-    { total: snippets.length, generated, failed: Math.max(0, failed.length - fallbackApplied), fallbackApplied },
-    "Completed per-slide themed image generation"
+    { total: snippets.length, generated, failed: failed.length },
+    "OpenAI image generation incomplete; snippets remain pending for retry"
   );
 }
 
@@ -858,8 +800,7 @@ router.post("/", async (req, res) => {
 
     // Fire-and-forget: generate images in the background (parallel-first, then
     // sequential retry for any that failed). Never blocks the HTTP response.
-    const fallbackImageUrl = resolveFallbackSourceImage(page.ogImage, url);
-    generateAndSaveImages(insertedSnippets, req.log, fallbackImageUrl).catch(err =>
+    generateAndSaveImages(insertedSnippets, req.log).catch(err =>
       req.log.error({ err, articleId: article.id }, "Background image generation failed")
     );
   } catch (err) {
@@ -939,8 +880,7 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
     // Respond right away — chapters are ready, images generate in background
     res.json({ id, chapters: insertedSnippets.length, title: content.title });
 
-    const fallbackImageUrl = resolveFallbackSourceImage(page.ogImage, article.url);
-    generateAndSaveImages(insertedSnippets, req.log, fallbackImageUrl).catch(err =>
+    generateAndSaveImages(insertedSnippets, req.log).catch(err =>
       req.log.error({ err, articleId: id }, "Background image generation failed after chapter regen")
     );
   } catch (err) {
@@ -977,17 +917,9 @@ router.post("/:id/regenerate-images", async (req, res) => {
     // Respond immediately so the request never times out.
     res.json({ total: snippets.length, missing: missing.length, started: true });
 
-    let fallbackImageUrl: string | null = null;
-    try {
-      const page = await fetchPageData(articles[0].url);
-      fallbackImageUrl = resolveFallbackSourceImage(page.ogImage, articles[0].url);
-    } catch {
-      fallbackImageUrl = null;
-    }
-
     // Generate in the background using the same parallel-first strategy.
     if (missing.length > 0) {
-      generateAndSaveImages(missing, req.log, fallbackImageUrl).catch(err =>
+      generateAndSaveImages(missing, req.log).catch(err =>
         req.log.error({ err, articleId: id }, "Regenerate images failed")
       );
     }
