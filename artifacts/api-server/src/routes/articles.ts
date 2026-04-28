@@ -294,6 +294,7 @@ const IMAGE_MODELS = (process.env.TRAVEL_TV_IMAGE_MODELS || "gpt-image-1,dall-e-
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
+const IMAGE_PROVIDER = (process.env.TRAVEL_TV_IMAGE_PROVIDER || "stock").toLowerCase();
 const IMAGE_GENERATION_SIZE =
   process.env.TRAVEL_TV_IMAGE_SIZE === "256x256"
     ? "256x256"
@@ -327,6 +328,31 @@ function isPlaceholderStoredImage(imageUrl: string | null | undefined): boolean 
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+const KEYWORD_STOPWORDS = new Set([
+  "about", "after", "along", "around", "because", "between", "close", "could", "every", "from",
+  "great", "guide", "high", "into", "just", "like", "near", "open", "over", "photo", "scene",
+  "show", "some", "that", "their", "there", "these", "this", "travel", "trip", "using", "with",
+  "without", "your", "city", "view", "views", "feature", "chapter", "story", "local", "best",
+]);
+
+function extractImageKeywords(input: string): string[] {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((word) => word.length >= 4)
+    .filter((word) => !KEYWORD_STOPWORDS.has(word))
+    .slice(0, 6);
+}
+
+function buildStockImageUrl(seedSource: string, promptText: string): string {
+  const keywords = extractImageKeywords(promptText);
+  const terms = keywords.length > 0 ? keywords.join(",") : "nature,landscape,travel";
+  const seed = stringSeed(`${seedSource}:${terms}`);
+  return `https://source.unsplash.com/1600x900/?${encodeURIComponent(terms)}&sig=${seed}`;
 }
 
 function stringSeed(input: string): number {
@@ -627,7 +653,7 @@ async function generateAiImageWithRetries(prompt: string): Promise<string | null
  * contributes to request timeouts.
  */
 async function generateAndSaveImages(
-  snippets: Array<{ id: number; imagePrompt: string | null }>,
+  snippets: Array<{ id: number; imagePrompt: string | null; headline?: string | null; caption?: string | null; explanation?: string | null }>,
   log: { info: (...a: any[]) => void; error: (...a: any[]) => void }
 ) {
   const targetSnippets = snippets.slice(0, IMAGE_GENERATION_LIMIT);
@@ -638,6 +664,21 @@ async function generateAndSaveImages(
 
   let generated = 0;
   const failed: Array<{ id: number; imagePrompt: string | null }> = [];
+
+  if (IMAGE_PROVIDER === "stock") {
+    for (const snippet of targetSnippets) {
+      const promptText = snippet.imagePrompt || snippet.headline || snippet.caption || snippet.explanation || "travel destination";
+      const imageUrl = buildStockImageUrl(`${snippet.id}`, promptText);
+      await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
+      generated++;
+    }
+
+    log.info(
+      { total: snippets.length, generated, provider: IMAGE_PROVIDER },
+      "Assigned stock-photo URLs from clip keywords"
+    );
+    return;
+  }
 
   // Use sequential generation to reduce rate-limit bursts and preserve per-clip uniqueness.
   for (const snippet of targetSnippets) {
