@@ -177,6 +177,51 @@ interface GeneratedArticleResult {
   generation: GenerationMeta;
 }
 
+function parseJsonFromModelOutput(raw: string): any {
+  const text = (raw || "").trim();
+  if (!text) return {};
+
+  // 1) Strict JSON
+  try {
+    return JSON.parse(text);
+  } catch {
+    // continue
+  }
+
+  // 2) Markdown fenced JSON
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenced?.[1]) {
+    try {
+      return JSON.parse(fenced[1]);
+    } catch {
+      // continue
+    }
+  }
+
+  // 3) First balanced JSON object in mixed text
+  const firstBrace = text.indexOf("{");
+  if (firstBrace !== -1) {
+    let depth = 0;
+    for (let i = firstBrace; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === "{") depth++;
+      if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          const candidate = text.slice(firstBrace, i + 1);
+          try {
+            return JSON.parse(candidate);
+          } catch {
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  throw new Error("Model response did not contain parseable JSON");
+}
+
 function isLikelyErrorDocument(page: PageData): { isError: boolean; reason: string } {
   const combined = [
     page.metaTitle,
@@ -419,7 +464,7 @@ JSON SCHEMA:
     );
 
     const content = response.choices[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(content);
+    const parsed = parseJsonFromModelOutput(content);
     const snippets: SnippetData[] = Array.isArray(parsed.snippets)
       ? parsed.snippets.slice(0, 9).map((s: any) => ({
         headline: s.headline || "Travel Highlight",
