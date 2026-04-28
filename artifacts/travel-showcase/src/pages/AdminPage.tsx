@@ -1898,6 +1898,11 @@ function AdminDashboard() {
   const [exportingArticleId, setExportingArticleId] = useState<number | null>(null);
   const [regenImagesId, setRegenImagesId] = useState<number | null>(null);
   const [regenChaptersId, setRegenChaptersId] = useState<number | null>(null);
+  const [regenImageProgress, setRegenImageProgress] = useState<Record<number, {
+    total: number;
+    done: number;
+    active: boolean;
+  }>>({});
   const [pendingImagesArticleId, setPendingImagesArticleId] = useState<number | null>(null);
   const [articleSearch, setArticleSearch] = useState('');
   const [videoSearch, setVideoSearch] = useState('');
@@ -1913,6 +1918,57 @@ function AdminDashboard() {
   const [queueLoop, setQueueLoop] = useState(false);
   const [playingQueueIndex, setPlayingQueueIndex] = useState(-1);
   const [serverItemType, setServerItemType] = useState<'article' | 'video' | 'interlude' | null>(null);
+  const regenProgressTimersRef = useRef<Record<number, number>>({});
+
+  const clearRegenProgressTimer = useCallback((articleId: number) => {
+    const timer = regenProgressTimersRef.current[articleId];
+    if (timer) {
+      window.clearTimeout(timer);
+      delete regenProgressTimersRef.current[articleId];
+    }
+  }, []);
+
+  const pollRegenProgress = useCallback((articleId: number) => {
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/articles/${articleId}/snippets`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Failed to load snippets for ${articleId}`);
+
+        const snips: Array<{ imageUrl: string | null }> = await res.json();
+        const total = snips.length;
+        const done = snips.filter(s => !!s.imageUrl).length;
+        const allDone = total > 0 && done >= total;
+
+        setRegenImageProgress(prev => ({
+          ...prev,
+          [articleId]: { total, done, active: !allDone },
+        }));
+
+        if (allDone) {
+          clearRegenProgressTimer(articleId);
+          queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
+          regenProgressTimersRef.current[articleId] = window.setTimeout(() => {
+            setRegenImageProgress(prev => {
+              const next = { ...prev };
+              delete next[articleId];
+              return next;
+            });
+            clearRegenProgressTimer(articleId);
+          }, 2000);
+          return;
+        }
+
+        clearRegenProgressTimer(articleId);
+        regenProgressTimersRef.current[articleId] = window.setTimeout(run, 1500);
+      } catch {
+        clearRegenProgressTimer(articleId);
+        regenProgressTimersRef.current[articleId] = window.setTimeout(run, 2500);
+      }
+    };
+
+    clearRegenProgressTimer(articleId);
+    regenProgressTimersRef.current[articleId] = window.setTimeout(run, 0);
+  }, [clearRegenProgressTimer, queryClient]);
 
   const loadQueue = useCallback(async () => {
     const state = await fetchQueueState();
@@ -1928,6 +1984,13 @@ function AdminDashboard() {
   }, []);
 
   useEffect(() => { loadQueue(); }, [loadQueue]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(regenProgressTimersRef.current).forEach(window.clearTimeout);
+      regenProgressTimersRef.current = {};
+    };
+  }, []);
 
   // Poll queue state every 2 s so admin stays in sync with public display advances
   useEffect(() => {
@@ -2802,6 +2865,29 @@ function AdminDashboard() {
                           {a.source || 'Unknown'} · {new Date(a.publishedAt).toLocaleDateString()}
                         </p>
                         <p className="text-sm font-medium leading-snug line-clamp-2">{a.title}</p>
+                        {regenImageProgress[a.id] && (
+                          <div className="mt-1.5">
+                            <div className="h-1.5 w-full max-w-44 rounded-full bg-white/10 overflow-hidden">
+                              <div
+                                className="h-full bg-sky-400 transition-all duration-500"
+                                style={{
+                                  width: `${Math.max(
+                                    0,
+                                    Math.min(
+                                      100,
+                                      regenImageProgress[a.id].total > 0
+                                        ? (regenImageProgress[a.id].done / regenImageProgress[a.id].total) * 100
+                                        : 0
+                                    )
+                                  )}%`
+                                }}
+                              />
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                              {regenImageProgress[a.id].active ? 'Generating images' : 'Images ready'} · {regenImageProgress[a.id].done}/{regenImageProgress[a.id].total}
+                            </p>
+                          </div>
+                        )}
                       </div>
                       {!articleSelectMode && (
                       <div className="flex flex-col gap-1 md:opacity-0 md:group-hover:opacity-100 shrink-0 transition-opacity">
@@ -2852,8 +2938,25 @@ function AdminDashboard() {
                               const data = await res.json();
                               if (data.missing === 0) {
                                 console.info(`Article ${a.id}: all images already present`);
+                                setRegenImageProgress(prev => ({
+                                  ...prev,
+                                  [a.id]: {
+                                    total: data.total ?? 0,
+                                    done: data.total ?? 0,
+                                    active: false,
+                                  },
+                                }));
                               } else {
                                 console.info(`Article ${a.id}: regenerated ${data.regenerated}/${data.missing} missing images`);
+                                setRegenImageProgress(prev => ({
+                                  ...prev,
+                                  [a.id]: {
+                                    total: data.total ?? 0,
+                                    done: Math.max(0, (data.total ?? 0) - (data.missing ?? 0)),
+                                    active: true,
+                                  },
+                                }));
+                                pollRegenProgress(a.id);
                                 queryClient.invalidateQueries({ queryKey: getGetArticlesQueryKey() });
                               }
                             } catch (err) {
