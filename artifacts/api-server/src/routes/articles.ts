@@ -355,13 +355,54 @@ function buildStockImageUrl(seedSource: string, promptText: string): string {
   return `https://loremflickr.com/1600/900/${encodeURIComponent(terms)}?lock=${seed}`;
 }
 
-function initialClipImageUrl(
+function buildStockImageCandidates(seedSource: string, promptText: string): string[] {
+  const keywords = extractImageKeywords(promptText);
+  const terms = keywords.length > 0 ? keywords.join(",") : "nature,landscape,travel";
+  const seed = stringSeed(`${seedSource}:${terms}`);
+  return [
+    `https://loremflickr.com/1600/900/${encodeURIComponent(terms)}?lock=${seed}`,
+    `https://picsum.photos/seed/felix-${seed}/1600/900`,
+  ];
+}
+
+async function fetchImageAsDataUrl(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; FelixTravelTV/1.0)",
+        "Accept": "image/*,*/*",
+      },
+      redirect: "follow",
+    });
+    if (!response.ok) return null;
+
+    const contentType = response.headers.get("content-type") ?? "image/jpeg";
+    if (!contentType.startsWith("image/")) return null;
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return `data:${contentType};base64,${buffer.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveStockImageDataUrl(seedSource: string, promptText: string): Promise<string | null> {
+  const candidates = buildStockImageCandidates(seedSource, promptText);
+  for (const candidate of candidates) {
+    const dataUrl = await fetchImageAsDataUrl(candidate);
+    if (dataUrl) return dataUrl;
+  }
+  return null;
+}
+
+async function initialClipImageUrl(
   seedSource: string,
   promptText: string,
   placeholderText: string,
-): string {
+): Promise<string> {
   if (IMAGE_PROVIDER === "stock") {
-    return buildStockImageUrl(seedSource, promptText);
+    const resolved = await resolveStockImageDataUrl(seedSource, promptText);
+    if (resolved) return resolved;
   }
   return createPlaceholderImageDataUrl(placeholderText);
 }
@@ -679,7 +720,8 @@ async function generateAndSaveImages(
   if (IMAGE_PROVIDER === "stock") {
     for (const snippet of targetSnippets) {
       const promptText = snippet.imagePrompt || snippet.headline || snippet.caption || snippet.explanation || "travel destination";
-      const imageUrl = buildStockImageUrl(`${snippet.id}`, promptText);
+      const imageUrl = await resolveStockImageDataUrl(`${snippet.id}`, promptText)
+        || createPlaceholderImageDataUrl(promptText);
       await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
       generated++;
     }
@@ -849,19 +891,19 @@ router.post("/", async (req, res) => {
 
     // Insert snippets immediately with image URLs when stock provider is enabled,
     // otherwise placeholders are used and OpenAI generation runs in background.
-    const snippetRows = content.snippets.map((s, index) => ({
+    const snippetRows = await Promise.all(content.snippets.map(async (s, index) => ({
       articleId: article.id,
       snippetOrder: index,
       headline: s.headline,
       caption: s.caption,
       explanation: s.explanation,
-      imageUrl: initialClipImageUrl(
+      imageUrl: await initialClipImageUrl(
         `${article.id}:${index}`,
         s.imagePrompt || s.headline || s.caption || s.explanation || content.title,
         s.headline || s.caption || s.imagePrompt || content.title,
       ),
       imagePrompt: s.imagePrompt,
-    }));
+    })));
 
     const insertedSnippets = await db
       .insert(snippetsTable)
@@ -942,19 +984,19 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
     // Replace snippets atomically: delete old → insert new
     await db.delete(snippetsTable).where(eq(snippetsTable.articleId, id));
 
-    const snippetRows = content.snippets.map((s, index) => ({
+    const snippetRows = await Promise.all(content.snippets.map(async (s, index) => ({
       articleId: id,
       snippetOrder: index,
       headline: s.headline,
       caption: s.caption,
       explanation: s.explanation,
-      imageUrl: initialClipImageUrl(
+      imageUrl: await initialClipImageUrl(
         `${id}:${index}`,
         s.imagePrompt || s.headline || s.caption || s.explanation || content.title,
         s.headline || s.caption || s.imagePrompt || content.title,
       ),
       imagePrompt: s.imagePrompt,
-    }));
+    })));
 
     const insertedSnippets = await db.insert(snippetsTable).values(snippetRows).returning();
 
