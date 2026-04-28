@@ -282,14 +282,14 @@ const IMAGE_GENERATION_SIZE =
       : "512x512";
 
 function createPlaceholderImageDataUrl(text: string): string {
-  const title = text.replace(/\s+/g, " ").trim().slice(0, 72) || "Felix Travel TV";
+  const title = text.replace(/\s+/g, " ").trim().slice(0, 120) || "Travel scene";
   const escaped = title
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0f172a"/><stop offset="100%" stop-color="#1e293b"/></linearGradient></defs><rect width="1200" height="800" fill="url(#g)"/><rect x="64" y="64" width="1072" height="672" rx="28" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.22)"/><text x="96" y="160" fill="#f8fafc" font-family="Arial, sans-serif" font-size="48" font-weight="700">Felix Travel TV</text><text x="96" y="230" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="34">${escaped}</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0b1220"/><stop offset="100%" stop-color="#1d3557"/></linearGradient><radialGradient id="r" cx="22%" cy="18%" r="72%"><stop offset="0%" stop-color="rgba(255,255,255,0.2)"/><stop offset="100%" stop-color="rgba(255,255,255,0)"/></radialGradient></defs><rect width="1200" height="800" fill="url(#g)"/><rect width="1200" height="800" fill="url(#r)"/><rect x="64" y="64" width="1072" height="672" rx="28" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.14)"/><text x="96" y="710" fill="rgba(226,232,240,0.9)" font-family="Arial, sans-serif" font-size="32">${escaped}</text></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
@@ -559,15 +559,8 @@ async function generateAndSaveImages(
 
     const groupSnippets = snippets.slice(groupStart, groupEnd);
     await Promise.all(
-      groupSnippets.map((snippet, index) => {
-        const variantImageUrl = index === 0
-          ? groupBaseImageUrl
-          : createChapterVariantImageDataUrl(
-            groupBaseImageUrl,
-            snippet.imagePrompt || `Chapter ${groupStart + index + 1}`,
-            `${groupIndex}:${snippet.id}:${snippet.imagePrompt || "chapter"}`
-          );
-        return db.update(snippetsTable).set({ imageUrl: variantImageUrl }).where(eq(snippetsTable.id, snippet.id));
+      groupSnippets.map((snippet) => {
+        return db.update(snippetsTable).set({ imageUrl: groupBaseImageUrl }).where(eq(snippetsTable.id, snippet.id));
       })
     );
 
