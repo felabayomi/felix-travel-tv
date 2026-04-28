@@ -366,7 +366,7 @@ function buildFallbackArticleContent(url: string, page: PageData): ArticleData {
     `Felix Travel TV can still turn this topic into a usable briefing once the full article text is pasted into the admin panel.`,
   ];
 
-  const snippets = chunks.slice(0, 6).map((chunk, index) => {
+  const snippets = chunks.slice(0, 7).map((chunk, index) => {
     const firstSentence = chunk.split(/(?<=[.!?])\s+/)[0]?.trim() || chunk;
     return {
       headline: compactTitle(index === 0 ? baseTitle : `Travel Brief ${index + 1}`, `Travel Brief ${index + 1}`),
@@ -376,7 +376,7 @@ function buildFallbackArticleContent(url: string, page: PageData): ArticleData {
     };
   });
 
-  while (snippets.length < 3) {
+  while (snippets.length < 4) {
     const sequence = snippets.length + 1;
     snippets.push({
       headline: `Travel Brief ${sequence}`,
@@ -474,7 +474,7 @@ JSON SCHEMA:
       }))
       : [];
 
-    if (snippets.length < 3) {
+    if (snippets.length < 4) {
       throw new Error("Too few snippets generated");
     }
 
