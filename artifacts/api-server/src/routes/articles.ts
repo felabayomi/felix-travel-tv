@@ -297,6 +297,15 @@ function isPlaceholderStoredImage(imageUrl: string | null | undefined): boolean 
   return imageUrl.startsWith("data:image/svg+xml");
 }
 
+function resolveFallbackSourceImage(candidate: string | null | undefined, pageUrl: string): string | null {
+  if (!candidate) return null;
+  try {
+    return new URL(candidate, pageUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
 function stringSeed(input: string): number {
   let value = 0;
   for (let index = 0; index < input.length; index++) {
@@ -537,7 +546,8 @@ async function generateAiImage(prompt: string): Promise<string | null> {
  */
 async function generateAndSaveImages(
   snippets: Array<{ id: number; imagePrompt: string | null }>,
-  log: { info: (...a: any[]) => void; error: (...a: any[]) => void }
+  log: { info: (...a: any[]) => void; error: (...a: any[]) => void },
+  fallbackImageUrl?: string | null
 ) {
   const targetSnippets = snippets.slice(0, IMAGE_GENERATION_LIMIT);
   if (targetSnippets.length === 0) {
@@ -576,8 +586,25 @@ async function generateAndSaveImages(
     retried++;
   }
 
+  const failedAfterRetry = failed.length - retried;
+  let fallbackApplied = 0;
+  if (fallbackImageUrl) {
+    for (const snippet of failed) {
+      const row = await db
+        .select({ imageUrl: snippetsTable.imageUrl })
+        .from(snippetsTable)
+        .where(eq(snippetsTable.id, snippet.id));
+
+      if (row.length === 0) continue;
+      if (row[0].imageUrl && !isPlaceholderStoredImage(row[0].imageUrl)) continue;
+
+      await db.update(snippetsTable).set({ imageUrl: fallbackImageUrl }).where(eq(snippetsTable.id, snippet.id));
+      fallbackApplied++;
+    }
+  }
+
   log.info(
-    { total: snippets.length, generated: targetSnippets.length - failed.length, retried, failed: failed.length - retried },
+    { total: snippets.length, generated: targetSnippets.length - failed.length, retried, failed: Math.max(0, failedAfterRetry - fallbackApplied), fallbackApplied },
     "Completed per-slide themed image generation"
   );
 }
@@ -741,7 +768,8 @@ router.post("/", async (req, res) => {
 
     // Fire-and-forget: generate images in the background (parallel-first, then
     // sequential retry for any that failed). Never blocks the HTTP response.
-    generateAndSaveImages(insertedSnippets, req.log).catch(err =>
+    const fallbackImageUrl = resolveFallbackSourceImage(page.ogImage, url);
+    generateAndSaveImages(insertedSnippets, req.log, fallbackImageUrl).catch(err =>
       req.log.error({ err, articleId: article.id }, "Background image generation failed")
     );
   } catch (err) {
@@ -820,7 +848,8 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
     // Respond right away — chapters are ready, images generate in background
     res.json({ id, chapters: insertedSnippets.length, title: content.title });
 
-    generateAndSaveImages(insertedSnippets, req.log).catch(err =>
+    const fallbackImageUrl = resolveFallbackSourceImage(page.ogImage, article.url);
+    generateAndSaveImages(insertedSnippets, req.log, fallbackImageUrl).catch(err =>
       req.log.error({ err, articleId: id }, "Background image generation failed after chapter regen")
     );
   } catch (err) {
@@ -857,9 +886,17 @@ router.post("/:id/regenerate-images", async (req, res) => {
     // Respond immediately so the request never times out.
     res.json({ total: snippets.length, missing: missing.length, started: true });
 
+    let fallbackImageUrl: string | null = null;
+    try {
+      const page = await fetchPageData(articles[0].url);
+      fallbackImageUrl = resolveFallbackSourceImage(page.ogImage, articles[0].url);
+    } catch {
+      fallbackImageUrl = null;
+    }
+
     // Generate in the background using the same parallel-first strategy.
     if (missing.length > 0) {
-      generateAndSaveImages(missing, req.log).catch(err =>
+      generateAndSaveImages(missing, req.log, fallbackImageUrl).catch(err =>
         req.log.error({ err, articleId: id }, "Regenerate images failed")
       );
     }

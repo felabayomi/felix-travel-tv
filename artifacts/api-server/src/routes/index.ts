@@ -177,6 +177,27 @@ router.get("/snippets/:id/image", async (req, res) => {
       return;
     }
 
+    if (/^https?:\/\//i.test(dataUrl)) {
+      const response = await fetch(dataUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; NewsReaderBot/1.0)',
+          'Accept': 'image/*,*/*',
+        },
+        redirect: 'follow',
+      });
+      if (!response.ok) {
+        res.status(response.status).end();
+        return;
+      }
+
+      const contentType = response.headers.get('content-type') ?? 'image/jpeg';
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(buffer);
+      return;
+    }
+
     res.status(404).end();
   } catch {
     res.status(500).end();
