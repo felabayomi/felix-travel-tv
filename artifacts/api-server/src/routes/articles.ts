@@ -290,12 +290,23 @@ const ARTICLE_JSONLD_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_JSONLD_MAX_CHARS", 12
 const IMAGE_GENERATION_LIMIT = envInt("TRAVEL_TV_IMAGE_GENERATION_LIMIT", 9, 0, 9);
 const IMAGE_GENERATION_RETRIES = envInt("TRAVEL_TV_IMAGE_RETRIES", 3, 1, 6);
 const IMAGE_RETRY_BASE_DELAY_MS = envInt("TRAVEL_TV_IMAGE_RETRY_DELAY_MS", 1200, 300, 5000);
+const IMAGE_MODELS = (process.env.TRAVEL_TV_IMAGE_MODELS || "gpt-image-1,dall-e-3,dall-e-2")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
 const IMAGE_GENERATION_SIZE =
   process.env.TRAVEL_TV_IMAGE_SIZE === "256x256"
     ? "256x256"
     : process.env.TRAVEL_TV_IMAGE_SIZE === "1024x1024"
       ? "1024x1024"
       : "512x512";
+
+function imageSizeForModel(model: string): "256x256" | "512x512" | "1024x1024" | "1792x1024" | "1024x1792" {
+  if (model === "dall-e-3") {
+    return "1024x1024";
+  }
+  return IMAGE_GENERATION_SIZE;
+}
 
 function createPlaceholderImageDataUrl(text: string): string {
   const title = text.replace(/\s+/g, " ").trim().slice(0, 120) || "Travel scene";
@@ -562,18 +573,33 @@ async function generateArticleContentWithHardTimeout(
 }
 
 async function generateAiImage(prompt: string): Promise<string | null> {
-  try {
-    const response = await openai.images.generate({
-      model: "gpt-image-1",
-      prompt: `High quality, photorealistic travel photography. No text, no logos, no watermarks. ${prompt}`,
-      size: IMAGE_GENERATION_SIZE,
-    });
-    const b64 = response.data?.[0]?.b64_json;
-    if (!b64) return null;
-    return `data:image/png;base64,${b64}`;
-  } catch {
-    return null;
+  const finalPrompt = `High quality, photorealistic travel photography. No text, no logos, no watermarks. ${prompt}`;
+
+  for (const model of IMAGE_MODELS) {
+    try {
+      const response = await openai.images.generate({
+        model,
+        prompt: finalPrompt,
+        size: imageSizeForModel(model),
+      });
+
+      const first = response.data?.[0];
+      const b64 = first?.b64_json;
+      if (b64) {
+        return `data:image/png;base64,${b64}`;
+      }
+
+      const url = first?.url;
+      if (url && /^https?:\/\//i.test(url)) {
+        return url;
+      }
+    } catch {
+      // Try the next configured model.
+      continue;
+    }
   }
+
+  return null;
 }
 
 async function generateAiImageWithRetries(prompt: string): Promise<string | null> {
