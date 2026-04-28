@@ -355,6 +355,17 @@ function buildStockImageUrl(seedSource: string, promptText: string): string {
   return `https://source.unsplash.com/1600x900/?${encodeURIComponent(terms)}&sig=${seed}`;
 }
 
+function initialClipImageUrl(
+  seedSource: string,
+  promptText: string,
+  placeholderText: string,
+): string {
+  if (IMAGE_PROVIDER === "stock") {
+    return buildStockImageUrl(seedSource, promptText);
+  }
+  return createPlaceholderImageDataUrl(placeholderText);
+}
+
 function stringSeed(input: string): number {
   let value = 0;
   for (let index = 0; index < input.length; index++) {
@@ -836,16 +847,19 @@ router.post("/", async (req, res) => {
       bodyText: page.bodyText || null,
     }).returning();
 
-    // Insert snippets immediately with imageUrl = null so the article is
-    // available right away. Images are generated in the background after the
-    // response is sent, so the HTTP request never times out.
+    // Insert snippets immediately with image URLs when stock provider is enabled,
+    // otherwise placeholders are used and OpenAI generation runs in background.
     const snippetRows = content.snippets.map((s, index) => ({
       articleId: article.id,
       snippetOrder: index,
       headline: s.headline,
       caption: s.caption,
       explanation: s.explanation,
-      imageUrl: createPlaceholderImageDataUrl(s.headline || s.caption || s.imagePrompt || content.title),
+      imageUrl: initialClipImageUrl(
+        `${article.id}:${index}`,
+        s.imagePrompt || s.headline || s.caption || s.explanation || content.title,
+        s.headline || s.caption || s.imagePrompt || content.title,
+      ),
       imagePrompt: s.imagePrompt,
     }));
 
@@ -865,11 +879,12 @@ router.post("/", async (req, res) => {
       },
     });
 
-    // Fire-and-forget: generate images in the background (parallel-first, then
-    // sequential retry for any that failed). Never blocks the HTTP response.
-    generateAndSaveImages(insertedSnippets, req.log).catch(err =>
-      req.log.error({ err, articleId: article.id }, "Background image generation failed")
-    );
+    // Fire-and-forget for OpenAI provider. Stock provider already sets image URLs at insert.
+    if (IMAGE_PROVIDER !== "stock") {
+      generateAndSaveImages(insertedSnippets, req.log).catch(err =>
+        req.log.error({ err, articleId: article.id }, "Background image generation failed")
+      );
+    }
   } catch (err) {
     req.log.error({ err }, "Failed to create article");
     const detail = err instanceof Error ? err.message : "Unknown article processing error";
@@ -933,7 +948,11 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
       headline: s.headline,
       caption: s.caption,
       explanation: s.explanation,
-      imageUrl: createPlaceholderImageDataUrl(s.headline || s.caption || s.imagePrompt || content.title),
+      imageUrl: initialClipImageUrl(
+        `${id}:${index}`,
+        s.imagePrompt || s.headline || s.caption || s.explanation || content.title,
+        s.headline || s.caption || s.imagePrompt || content.title,
+      ),
       imagePrompt: s.imagePrompt,
     }));
 
@@ -947,9 +966,11 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
     // Respond right away — chapters are ready, images generate in background
     res.json({ id, chapters: insertedSnippets.length, title: content.title });
 
-    generateAndSaveImages(insertedSnippets, req.log).catch(err =>
-      req.log.error({ err, articleId: id }, "Background image generation failed after chapter regen")
-    );
+    if (IMAGE_PROVIDER !== "stock") {
+      generateAndSaveImages(insertedSnippets, req.log).catch(err =>
+        req.log.error({ err, articleId: id }, "Background image generation failed after chapter regen")
+      );
+    }
   } catch (err) {
     req.log.error({ err }, "Failed to regenerate chapters");
     res.status(500).json({ error: "Failed to regenerate chapters" });
