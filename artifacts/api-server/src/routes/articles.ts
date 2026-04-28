@@ -272,8 +272,7 @@ const ARTICLE_MAX_COMPLETION_TOKENS = envInt("TRAVEL_TV_ARTICLE_MAX_TOKENS", 160
 const ARTICLE_TIMEOUT_MS = envInt("TRAVEL_TV_ARTICLE_TIMEOUT_MS", 12000, 5000, 120000);
 const ARTICLE_BODY_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_BODY_MAX_CHARS", 4500, 1000, 12000);
 const ARTICLE_JSONLD_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_JSONLD_MAX_CHARS", 1200, 200, 3000);
-const IMAGE_GENERATION_LIMIT = envInt("TRAVEL_TV_IMAGE_GENERATION_LIMIT", 2, 0, 9);
-const IMAGE_GROUP_COUNT = envInt("TRAVEL_TV_IMAGE_GROUP_COUNT", 2, 1, 4);
+const IMAGE_GENERATION_LIMIT = envInt("TRAVEL_TV_IMAGE_GENERATION_LIMIT", 9, 0, 9);
 const IMAGE_GENERATION_SIZE =
   process.env.TRAVEL_TV_IMAGE_SIZE === "256x256"
     ? "256x256"
@@ -541,57 +540,40 @@ async function generateAndSaveImages(
     return;
   }
 
-  const desiredGroupCount = Math.min(IMAGE_GROUP_COUNT, IMAGE_GENERATION_LIMIT, targetSnippets.length);
-  const groupCount = Math.max(1, desiredGroupCount);
-  const baseGroupSize = Math.ceil(snippets.length / groupCount);
-
-  let generatedGroups = 0;
-  for (let groupIndex = 0; groupIndex < groupCount; groupIndex++) {
-    const groupStart = groupIndex * baseGroupSize;
-    if (groupStart >= snippets.length) break;
-
-    const groupEnd = Math.min(snippets.length, groupStart + baseGroupSize);
-    const promptSource = targetSnippets[groupIndex] ?? targetSnippets[0];
-    if (!promptSource?.imagePrompt) continue;
-
-    const groupBaseImageUrl = await generateAiImage(promptSource.imagePrompt);
-    if (!groupBaseImageUrl) continue;
-
-    const groupSnippets = snippets.slice(groupStart, groupEnd);
-    await Promise.all(
-      groupSnippets.map((snippet) => {
-        return db.update(snippetsTable).set({ imageUrl: groupBaseImageUrl }).where(eq(snippetsTable.id, snippet.id));
-      })
-    );
-
-    generatedGroups++;
-  }
-
-  if (generatedGroups === 0) {
-    log.info({ total: snippets.length }, "Grouped AI image generation failed; placeholders remain in place");
-    return;
-  }
-
-  if (IMAGE_GENERATION_LIMIT > groupCount) {
-    let generatedUnique = generatedGroups;
-    for (const snippet of targetSnippets.slice(groupCount)) {
-      if (!snippet.imagePrompt) continue;
+  const results = await Promise.allSettled(
+    targetSnippets.map(async (snippet) => {
+      if (!snippet.imagePrompt) return { id: snippet.id, ok: false };
       const imageUrl = await generateAiImage(snippet.imagePrompt);
-      if (!imageUrl) continue;
-      await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
-      generatedUnique++;
-    }
+      if (!imageUrl) return { id: snippet.id, ok: false };
 
-    log.info(
-      { total: snippets.length, groupCount: generatedGroups, uniqueGenerated: generatedUnique },
-      "Grouped hero images generated and applied across article"
-    );
+      await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
+      return { id: snippet.id, ok: true };
+    })
+  );
+
+  const failed = targetSnippets.filter((_, index) => {
+    const result = results[index];
+    return result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok);
+  });
+
+  if (failed.length === 0) {
+    log.info({ total: snippets.length, generated: targetSnippets.length }, "Generated themed image for each slide");
     return;
+  }
+
+  let retried = 0;
+  for (const snippet of failed) {
+    if (!snippet.imagePrompt) continue;
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    const imageUrl = await generateAiImage(snippet.imagePrompt);
+    if (!imageUrl) continue;
+    await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
+    retried++;
   }
 
   log.info(
-    { total: snippets.length, groupCount: generatedGroups, groupSize: baseGroupSize },
-    "Grouped hero images generated and reused across article"
+    { total: snippets.length, generated: targetSnippets.length - failed.length, retried, failed: failed.length - retried },
+    "Completed per-slide themed image generation"
   );
 }
 
