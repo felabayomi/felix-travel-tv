@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, articlesTable, snippetsTable } from "@workspace/db";
 import { eq, asc, desc, sql, inArray } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { extractPageContent } from "../lib/articleExtraction";
 
 const router: IRouter = Router();
 
@@ -96,10 +97,13 @@ async function fetchPageData(url: string): Promise<PageData> {
         redirect: "follow",
         signal: AbortSignal.timeout(URL_FETCH_TIMEOUT_MS),
       });
-      if (res.ok) {
-        html = await res.text();
-        if (html.length > 500) break;
+      const nextHtml = await res.text();
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!contentType.includes("html")) continue;
+      if (nextHtml.length > html.length) {
+        html = nextHtml;
       }
+      if (res.ok && nextHtml.length > 500) break;
     } catch {
       continue;
     }
@@ -129,25 +133,7 @@ async function fetchPageData(url: string): Promise<PageData> {
   // Extract JSON-LD structured data
   const jsonLdMatches = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
   const jsonLd = jsonLdMatches.map(m => m[1]).join("\n").slice(0, ARTICLE_JSONLD_MAX_CHARS);
-
-  // Extract body text — prefer article/main tags
-  let bodyText = "";
-  const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
-  const mainMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
-  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-
-  const rawContent = articleMatch?.[1] || mainMatch?.[1] || bodyMatch?.[1] || html;
-  bodyText = rawContent
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
-    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, " ")
-    .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, " ")
-    .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, " ")
-    .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, ARTICLE_BODY_MAX_CHARS);
+  const extracted = extractPageContent(html, jsonLd);
 
   return {
     html,
@@ -156,10 +142,10 @@ async function fetchPageData(url: string): Promise<PageData> {
     ogTitle: getMeta("og:title"),
     ogDescription: getMeta("og:description"),
     ogImage: getMeta("og:image"),
-    publishedTime: getMeta("article:published_time") || getMeta("og:article:published_time") || getMeta("datePublished"),
-    author: getMeta("author") || getMeta("article:author"),
+    publishedTime: getMeta("article:published_time") || getMeta("og:article:published_time") || getMeta("datePublished") || extracted.publishedTime,
+    author: getMeta("author") || getMeta("article:author") || extracted.author,
     jsonLd,
-    bodyText,
+    bodyText: extracted.bodyText.slice(0, ARTICLE_BODY_MAX_CHARS),
   };
 }
 
@@ -504,10 +490,10 @@ async function generateAndSaveImages(
         const variantImageUrl = index === 0
           ? groupBaseImageUrl
           : createChapterVariantImageDataUrl(
-              groupBaseImageUrl,
-              snippet.imagePrompt || `Chapter ${groupStart + index + 1}`,
-              `${groupIndex}:${snippet.id}:${snippet.imagePrompt || "chapter"}`
-            );
+            groupBaseImageUrl,
+            snippet.imagePrompt || `Chapter ${groupStart + index + 1}`,
+            `${groupIndex}:${snippet.id}:${snippet.imagePrompt || "chapter"}`
+          );
         return db.update(snippetsTable).set({ imageUrl: variantImageUrl }).where(eq(snippetsTable.id, snippet.id));
       })
     );
@@ -626,19 +612,12 @@ router.post("/", async (req, res) => {
       page = await fetchPageData(url);
       req.log.info({ url, bodyLen: page.bodyText.length, hasOg: !!page.ogTitle }, "Fetched page data");
 
-      // Content quality check: if we couldn't extract enough text from the URL,
-      // the site might be SPA-rendered or behind a paywall. Reject and ask user to paste.
       const extractedText = page.bodyText || page.ogDescription || page.metaDescription || "";
       if (extractedText.trim().length < 200) {
         req.log.warn(
           { url, extractedLen: extractedText.length, hasBodyText: !!page.bodyText, hasOg: !!page.ogDescription },
-          "URL did not contain enough extractable content; requesting user to paste article text"
+          "URL extraction is sparse; continuing with fallback-aware generation"
         );
-        res.status(400).json({
-          error: "URL content could not be extracted",
-          detail: `This article page (${new URL(url).hostname}) appears to be a single-page app or requires client-side rendering. Please open the article in your browser, copy the full text (Ctrl+A, Ctrl+C), and paste it in the text field below, then resubmit.`,
-        });
-        return;
       }
     }
 
