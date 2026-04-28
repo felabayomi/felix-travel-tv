@@ -755,9 +755,27 @@ async function generateAndSaveImages(
     return;
   }
 
+  let recovered = 0;
+  for (const snippet of failed) {
+    const promptText = snippet.imagePrompt || snippet.headline || snippet.caption || snippet.explanation || "travel destination";
+    const stockFallback = await resolveStockImageDataUrl(`${snippet.id}`, promptText);
+    if (!stockFallback) continue;
+
+    await db.update(snippetsTable).set({ imageUrl: stockFallback }).where(eq(snippetsTable.id, snippet.id));
+    recovered++;
+  }
+
+  if (recovered === failed.length) {
+    log.info(
+      { total: snippets.length, generated, recovered },
+      "Recovered all failed AI images with stock-photo fallbacks"
+    );
+    return;
+  }
+
   log.info(
-    { total: snippets.length, generated, failed: failed.length },
-    "OpenAI image generation incomplete; snippets remain pending for retry"
+    { total: snippets.length, generated, failed: failed.length, recovered, unresolved: failed.length - recovered },
+    "OpenAI image generation incomplete; unresolved snippets remain on placeholder images"
   );
 }
 
