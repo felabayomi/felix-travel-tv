@@ -6,6 +6,17 @@ import { CreateSlideBody, ReorderSlideBody, ReorderSlideParams, DeleteSlideParam
 
 const router: IRouter = Router();
 
+function envInt(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name];
+  const parsed = Number(raw);
+  if (!raw || Number.isNaN(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(parsed)));
+}
+
+const SLIDE_TEXT_MODEL = process.env.TRAVEL_TV_SLIDES_MODEL || "gpt-4.1-mini";
+const SLIDE_MAX_COMPLETION_TOKENS = envInt("TRAVEL_TV_SLIDES_MAX_TOKENS", 1200, 300, 3000);
+const SLIDE_IMAGE_SIZE = process.env.TRAVEL_TV_SLIDES_IMAGE_SIZE === "1024x1024" ? "1024x1024" : "512x512";
+
 // Returns the API path for a slide's image — avoids sending base64 inline
 function slideImageUrl(id: number): string {
   return `/api/slides/${id}/image`;
@@ -78,8 +89,8 @@ Respond with a JSON object ONLY (no markdown) with these exact fields:
 }`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.2",
-    max_completion_tokens: 8192,
+    model: SLIDE_TEXT_MODEL,
+    max_completion_tokens: SLIDE_MAX_COMPLETION_TOKENS,
     messages: [{ role: "user", content: prompt }],
   });
 
@@ -109,7 +120,7 @@ async function generateImage(prompt: string): Promise<string | null> {
     const response = await openai.images.generate({
       model: "gpt-image-1",
       prompt: `Cinematic, high quality, visually striking: ${prompt}`,
-      size: "1024x1024",
+      size: SLIDE_IMAGE_SIZE,
     });
     const b64 = response.data?.[0]?.b64_json;
     if (!b64) return null;
@@ -307,8 +318,8 @@ Respond with a JSON object ONLY (no markdown) with these exact fields:
 }`;
 
     const aiResponse = await openai.chat.completions.create({
-      model: "gpt-5.2",
-      max_completion_tokens: 1024,
+      model: SLIDE_TEXT_MODEL,
+      max_completion_tokens: SLIDE_MAX_COMPLETION_TOKENS,
       messages: [{ role: "user", content: prompt }],
     });
 
