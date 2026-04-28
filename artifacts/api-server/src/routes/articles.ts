@@ -328,6 +328,21 @@ function stockFallbackImageUrl(seedSource: string): string {
   return `https://picsum.photos/seed/felix-travel-${seed}/1280/720`;
 }
 
+function themedFallbackImageUrl(seedSource: string, prompt: string | null | undefined): string {
+  const cleaned = (prompt || "travel landscape nature city skyline").toLowerCase();
+  const keywords = cleaned
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((word) => word.length >= 4)
+    .filter((word) => !/^(photo|image|travel|high|quality|with|from|this|that|city|scene|view)$/.test(word))
+    .slice(0, 4);
+
+  const tagPart = keywords.length > 0 ? keywords.join(",") : "nature,landscape,travel";
+  const seed = stringSeed(`${seedSource}:${tagPart}`);
+  return `https://loremflickr.com/1280/720/${encodeURIComponent(tagPart)}?lock=${seed}`;
+}
+
 function looksLikeLogoUrl(url: string): boolean {
   const lower = url.toLowerCase();
   return /logo|icon|favicon|brandmark|avatar|badge|wordmark/.test(lower);
@@ -670,7 +685,10 @@ async function generateAndSaveImages(
     if (row.length === 0) continue;
     if (row[0].imageUrl && !isPlaceholderStoredImage(row[0].imageUrl)) continue;
 
-    const fallbackForSnippet = safeSourceFallback || stockFallbackImageUrl(`${snippet.id}:${snippet.imagePrompt || "travel"}`);
+    const fallbackForSnippet =
+      themedFallbackImageUrl(`${snippet.id}`, snippet.imagePrompt) ||
+      safeSourceFallback ||
+      stockFallbackImageUrl(`${snippet.id}:${snippet.imagePrompt || "travel"}`);
     await db.update(snippetsTable).set({ imageUrl: fallbackForSnippet }).where(eq(snippetsTable.id, snippet.id));
     fallbackApplied++;
   }
