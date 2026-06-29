@@ -2154,6 +2154,7 @@ function AdminDashboard() {
   }, [loadQueue]);
 
   const updatePlayback = useCallback(async (_articleId: number, index: number) => {
+    console.log(`[updatePlayback] Setting snippet index to ${index}`);
     setCurrentSnippetIndex(index);
     await fetch('/api/playback/queue/snippet', {
       method: 'PATCH',
@@ -2211,23 +2212,40 @@ function AdminDashboard() {
   // the queue if EITHER chapter-autoplay OR queue-autoplay is on.
   const advancingRef = useRef(false);
   const advance = useCallback(async () => {
-    if (advancingRef.current) return;
+    if (advancingRef.current) {
+      console.warn('[advance] Already advancing, skipping duplicate call');
+      return;
+    }
     // If the server is already in interlude, don't fire another advance on top of it.
     // The interlude timer will handle moving to the next item automatically.
-    if (serverItemTypeRef.current === 'interlude') return;
+    if (serverItemTypeRef.current === 'interlude') {
+      console.log('[advance] Skipping advance during interlude');
+      return;
+    }
     advancingRef.current = true;
+    const fromIdx = currentSnippetIndexRef.current;
+    const toIdx = fromIdx + 1;
+    console.log(`[advance] Starting: clip ${fromIdx} → ${toIdx}, autoplay=${queueAutoplayRef.current}, otherPresenceActive=${otherPresenceActive}`);
     try {
       const articleId = playingArticleIdRef.current;
       const idx = currentSnippetIndexRef.current;
       const snips = snippetsRef.current;
-      if (!articleId || snips.length === 0) return;
+      if (!articleId || snips.length === 0) {
+        console.log('[advance] No article or snippets, returning');
+        return;
+      }
       const next = idx + 1;
       if (next < snips.length) {
+        console.log(`[advance] Advancing within article: ${idx} → ${next}`);
         await updatePlayback(articleId, next);
         return;
       }
       // Last snippet finished — advance queue only when autoplay is on
-      if (!queueAutoplayRef.current) return;
+      if (!queueAutoplayRef.current) {
+        console.log('[advance] Last snippet but autoplay off, stopping');
+        return;
+      }
+      console.log('[advance] Last snippet, advancing queue...');
       // Always show an interlude between articles (even a blank one keeps the timing clean).
       // Only skip the interlude entirely when there is no next item and loop is off.
       const hasNextItem = playingQueueIndexRef.current < queueLengthRef.current - 1 || queueLoopRef.current;
@@ -2242,6 +2260,7 @@ function AdminDashboard() {
       }
       await loadQueue();
     } finally {
+      console.log(`[advance] Complete: clip ${fromIdx} → ${toIdx}`);
       advancingRef.current = false;
     }
   }, [updatePlayback, loadQueue]);
@@ -2283,8 +2302,13 @@ function AdminDashboard() {
     prevIndexRef.current = { index: currentSnippetIndex, articleId: playingArticleId };
     // Always attach onEnded; it checks queueAutoplayRef at the moment it fires
     // so autoplay can be toggled on/off between the speak() call and when it ends.
+    console.log(`[voice] Starting speech for clip ${currentSnippetIndex} (id=${snippets[currentSnippetIndex].id})`);
     speakRef.current(snippets[currentSnippetIndex].id, () => {
-      if (queueAutoplayRef.current) advanceRef.current();
+      console.log(`[voice.onEnded] Clip ${currentSnippetIndexRef.current} finished, autoplay=${queueAutoplayRef.current}`);
+      if (queueAutoplayRef.current) {
+        console.log(`[voice.onEnded] Calling advance()`);
+        advanceRef.current();
+      }
     });
     // queueAutoplay is intentionally NOT in deps — accessed via ref so toggling it
     // never restarts the currently-playing audio or resets the "already spoken" guard.
@@ -2301,15 +2325,25 @@ function AdminDashboard() {
   // disable the 15-second timer to avoid racing with PublicDisplay voice playback.
   useEffect(() => {
     if (!queueAutoplay || !playingArticleId || snippets.length === 0) return;
-    if (serverItemType === 'interlude') return;
+    if (serverItemType === 'interlude') {
+      console.log('[auto-timer] Skipping: interlude active');
+      return;
+    }
     // If another display is actively sending heartbeats (has voice playing),
     // don't fire the 15-second timer at all — let that display's voice drive advancement
-    if (otherPresenceActive) return;
+    if (otherPresenceActive) {
+      console.log('[auto-timer] Skipping: other display active (presenceHeartbeatRecent=true)');
+      return;
+    }
     // When voice is ON: this is purely a last-resort safety net (5 min) in case
     // the browser blocks audio or the onEnded callback never fires.
     // When voice is OFF: this is the primary driver (15 s per chapter).
     const delay = voiceEnabled ? VOICE_FALLBACK_SECONDS * 1000 : AUTO_PLAY_SECONDS * 1000;
-    const timer = setTimeout(() => advanceRef.current(), delay);
+    console.log(`[auto-timer] Set timer for clip ${currentSnippetIndex}: ${delay}ms (voice=${voiceEnabled})`);
+    const timer = setTimeout(() => {
+      console.log(`[auto-timer.fired] Clip ${currentSnippetIndexRef.current} timer fired after ${delay}ms`);
+      advanceRef.current();
+    }, delay);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, serverItemType, otherPresenceActive]);
