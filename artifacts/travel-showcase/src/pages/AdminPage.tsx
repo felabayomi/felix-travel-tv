@@ -2303,8 +2303,8 @@ function AdminDashboard() {
     if (!queueAutoplay || !playingArticleId || snippets.length === 0) return;
     if (serverItemType === 'interlude') return;
     // If another display is actively sending heartbeats (has voice playing),
-    // don't fire AUTO_PLAY_SECONDS timer — let voice drive the pace
-    if (otherPresenceActive && !voiceEnabled) return;
+    // don't fire the 15-second timer at all — let that display's voice drive advancement
+    if (otherPresenceActive) return;
     // When voice is ON: this is purely a last-resort safety net (5 min) in case
     // the browser blocks audio or the onEnded callback never fires.
     // When voice is OFF: this is the primary driver (15 s per chapter).
