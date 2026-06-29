@@ -11,8 +11,8 @@
 //   2. stop() must clear el.onended AND el.ontimeupdate before pausing. If not
 //      cleared, the ended callback fires on the stale element after stop() and
 //      triggers an unwanted advance to the next chapter.
-//   3. On TTS fetch error, onEnded is still called after 2 s. This ensures the
-//      slideshow never freezes if audio is unavailable.
+//   3. On TTS fetch error, do NOT call onEnded immediately. Rapid fallback
+//      callbacks can cause clip skipping; Admin/server safety timers handle recovery.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import { useEffect, useCallback, useRef, useState } from 'react';
@@ -98,8 +98,8 @@ export function useVoiceReader(enabled: boolean) {
       if (genRef.current !== myGen) return; // stale, ignore
       console.warn('[voice] TTS playback error:', err);
       setIsLoading(false);
-      // If audio fails, still advance after a short delay so slideshow doesn't freeze
-      if (onEnded) setTimeout(onEnded, 2000);
+      // Do not auto-advance on voice errors here. Recovery is handled by
+      // long safety-net timers in Admin/server to avoid rapid clip skips.
     }
   }, [enabled, stop]);
 

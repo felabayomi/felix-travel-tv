@@ -584,10 +584,27 @@ router.patch("/queue/loop", (req, res) => {
 });
 
 router.patch("/queue/snippet", (req, res) => {
-  const { snippetIndex } = req.body ?? {};
+  const { snippetIndex, source, expectedCurrentIndex } = req.body ?? {};
   if (typeof snippetIndex !== 'number' || snippetIndex < 0) {
     res.status(400).json({ error: "snippetIndex must be >= 0" }); return;
   }
+
+  if (source === 'auto') {
+    if (typeof expectedCurrentIndex !== 'number' || expectedCurrentIndex < 0) {
+      res.status(400).json({ error: "expectedCurrentIndex must be >= 0 for auto updates" });
+      return;
+    }
+    // Reject stale or out-of-order auto-advances.
+    if (playbackState.snippetIndex !== expectedCurrentIndex) {
+      res.status(409).json(playbackState);
+      return;
+    }
+    if (snippetIndex !== expectedCurrentIndex + 1) {
+      res.status(400).json({ error: "auto snippet updates must advance by exactly +1" });
+      return;
+    }
+  }
+
   // Record that the admin is present — prevents server fallback from firing mid-voice
   lastAdminSnippetPatch = Date.now();
   adminBecameAbsentAt = null;

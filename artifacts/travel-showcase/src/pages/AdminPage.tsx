@@ -203,7 +203,7 @@ interface QueueState {
 
 async function fetchQueueState(): Promise<QueueState> {
   const res = await fetch('/api/playback/queue', { cache: 'no-store' });
-  if (!res.ok) return { items: [], queueIndex: -1, snippetIndex: 0, autoplayQueue: false, loopQueue: false, onAir: false, itemType: null };
+  if (!res.ok) throw new Error(`Failed to fetch queue: ${res.status}`);
   return res.json();
 }
 
@@ -1894,16 +1894,21 @@ function AdminDashboard() {
   const [serverItemType, setServerItemType] = useState<'article' | 'video' | 'interlude' | null>(null);
 
   const loadQueue = useCallback(async () => {
-    const state = await fetchQueueState();
-    setQueue(state.items);
-    setPlayingQueueIndex(state.queueIndex);
-    setQueueAutoplay(state.autoplayQueue);
-    setQueueLoop(state.loopQueue);
-    setOnAir(state.onAir);
-    setServerItemType(state.itemType ?? null);
-    // snippetIndex is intentionally NOT synced from server here.
-    // The admin drives all snippet advances via updatePlayback() / advance().
-    // Syncing from server polling caused race conditions that truncated voice mid-read.
+    try {
+      const state = await fetchQueueState();
+      setQueue(state.items);
+      setPlayingQueueIndex(state.queueIndex);
+      setQueueAutoplay(state.autoplayQueue);
+      setQueueLoop(state.loopQueue);
+      setOnAir(state.onAir);
+      setServerItemType(state.itemType ?? null);
+      // snippetIndex is intentionally NOT synced from server here.
+      // The admin drives all snippet advances via updatePlayback() / advance().
+      // Syncing from server polling caused race conditions that truncated voice mid-read.
+    } catch (err) {
+      // Preserve last known-good UI state on transient polling failures.
+      console.warn('[queue] poll failed; keeping existing playback state', err);
+    }
   }, []);
 
   useEffect(() => { loadQueue(); }, [loadQueue]);
@@ -2050,6 +2055,7 @@ function AdminDashboard() {
   useEffect(() => { queueRef.current = queue; }, [queue]);
   const serverItemTypeRef = useRef(serverItemType);
   useEffect(() => { serverItemTypeRef.current = serverItemType; }, [serverItemType]);
+  const voiceRunTokenRef = useRef(0);
 
   // When the admin tab becomes visible again, immediately resync from the server
   // and reset the "already spoken" guard so voice restarts for the current chapter.
@@ -2067,14 +2073,30 @@ function AdminDashboard() {
     return () => document.removeEventListener('visibilitychange', handleVisible);
   }, [loadQueue]);
 
-  const updatePlayback = useCallback(async (_articleId: number, index: number) => {
-    setCurrentSnippetIndex(index);
-    await fetch('/api/playback/queue/snippet', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ snippetIndex: index }),
-    });
-  }, []);
+  const updatePlayback = useCallback(async (
+    _articleId: number,
+    index: number,
+    options?: { source?: 'auto' | 'manual'; expectedCurrentIndex?: number }
+  ) => {
+    const expectedCurrentIndex = options?.expectedCurrentIndex ?? currentSnippetIndexRef.current;
+    try {
+      const res = await fetch('/api/playback/queue/snippet', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          snippetIndex: index,
+          source: options?.source ?? 'manual',
+          expectedCurrentIndex,
+        }),
+      });
+      if (!res.ok) throw new Error(`snippet patch failed: ${res.status}`);
+      const nextState = await res.json().catch(() => null) as { snippetIndex?: number } | null;
+      setCurrentSnippetIndex(typeof nextState?.snippetIndex === 'number' ? nextState.snippetIndex : index);
+    } catch (err) {
+      console.warn('[playback] snippet update failed; reloading queue state', err);
+      void loadQueue();
+    }
+  }, [loadQueue]);
 
   // Pick an interlude image: first try the NEXT article's AI-generated snippet images
   // (full-res, same quality as chapter images), then fall back to configured URLs.
@@ -2137,7 +2159,7 @@ function AdminDashboard() {
       if (!articleId || snips.length === 0) return;
       const next = idx + 1;
       if (next < snips.length) {
-        await updatePlayback(articleId, next);
+        await updatePlayback(articleId, next, { source: 'auto', expectedCurrentIndex: idx });
         return;
       }
       // Last snippet finished — advance queue only when autoplay is on
@@ -2170,7 +2192,7 @@ function AdminDashboard() {
     const snips = snippetsRef.current;
     if (!articleId || snips.length === 0) return;
     const prev = Math.max(idx - 1, 0);
-    updatePlayback(articleId, prev);
+    updatePlayback(articleId, prev, { source: 'manual', expectedCurrentIndex: idx });
   }, [updatePlayback]);
 
   // ── Voice effect ─────────────────────────────────────────────────────────────
@@ -2195,10 +2217,24 @@ function AdminDashboard() {
       prevIndexRef.current.articleId === playingArticleId
     ) return;
     prevIndexRef.current = { index: currentSnippetIndex, articleId: playingArticleId };
+    voiceRunTokenRef.current += 1;
+    const voiceRunToken = voiceRunTokenRef.current;
     // Always attach onEnded; it checks queueAutoplayRef at the moment it fires
     // so autoplay can be toggled on/off between the speak() call and when it ends.
-    speakRef.current(snippets[currentSnippetIndex].id, () => {
-      if (queueAutoplayRef.current) advanceRef.current();
+    const spokenSnippetId = snippets[currentSnippetIndex].id;
+    const spokenSnippetIndex = currentSnippetIndex;
+    const spokenArticleId = playingArticleId;
+    speakRef.current(spokenSnippetId, () => {
+      if (voiceRunToken !== voiceRunTokenRef.current) return;
+      const currentIdx = currentSnippetIndexRef.current;
+      const currentArticleId = playingArticleIdRef.current;
+      const currentSnippetId = snippetsRef.current[currentIdx]?.id;
+      const isCurrentArticle = currentArticleId === spokenArticleId;
+      const isCurrentSnippet = currentIdx === spokenSnippetIndex;
+      const isSameSnippetId = currentSnippetId === spokenSnippetId;
+      if (queueAutoplayRef.current && isCurrentArticle && isCurrentSnippet && isSameSnippetId) {
+        advanceRef.current();
+      }
     });
   // queueAutoplay is intentionally NOT in deps — accessed via ref so toggling it
   // never restarts the currently-playing audio or resets the "already spoken" guard.
@@ -2242,13 +2278,25 @@ function AdminDashboard() {
 
   // Reset snippet index when the playing article changes
   useEffect(() => {
+    if (playingArticleId === null) return;
+    voiceRunTokenRef.current += 1;
     setCurrentSnippetIndex(0);
     prevIndexRef.current = { index: -1, articleId: null };
   }, [playingArticleId]);
 
+  useEffect(() => {
+    if (!voiceEnabled) {
+      // Invalidate any queued voice completion callback when voice is turned off.
+      voiceRunTokenRef.current += 1;
+    }
+  }, [voiceEnabled]);
+
   const handleSelectChapter = (index: number) => {
     if (!playingArticleId) return;
-    updatePlayback(playingArticleId, index);
+    updatePlayback(playingArticleId, index, {
+      source: 'manual',
+      expectedCurrentIndex: currentSnippetIndexRef.current,
+    });
   };
 
   const handleArticleSaved = (updated: Article) => {
