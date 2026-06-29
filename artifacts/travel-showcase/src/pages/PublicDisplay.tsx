@@ -494,10 +494,21 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
   const [video, setVideo] = useState<Video | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const startedAtRef = useRef<number>(Date.now());
+  const directVideoRef = useRef<HTMLVideoElement | null>(null);
+  const lastVideoProgressAtRef = useRef<number>(Date.now());
+  const [videoRecoveryCount, setVideoRecoveryCount] = useState(0);
+  const [showVideoRecoveryNotice, setShowVideoRecoveryNotice] = useState(false);
+
+  const triggerVideoRecovery = () => {
+    setShowVideoRecoveryNotice(true);
+    setVideoRecoveryCount((count) => count + 1);
+  };
 
   useEffect(() => {
     startedAtRef.current = Date.now();
     setVideo(null);
+    setVideoRecoveryCount(0);
+    setShowVideoRecoveryNotice(false);
     fetch(`/api/videos/${videoId}`, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then(v => {
@@ -523,6 +534,28 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
     return () => clearInterval(tick);
   }, [video]);
 
+  useEffect(() => {
+    if (!showVideoRecoveryNotice) return;
+    const id = setTimeout(() => setShowVideoRecoveryNotice(false), 2200);
+    return () => clearTimeout(id);
+  }, [showVideoRecoveryNotice]);
+
+  useEffect(() => {
+    if (!video || getVideoEmbed(video.url, video.loop).type !== 'direct') return;
+
+    lastVideoProgressAtRef.current = Date.now();
+    const id = setInterval(() => {
+      const el = directVideoRef.current;
+      if (!el) return;
+      if (el.paused || el.ended) return;
+      if (Date.now() - lastVideoProgressAtRef.current > 8000) {
+        triggerVideoRecovery();
+      }
+    }, 3000);
+
+    return () => clearInterval(id);
+  }, [video, videoRecoveryCount]);
+
   if (!video) {
     return (
       <div className="w-screen h-screen flex items-center justify-center" style={{ background: '#050508' }}>
@@ -537,13 +570,23 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
     <main className="relative w-screen h-screen overflow-hidden" style={{ background: '#000' }}>
       {embed.type === 'direct' ? (
         <video
-          key={videoId}
+          key={`${videoId}-${videoRecoveryCount}`}
+          ref={directVideoRef}
           src={embed.src}
           autoPlay
           loop={video.loop}
           playsInline
           className="absolute inset-0 w-full h-full object-contain"
           style={{ background: '#000' }}
+          onLoadedMetadata={() => { lastVideoProgressAtRef.current = Date.now(); }}
+          onTimeUpdate={() => { lastVideoProgressAtRef.current = Date.now(); }}
+          onPlaying={() => {
+            lastVideoProgressAtRef.current = Date.now();
+            setShowVideoRecoveryNotice(false);
+          }}
+          onWaiting={triggerVideoRecovery}
+          onStalled={triggerVideoRecovery}
+          onError={triggerVideoRecovery}
         />
       ) : (
         <iframe
@@ -604,6 +647,12 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
 
       <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
       <SecondaryTicker items={config?.ticker2Items ?? []} speed={config?.tickerSpeed ?? 3} />
+
+      {showVideoRecoveryNotice && (
+        <div className="absolute bottom-[132px] right-4 z-50 rounded-md border border-amber-500/40 bg-black/80 px-3 py-2 text-xs text-amber-200">
+          Reconnecting video stream...
+        </div>
+      )}
     </main>
   );
 }
@@ -659,7 +708,7 @@ export function PublicDisplay() {
   // we let the user click the volume button (which IS user interaction) to start
   // audio. When they unmute, the effect re-fires and speaks the current snippet.
   const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const { speak, stop } = useVoiceReader(voiceEnabled);
+  const { speak, stop, isLoading: isVoiceLoading, playProgress } = useVoiceReader(voiceEnabled);
   const speakRef = useRef(speak);
   useEffect(() => { speakRef.current = speak; }, [speak]);
   const stopRef = useRef(stop);
@@ -687,6 +736,16 @@ export function PublicDisplay() {
   // voiceEnabled is in deps: toggling it on re-runs this effect and speaks the current snippet.
   // The click that toggles it satisfies the browser's autoplay policy.
   }, [currentSnippet, itemType, articleId, voiceEnabled]);
+
+  // Keep server-side fallback timers from advancing slides while public narration is active.
+  useEffect(() => {
+    if (!onAir || itemType !== 'article' || !voiceEnabled || !currentSnippet) return;
+
+    const ping = () => fetch('/api/playback/presence', { method: 'PATCH' }).catch(() => {});
+    ping();
+    const id = setInterval(ping, 20000);
+    return () => clearInterval(id);
+  }, [onAir, itemType, voiceEnabled, currentSnippet?.id]);
 
   if (onAir && itemType === 'interlude') {
     return <InterludeScreen imageUrl={interludeImageUrl ?? ''} config={config} />;
@@ -979,6 +1038,8 @@ export function PublicDisplay() {
           duration={20000}
           slideKey={`public-${currentSnippet.id}-${tick}`}
           isPaused={false}
+          voiceProgress={voiceEnabled ? playProgress : undefined}
+          isVoiceLoading={voiceEnabled ? isVoiceLoading : false}
         />
       )}
 
