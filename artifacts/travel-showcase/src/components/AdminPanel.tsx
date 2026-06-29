@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
-import { 
-  X, Plus, Trash2, ArrowUp, ArrowDown, ExternalLink, 
+import {
+  X, Plus, Trash2, ArrowUp, ArrowDown, ExternalLink,
   Settings2, Loader2, Image as ImageIcon, Eye, EyeOff, Pencil, Sparkles, XCircle, Search, Lock
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { 
-  useGetSlides, 
-  useCreateSlide, 
-  useDeleteSlide, 
+import {
+  useGetSlides,
+  useCreateSlide,
+  useDeleteSlide,
   useReorderSlide,
   useRegenerateSlide,
   getGetSlidesQueryKey
@@ -103,7 +103,7 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
   const invalidateSlides = () => queryClient.invalidateQueries({ queryKey: getGetSlidesQueryKey() });
 
   const { data: slides = [], isLoading: isLoadingSlides } = useGetSlides();
-  
+
   const createMutation = useCreateSlide({
     mutation: {
       onSuccess: () => {
@@ -182,18 +182,18 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
   const q = search.trim().toLowerCase();
   const filteredSlides = q
     ? slides.filter(s =>
-        s.title.toLowerCase().includes(q) ||
-        s.tagline.toLowerCase().includes(q) ||
-        s.category.toLowerCase().includes(q) ||
-        s.url.toLowerCase().includes(q) ||
-        (s.summary ?? '').toLowerCase().includes(q)
-      )
+      s.title.toLowerCase().includes(q) ||
+      s.tagline.toLowerCase().includes(q) ||
+      s.category.toLowerCase().includes(q) ||
+      s.url.toLowerCase().includes(q) ||
+      (s.summary ?? '').toLowerCase().includes(q)
+    )
     : slides;
 
   return (
     <>
       {/* Gear button — invisible tap target, requires 6 quick taps */}
-      <button 
+      <button
         onClick={handleGearTap}
         className={cn(
           "fixed bottom-6 right-6 p-3 rounded-full bg-black/20 text-white/50 backdrop-blur-md",
@@ -276,7 +276,7 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
                   >
                     {keepSignedIn && (
                       <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 12 12">
-                        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     )}
                   </div>
@@ -319,7 +319,7 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
               onClick={handlePanelClose}
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
             />
-            
+
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
@@ -333,7 +333,7 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
                   <h2 className="text-xl font-display font-bold text-foreground">Showcase Control</h2>
                   <p className="text-xs text-muted-foreground mt-1">Manage your active products</p>
                 </div>
-                <button 
+                <button
                   onClick={handlePanelClose}
                   className="p-2 rounded-full hover:bg-white/10 transition-colors"
                 >
@@ -451,7 +451,7 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
                                 <h4 className="font-display font-bold text-sm truncate text-foreground">{slide.title}</h4>
                                 <p className="text-xs text-muted-foreground truncate">{slide.tagline}</p>
                               </div>
-                              
+
                               <div className="flex items-center justify-between mt-2">
                                 <span className="text-[10px] text-muted-foreground/50">
                                   {format(new Date(slide.createdAt), 'MMM d, yyyy')}
@@ -476,14 +476,14 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
                                     <ExternalLink className="w-3 h-3" />
                                   </a>
                                   <div className="flex flex-col gap-0.5 ml-1">
-                                    <button 
+                                    <button
                                       onClick={() => handleReorder(slide, 'up', index)}
                                       disabled={index === 0 || reorderMutation.isPending}
                                       className="p-0.5 bg-secondary rounded hover:text-primary disabled:opacity-30 transition-colors"
                                     >
                                       <ArrowUp className="w-3 h-3" />
                                     </button>
-                                    <button 
+                                    <button
                                       onClick={() => handleReorder(slide, 'down', index)}
                                       disabled={index === slides.length - 1 || reorderMutation.isPending}
                                       className="p-0.5 bg-secondary rounded hover:text-primary disabled:opacity-30 transition-colors"
@@ -491,7 +491,7 @@ export function AdminPanel({ goTo, requestJumpToNext }: AdminPanelProps) {
                                       <ArrowDown className="w-3 h-3" />
                                     </button>
                                   </div>
-                                  <button 
+                                  <button
                                     onClick={() => {
                                       if (confirm('Delete this slide?')) {
                                         deleteMutation.mutate({ id: slide.id });

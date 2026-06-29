@@ -20,6 +20,7 @@ export interface PlaybackState {
   loopQueue: boolean;
   queueIndex: number;
   updatedAt: number;
+  presenceHeartbeatRecent?: boolean; // true if admin/public-display sent heartbeat within last 40s
 }
 
 export let playbackState: PlaybackState = {
@@ -160,7 +161,7 @@ function resolveNextIndex(currentIndex: number): number | null {
 
 const SNIPPET_ADVANCE_ABSENT_MS = 15_000;  // advance 15 s AFTER admin becomes absent
 const SNIPPET_SAFETY_NET_MS = 300_000; // absolute last resort when admin is present
-const ADMIN_PRESENCE_TIMEOUT_MS  = 120_000; // no PATCH in 120 s → admin considered absent
+const ADMIN_PRESENCE_TIMEOUT_MS = 120_000; // no PATCH in 120 s → admin considered absent
 const SNIPPET_CHECK_INTERVAL_MS = 5_000;   // how often to re-evaluate
 
 // Timestamp of the last PATCH /queue/snippet or /presence call from the admin
@@ -387,7 +388,8 @@ const router: IRouter = Router();
 // ─── Playback state ───────────────────────────────────────────────────────────
 
 router.get("/", (_req, res) => {
-  res.json(playbackState);
+  const presenceHeartbeatRecent = Date.now() - lastAdminSnippetPatch < 40_000;
+  res.json({ ...playbackState, presenceHeartbeatRecent });
 });
 
 router.put("/", (req, res) => {
@@ -435,6 +437,7 @@ router.patch("/", (req, res) => {
 // ─── Queue ────────────────────────────────────────────────────────────────────
 
 router.get("/queue", (_req, res) => {
+  const presenceHeartbeatRecent = Date.now() - lastAdminSnippetPatch < 40_000;
   res.json({
     items: broadcastQueue,
     queueIndex: playbackState.queueIndex,
@@ -443,6 +446,7 @@ router.get("/queue", (_req, res) => {
     loopQueue: playbackState.loopQueue,
     onAir: playbackState.onAir,
     itemType: playbackState.itemType,
+    presenceHeartbeatRecent,
   });
 });
 

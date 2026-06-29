@@ -199,6 +199,7 @@ interface QueueState {
   loopQueue: boolean;
   onAir: boolean;
   itemType: 'article' | 'video' | 'interlude' | null;
+  presenceHeartbeatRecent?: boolean;
 }
 
 async function fetchQueueState(): Promise<QueueState> {
@@ -1917,6 +1918,7 @@ function AdminDashboard() {
   const [queueLoop, setQueueLoop] = useState(false);
   const [playingQueueIndex, setPlayingQueueIndex] = useState(-1);
   const [serverItemType, setServerItemType] = useState<'article' | 'video' | 'interlude' | null>(null);
+  const [otherPresenceActive, setOtherPresenceActive] = useState(false);
   const regenProgressTimersRef = useRef<Record<number, number>>({});
 
   const clearRegenProgressTimer = useCallback((articleId: number) => {
@@ -1977,6 +1979,7 @@ function AdminDashboard() {
     setQueueLoop(state.loopQueue);
     setOnAir(state.onAir);
     setServerItemType(state.itemType ?? null);
+    setOtherPresenceActive(state.presenceHeartbeatRecent ?? false);
     // snippetIndex is intentionally NOT synced from server here.
     // The admin drives all snippet advances via updatePlayback() / advance().
     // Syncing from server polling caused race conditions that truncated voice mid-read.
@@ -2294,9 +2297,14 @@ function AdminDashboard() {
   // When voice is ON: fires after VOICE_FALLBACK_SECONDS as a safety net only
   // (normally voice's onEnded callback drives advances — this just catches failures).
   // Disabled entirely during interlude — the server's 30 s interlude timer handles that.
+  // CRITICAL: If otherPresenceActive is true (PublicDisplay sending heartbeats), 
+  // disable the 15-second timer to avoid racing with PublicDisplay voice playback.
   useEffect(() => {
     if (!queueAutoplay || !playingArticleId || snippets.length === 0) return;
     if (serverItemType === 'interlude') return;
+    // If another display is actively sending heartbeats (has voice playing),
+    // don't fire AUTO_PLAY_SECONDS timer — let voice drive the pace
+    if (otherPresenceActive && !voiceEnabled) return;
     // When voice is ON: this is purely a last-resort safety net (5 min) in case
     // the browser blocks audio or the onEnded callback never fires.
     // When voice is OFF: this is the primary driver (15 s per chapter).
@@ -2304,7 +2312,7 @@ function AdminDashboard() {
     const timer = setTimeout(() => advanceRef.current(), delay);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, serverItemType]);
+  }, [queueAutoplay, voiceEnabled, currentSnippetIndex, snippets.length, playingArticleId, serverItemType, otherPresenceActive]);
 
   // ── Presence heartbeat ───────────────────────────────────────────────────────
   // Persist voice toggle so it survives page refreshes / re-deployments in production
