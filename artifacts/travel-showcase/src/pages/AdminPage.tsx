@@ -2292,12 +2292,6 @@ function AdminDashboard() {
 
   useEffect(() => {
     if (!voiceEnabled || !snippets[currentSnippetIndex]) return;
-    // Don't play voice in AdminPage when PublicDisplay is already reading
-    // (PublicDisplay provides the main voice narration; Admin plays voice only when alone)
-    if (otherPresenceActive) {
-      console.log('[voice] Skipping Admin voice - PublicDisplay is active');
-      return;
-    }
     // If a genuinely different article is now playing, wait until snippet index resets to 0.
     // null means "fresh reset" — allow any chapter index to proceed.
     const isNewArticle = prevIndexRef.current.articleId !== null && prevIndexRef.current.articleId !== playingArticleId;
