@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, articlesTable, snippetsTable } from "@workspace/db";
 import { eq, asc, desc, sql, inArray } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import OpenAI from "openai";
 
 const router: IRouter = Router();
 
@@ -157,6 +158,17 @@ interface ArticleData {
   snippets: SnippetData[];
 }
 
+type CompletionResponse = Awaited<ReturnType<typeof openai.chat.completions.create>>;
+
+const directApiKey =
+  process.env.AI_INTEGRATIONS_OPENAI_API_KEY ||
+  process.env.TRAVEL_TV_OPEN_AI_KEY ||
+  process.env.OPENAI_API_KEY;
+
+const directOpenAi = directApiKey
+  ? new OpenAI({ apiKey: directApiKey })
+  : null;
+
 function toIsoDateOrNow(value: string): string {
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? new Date().toISOString() : new Date(parsed).toISOString();
@@ -183,10 +195,10 @@ function buildFallbackArticleContent(url: string, page: PageData, reason?: strin
   const seed = sentences.length > 0
     ? sentences
     : [
-        "The article content could not be fully processed automatically.",
-        "Key details are still available from the source link.",
-        "You can regenerate chapters after the source becomes available again.",
-      ];
+      "The article content could not be fully processed automatically.",
+      "Key details are still available from the source link.",
+      "You can regenerate chapters after the source becomes available again.",
+    ];
 
   const snippets: SnippetData[] = [
     {
@@ -220,6 +232,28 @@ function buildFallbackArticleContent(url: string, page: PageData, reason?: strin
     publishedAt: toIsoDateOrNow(page.publishedTime),
     snippets,
   };
+}
+
+function extractLikelyJsonObject(raw: string): string {
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    return raw.slice(start, end + 1);
+  }
+  return raw;
+}
+
+async function requestArticleCompletion(prompt: string, client: typeof openai): Promise<CompletionResponse> {
+  return Promise.race([
+    client.chat.completions.create({
+      model: "gpt-5.2",
+      max_completion_tokens: 8192,
+      messages: [{ role: "user", content: prompt }],
+    }),
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("AI generation timeout")), 25000);
+    }),
+  ]);
 }
 
 async function generateArticleContent(url: string, page: PageData): Promise<ArticleData> {
@@ -400,36 +434,35 @@ Respond with a JSON object ONLY (no markdown, no code block):
   ]
 }`;
 
-  let response: Awaited<ReturnType<typeof openai.chat.completions.create>>;
+  let response: CompletionResponse;
   try {
-    response = await Promise.race([
-      openai.chat.completions.create({
-        model: "gpt-5.2",
-        max_completion_tokens: 8192,
-        messages: [{ role: "user", content: prompt }],
-      }),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("AI generation timeout")), 25000);
-      }),
-    ]);
+    response = await requestArticleCompletion(prompt, openai);
   } catch (err: any) {
     const message = typeof err?.message === "string" ? err.message : "AI generation failed";
-    if (/insights whitelist/i.test(message)) {
-      return buildFallbackArticleContent(url, page, "Source host blocked by upstream insights whitelist");
+    // If a proxy/baseURL rejects the source host, retry once against direct OpenAI.
+    if (/insights whitelist/i.test(message) && directOpenAi) {
+      try {
+        response = await requestArticleCompletion(prompt, directOpenAi);
+      } catch (directErr: any) {
+        const directMessage = typeof directErr?.message === "string" ? directErr.message : message;
+        return buildFallbackArticleContent(url, page, directMessage);
+      }
+    } else {
+      return buildFallbackArticleContent(url, page, message);
     }
-    return buildFallbackArticleContent(url, page, message);
   }
 
-  const content = response.choices[0]?.message?.content ?? "{}";
+  const rawContent = response.choices[0]?.message?.content ?? "{}";
+  const content = extractLikelyJsonObject(rawContent);
   try {
     const parsed = JSON.parse(content);
     const snippets: SnippetData[] = Array.isArray(parsed.snippets)
       ? parsed.snippets.slice(0, 9).map((s: any) => ({
-          headline: s.headline || "Travel Highlight",
-          caption: s.caption || "A key moment from this story.",
-          explanation: s.explanation || "More details are available about this travel story.",
-          imagePrompt: s.imagePrompt || "Cinematic travel photography, golden hour lighting, beautiful destination, high quality",
-        }))
+        headline: s.headline || "Travel Highlight",
+        caption: s.caption || "A key moment from this story.",
+        explanation: s.explanation || "More details are available about this travel story.",
+        imagePrompt: s.imagePrompt || "Cinematic travel photography, golden hour lighting, beautiful destination, high quality",
+      }))
       : [];
 
     if (snippets.length < 3) {
