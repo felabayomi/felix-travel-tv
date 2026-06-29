@@ -106,7 +106,7 @@ export function useVoiceReader(enabled: boolean) {
   // Prefetch audio for a snippet in the background (no playback)
   const prefetch = useCallback((snippetId: number) => {
     if (!enabled) return;
-    fetchAudioBlobUrl(snippetId).catch(() => {});
+    fetchAudioBlobUrl(snippetId).catch(() => { });
   }, [enabled]);
 
   useEffect(() => {
