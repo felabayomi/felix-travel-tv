@@ -98,8 +98,11 @@ export function useVoiceReader(enabled: boolean) {
       if (genRef.current !== myGen) return; // stale, ignore
       console.warn('[voice] TTS playback error:', err);
       setIsLoading(false);
-      // If audio fails, still advance after a short delay so slideshow doesn't freeze
-      if (onEnded) setTimeout(onEnded, 2000);
+      // If audio fails and we still have a callback, only fire it if this is still the current generation.
+      // This prevents stale error timeouts from advancing to a newer snippet.
+      if (onEnded) setTimeout(() => {
+        if (genRef.current === myGen) onEnded();
+      }, 2000);
     }
   }, [enabled, stop]);
 

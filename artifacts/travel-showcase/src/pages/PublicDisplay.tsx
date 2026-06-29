@@ -716,7 +716,6 @@ export function PublicDisplay() {
 
   // Track which snippet was last spoken
   const lastSpokenRef = useRef<{ snippetId: number; articleId: number | null }>({ snippetId: -1, articleId: null });
-  const isAudioAdvancingRef = useRef(false);
 
   useEffect(() => {
     // Not playing an article, or voice is off — stop and reset the guard so
@@ -732,35 +731,13 @@ export function PublicDisplay() {
       lastSpokenRef.current.articleId === articleId
     ) return;
     lastSpokenRef.current = { snippetId: currentSnippet.id, articleId: articleId ?? null };
-    const spokenIndex = safeIndex;
-    const spokenTotal = snippets.length;
 
-    // In voice mode, narration completion is the timing authority for slide advance.
-    speakRef.current(currentSnippet.id, async () => {
-      if (!voiceEnabled || itemType !== 'article' || articleId == null) return;
-      if (isAudioAdvancingRef.current) return;
-
-      isAudioAdvancingRef.current = true;
-      try {
-        if (spokenIndex < spokenTotal - 1) {
-          await fetch('/api/playback/queue/snippet', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ snippetIndex: spokenIndex + 1 }),
-          });
-          return;
-        }
-
-        await fetch('/api/playback/queue/advance', { method: 'POST' });
-      } catch {
-        // Keep playback running on server fallback path if this update fails.
-      } finally {
-        isAudioAdvancingRef.current = false;
-      }
-    });
+    // No onEnded — public display only plays voice, does not drive queue advances.
+    // The admin page (or server fallback) handles all snippet/queue progression.
+    speakRef.current(currentSnippet.id);
     // voiceEnabled is in deps: toggling it on re-runs this effect and speaks the current snippet.
     // The click that toggles it satisfies the browser's autoplay policy.
-  }, [currentSnippet, itemType, articleId, voiceEnabled, safeIndex, snippets.length]);
+  }, [currentSnippet, itemType, articleId, voiceEnabled]);
 
   // Keep server-side fallback timers from advancing slides while public narration is active.
   // CRITICAL: Do NOT include currentSnippet?.id in dependencies — this causes the interval to
