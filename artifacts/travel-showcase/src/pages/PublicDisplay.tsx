@@ -763,14 +763,17 @@ export function PublicDisplay() {
   }, [currentSnippet, itemType, articleId, voiceEnabled, safeIndex, snippets.length]);
 
   // Keep server-side fallback timers from advancing slides while public narration is active.
+  // CRITICAL: Do NOT include currentSnippet?.id in dependencies — this causes the interval to
+  // reset every time the snippet changes, breaking consistent 20-second heartbeat timing.
+  // Server needs the heartbeat to arrive every 20s to know the admin is present.
   useEffect(() => {
-    if (!onAir || itemType !== 'article' || !voiceEnabled || !currentSnippet) return;
+    if (!onAir || itemType !== 'article' || !voiceEnabled) return;
 
     const ping = () => fetch('/api/playback/presence', { method: 'PATCH' }).catch(() => { });
     ping();
     const id = setInterval(ping, 20000);
     return () => clearInterval(id);
-  }, [onAir, itemType, voiceEnabled, currentSnippet?.id]);
+  }, [onAir, itemType, voiceEnabled]);
 
   if (onAir && itemType === 'interlude') {
     return <InterludeScreen imageUrl={interludeImageUrl ?? ''} config={config} />;
