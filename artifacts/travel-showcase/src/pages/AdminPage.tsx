@@ -2305,19 +2305,37 @@ function AdminDashboard() {
     // Always attach onEnded; it checks queueAutoplayRef at the moment it fires
     // so autoplay can be toggled on/off between the speak() call and when it ends.
     const startMs = Date.now();
+    const snippetId = snippets[currentSnippetIndex].id;
+    const articleId = playingArticleId;
     voiceStartTimeRef.current = { idx: currentSnippetIndex, startMs };
-    console.log(`[voice] START clip ${currentSnippetIndex} (id=${snippets[currentSnippetIndex].id}) at ${startMs}`);
-    speakRef.current(snippets[currentSnippetIndex].id, () => {
+    console.log(`[voice] START clip ${currentSnippetIndex} (id=${snippetId}) at ${startMs}`);
+    speakRef.current(snippetId, () => {
       const endMs = Date.now();
       const duration = endMs - voiceStartTimeRef.current.startMs;
-      const isSameClip = voiceStartTimeRef.current.idx === currentSnippetIndexRef.current;
-      console.log(`[voice.onEnded] clip ${currentSnippetIndexRef.current} finished after ${duration}ms (same=${isSameClip}) autoplay=${queueAutoplayRef.current}`);
-      if (isSameClip && duration < 1000) {
-        console.warn(`[voice.onEnded] WARNING: onEnded fired too quickly (${duration}ms)! May have been called multiple times. Call advance() anyway.`);
+      const currentIdx = currentSnippetIndexRef.current;
+      const currentArticleId = playingArticleIdRef.current;
+      const currentSnippets = snippetsRef.current;
+      const currentSnippetId = currentSnippets[currentIdx]?.id;
+      
+      // Strict guards: only advance if this is the *current* snippet being read
+      const isCurrentArticle = currentArticleId === articleId;
+      const isCurrentSnippet = currentIdx === currentSnippetIndex;
+      const isSameSnippetId = currentSnippetId === snippetId;
+      const noOtherDisplayActive = !otherPresenceActive; // Prevent advancing while another display has voice
+      
+      console.log(`[voice.onEnded] clip ${currentIdx} (id=${currentSnippetId}) finished after ${duration}ms`);
+      console.log(`  Guards: sameArticle=${isCurrentArticle} sameIdx=${isCurrentSnippet} sameId=${isSameSnippetId} noOther=${noOtherDisplayActive}`);
+      
+      if (duration < 1000) {
+        console.warn(`  WARNING: onEnded fired quickly (${duration}ms). May be stale callback.`);
       }
-      if (queueAutoplayRef.current) {
-        console.log(`[voice.onEnded] → calling advance()`);
+      
+      // Only advance if ALL guards pass
+      if (queueAutoplayRef.current && isCurrentArticle && isCurrentSnippet && isSameSnippetId && noOtherDisplayActive) {
+        console.log(`  ✓ All guards passed. Calling advance()`);
         advanceRef.current();
+      } else if (queueAutoplayRef.current) {
+        console.warn(`  ✗ Guards blocked advance. autoplay=${queueAutoplayRef.current} article=${isCurrentArticle} idx=${isCurrentSnippet} id=${isSameSnippetId} noOther=${noOtherDisplayActive}`);
       }
     });
     // queueAutoplay is intentionally NOT in deps — accessed via ref so toggling it
