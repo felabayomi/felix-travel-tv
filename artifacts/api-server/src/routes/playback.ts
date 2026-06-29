@@ -160,7 +160,7 @@ function resolveNextIndex(currentIndex: number): number | null {
 
 const SNIPPET_ADVANCE_ABSENT_MS  = 15_000;  // advance 15 s AFTER admin becomes absent
 const SNIPPET_SAFETY_NET_MS      = 300_000; // absolute last resort when admin is present
-const ADMIN_PRESENCE_TIMEOUT_MS  = 120_000; // no PATCH in 120 s → admin considered absent
+const ADMIN_PRESENCE_TIMEOUT_MS  = 35_000;  // no PATCH in 35 s → admin considered absent
 const SNIPPET_CHECK_INTERVAL_MS  = 5_000;   // how often to re-evaluate
 
 // Timestamp of the last PATCH /queue/snippet or /presence call from the admin
