@@ -2197,8 +2197,21 @@ function AdminDashboard() {
     prevIndexRef.current = { index: currentSnippetIndex, articleId: playingArticleId };
     // Always attach onEnded; it checks queueAutoplayRef at the moment it fires
     // so autoplay can be toggled on/off between the speak() call and when it ends.
-    speakRef.current(snippets[currentSnippetIndex].id, () => {
-      if (queueAutoplayRef.current) advanceRef.current();
+    const spokenSnippetId = snippets[currentSnippetIndex].id;
+    const spokenSnippetIndex = currentSnippetIndex;
+    const spokenArticleId = playingArticleId;
+    speakRef.current(spokenSnippetId, () => {
+      const currentIdx = currentSnippetIndexRef.current;
+      const currentArticleId = playingArticleIdRef.current;
+      const currentSnippetId = snippetsRef.current[currentIdx]?.id;
+
+      const isCurrentArticle = currentArticleId === spokenArticleId;
+      const isCurrentSnippet = currentIdx === spokenSnippetIndex;
+      const isSameSnippetId = currentSnippetId === spokenSnippetId;
+
+      if (queueAutoplayRef.current && isCurrentArticle && isCurrentSnippet && isSameSnippetId) {
+        advanceRef.current();
+      }
     });
   // queueAutoplay is intentionally NOT in deps — accessed via ref so toggling it
   // never restarts the currently-playing audio or resets the "already spoken" guard.
