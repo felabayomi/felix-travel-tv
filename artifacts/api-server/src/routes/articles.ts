@@ -157,95 +157,6 @@ interface ArticleData {
   snippets: SnippetData[];
 }
 
-type CompletionResponse = Awaited<ReturnType<typeof openai.chat.completions.create>>;
-
-function toIsoDateOrNow(value: string): string {
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? new Date().toISOString() : new Date(parsed).toISOString();
-}
-
-function splitSentences(text: string): string[] {
-  return text
-    .replace(/\s+/g, " ")
-    .split(/(?<=[.!?])\s+/)
-    .map(s => s.trim())
-    .filter(Boolean);
-}
-
-function buildFallbackArticleContent(url: string, page: PageData, reason?: string): ArticleData {
-  const domain = new URL(url).hostname.replace(/^www\./, "");
-  const title = page.ogTitle || page.metaTitle || `Travel Update from ${domain}`;
-  const summary =
-    (page.ogDescription || page.metaDescription || page.bodyText || "Travel update currently available from the source article.")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 260);
-
-  const sentences = splitSentences(page.bodyText).slice(0, 12);
-  const seed = sentences.length > 0
-    ? sentences
-    : [
-      "The article content could not be fully processed automatically.",
-      "Key details are still available from the source link.",
-      "You can regenerate chapters after the source becomes available again.",
-    ];
-
-  const snippets: SnippetData[] = [
-    {
-      headline: "Story Snapshot",
-      caption: seed[0] || "Latest travel story update.",
-      explanation: `${seed[0] || "Latest travel story update."} ${seed[1] || "More details are being prepared."}`.slice(0, 320),
-      imagePrompt: "Photorealistic travel newsroom desk with maps and destination photos, natural light, editorial style",
-    },
-    {
-      headline: "Key Details",
-      caption: seed[1] || seed[0] || "Important facts from the source article.",
-      explanation: `${seed[1] || seed[0] || "Important facts from the source article."} ${seed[2] || "Further context will be added on regeneration."}`.slice(0, 320),
-      imagePrompt: "Photorealistic traveler reviewing itinerary notes and guidebooks at cafe table, candid documentary style",
-    },
-    {
-      headline: "Traveler Impact",
-      caption: seed[2] || seed[1] || "What this means for travelers right now.",
-      explanation: `${seed[2] || seed[1] || "What this means for travelers right now."} ${seed[3] || "Plan timing, logistics, and budget before booking."}`.slice(0, 320),
-      imagePrompt: "Photorealistic airport departure board with travelers planning route, evening ambient lighting",
-    },
-  ];
-
-  if (reason) {
-    snippets[0].explanation = `${snippets[0].explanation} Processing note: ${reason}`.slice(0, 320);
-  }
-
-  return {
-    title,
-    summary,
-    source: domain,
-    publishedAt: toIsoDateOrNow(page.publishedTime),
-    snippets,
-  };
-}
-
-function extractLikelyJsonObject(raw: string): string {
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start >= 0 && end > start) {
-    return raw.slice(start, end + 1);
-  }
-  return raw;
-}
-
-async function requestArticleCompletion(prompt: string, client: typeof openai): Promise<CompletionResponse> {
-  return Promise.race([
-    client.chat.completions.create({
-      model: "gpt-5.2",
-      max_completion_tokens: 8192,
-      messages: [{ role: "user", content: prompt }],
-    }),
-    new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("AI generation timeout")), 25000);
-    }),
-  ]);
-}
-
 async function generateArticleContent(url: string, page: PageData): Promise<ArticleData> {
   const hasRichContent = page.bodyText.length > 200 || page.ogDescription.length > 50 || page.jsonLd.length > 100;
 
@@ -424,25 +335,22 @@ Respond with a JSON object ONLY (no markdown, no code block):
   ]
 }`;
 
-  let response: CompletionResponse;
-  try {
-    response = await requestArticleCompletion(prompt, openai);
-  } catch (err: any) {
-    const message = typeof err?.message === "string" ? err.message : "AI generation failed";
-    return buildFallbackArticleContent(url, page, message);
-  }
+  const response = await openai.chat.completions.create({
+    model: "gpt-5.2",
+    max_completion_tokens: 8192,
+    messages: [{ role: "user", content: prompt }],
+  });
 
-  const rawContent = response.choices[0]?.message?.content ?? "{}";
-  const content = extractLikelyJsonObject(rawContent);
+  const content = response.choices[0]?.message?.content ?? "{}";
   try {
     const parsed = JSON.parse(content);
     const snippets: SnippetData[] = Array.isArray(parsed.snippets)
       ? parsed.snippets.slice(0, 9).map((s: any) => ({
-        headline: s.headline || "Travel Highlight",
-        caption: s.caption || "A key moment from this story.",
-        explanation: s.explanation || "More details are available about this travel story.",
-        imagePrompt: s.imagePrompt || "Cinematic travel photography, golden hour lighting, beautiful destination, high quality",
-      }))
+          headline: s.headline || "Travel Highlight",
+          caption: s.caption || "A key moment from this story.",
+          explanation: s.explanation || "More details are available about this travel story.",
+          imagePrompt: s.imagePrompt || "Cinematic travel photography, golden hour lighting, beautiful destination, high quality",
+        }))
       : [];
 
     if (snippets.length < 3) {
@@ -457,7 +365,20 @@ Respond with a JSON object ONLY (no markdown, no code block):
       snippets,
     };
   } catch {
-    return buildFallbackArticleContent(url, page, "AI output could not be parsed");
+    return {
+      title: "Breaking News",
+      summary: "An important story is developing.",
+      source: new URL(url).hostname.replace(/^www\./, ""),
+      publishedAt: new Date().toISOString(),
+      snippets: [
+        {
+          headline: "Story Loading",
+          caption: "Content is being processed.",
+          explanation: "The article content could not be fully parsed. Please try adding the URL again.",
+          imagePrompt: "Newspaper press room, dramatic lighting, ink and paper",
+        },
+      ],
+    };
   }
 }
 
