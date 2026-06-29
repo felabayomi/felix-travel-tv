@@ -152,15 +152,15 @@ function resolveNextIndex(currentIndex: number): number | null {
 //
 // The server checks every SNIPPET_CHECK_INTERVAL_MS (5 s) whether to advance.
 // It uses one of two thresholds:
-//   • Admin PRESENT  (recent PATCH): 8-minute safety net — voice drives pacing
-//   • Admin ABSENT   (presence timeout elapsed): 45 s fallback for unattended looping
+//   • Admin PRESENT  (last PATCH < 35 s ago): 5-minute safety net — voice drives pacing
+//   • Admin ABSENT   (last PATCH ≥ 35 s ago): 15 s fast fallback for overnight looping
 //
 // This prevents the server from cutting off voice reading mid-sentence while
 // still keeping the broadcast alive when the admin tab is backgrounded or closed.
 
-const SNIPPET_ADVANCE_ABSENT_MS  = 45_000;  // advance 45 s AFTER admin becomes absent
-const SNIPPET_SAFETY_NET_MS      = 480_000; // absolute last resort when admin is present
-const ADMIN_PRESENCE_TIMEOUT_MS  = 180_000; // no PATCH in 180 s → admin considered absent
+const SNIPPET_ADVANCE_ABSENT_MS  = 15_000;  // advance 15 s AFTER admin becomes absent
+const SNIPPET_SAFETY_NET_MS      = 300_000; // absolute last resort when admin is present
+const ADMIN_PRESENCE_TIMEOUT_MS  = 120_000; // no PATCH in 120 s → admin considered absent
 const SNIPPET_CHECK_INTERVAL_MS  = 5_000;   // how often to re-evaluate
 
 // Timestamp of the last PATCH /queue/snippet or /presence call from the admin
@@ -336,10 +336,6 @@ export function applyQueueItemAtIndex(index: number): void {
   }
   const item = broadcastQueue[index];
   if (item.type === 'article') {
-    // Fresh article start counts as admin-present grace period to avoid
-    // immediate server fallback jumps before voice/presence heartbeats begin.
-    lastAdminSnippetPatch = Date.now();
-    adminBecameAbsentAt = null;
     playbackState = {
       ...playbackState,
       itemType: 'article', articleId: item.articleId ?? null,

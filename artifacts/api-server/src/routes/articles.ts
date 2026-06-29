@@ -2,37 +2,11 @@ import { Router, type IRouter } from "express";
 import { db, articlesTable, snippetsTable } from "@workspace/db";
 import { eq, asc, desc, sql, inArray } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { extractPageContent } from "../lib/articleExtraction";
 
 const router: IRouter = Router();
 
-const URL_FETCH_TIMEOUT_MS = Number(process.env.TRAVEL_TV_URL_FETCH_TIMEOUT_MS || 5000);
-const URL_FETCH_TOTAL_BUDGET_MS = Number(process.env.TRAVEL_TV_URL_FETCH_TOTAL_BUDGET_MS || 10000);
-const PASTED_TEXT_META_TIMEOUT_MS = Number(process.env.TRAVEL_TV_PASTED_TEXT_META_TIMEOUT_MS || 2500);
-const PAGE_FETCH_HARD_TIMEOUT_MS = Number(process.env.TRAVEL_TV_PAGE_FETCH_HARD_TIMEOUT_MS || 8000);
-const CHAPTER_GENERATION_HARD_TIMEOUT_MS = Number(process.env.TRAVEL_TV_CHAPTER_GENERATION_HARD_TIMEOUT_MS || 14000);
-
-function emptyPageData(): PageData {
-  return {
-    html: "",
-    metaTitle: "",
-    metaDescription: "",
-    ogTitle: "",
-    ogDescription: "",
-    ogImage: "",
-    publishedTime: "",
-    author: "",
-    jsonLd: "",
-    bodyText: "",
-  };
-}
-
 function snippetImageUrl(id: number): string {
   return `/api/snippets/${id}/image`;
-}
-
-function snippetImageUrlWithVersion(id: number, version: string): string {
-  return `${snippetImageUrl(id)}?v=${encodeURIComponent(version)}`;
 }
 
 function formatArticle(a: typeof articlesTable.$inferSelect, snippetCount: number) {
@@ -77,7 +51,7 @@ interface PageData {
 }
 
 async function fetchPageData(url: string): Promise<PageData> {
-  const empty = emptyPageData();
+  const empty: PageData = { html: "", metaTitle: "", metaDescription: "", ogTitle: "", ogDescription: "", ogImage: "", publishedTime: "", author: "", jsonLd: "", bodyText: "" };
 
   const userAgents = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -87,9 +61,7 @@ async function fetchPageData(url: string): Promise<PageData> {
   ];
 
   let html = "";
-  const startedAt = Date.now();
   for (const ua of userAgents) {
-    if (Date.now() - startedAt >= URL_FETCH_TOTAL_BUDGET_MS) break;
     try {
       const res = await fetch(url, {
         headers: {
@@ -101,15 +73,12 @@ async function fetchPageData(url: string): Promise<PageData> {
           "Pragma": "no-cache",
         },
         redirect: "follow",
-        signal: AbortSignal.timeout(URL_FETCH_TIMEOUT_MS),
+        signal: AbortSignal.timeout(20000),
       });
-      const nextHtml = await res.text();
-      const contentType = res.headers.get("content-type") ?? "";
-      if (!contentType.includes("html")) continue;
-      if (nextHtml.length > html.length) {
-        html = nextHtml;
+      if (res.ok) {
+        html = await res.text();
+        if (html.length > 500) break;
       }
-      if (res.ok && nextHtml.length > 500) break;
     } catch {
       continue;
     }
@@ -138,8 +107,26 @@ async function fetchPageData(url: string): Promise<PageData> {
 
   // Extract JSON-LD structured data
   const jsonLdMatches = [...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
-  const jsonLd = jsonLdMatches.map(m => m[1]).join("\n").slice(0, ARTICLE_JSONLD_MAX_CHARS);
-  const extracted = extractPageContent(html, jsonLd);
+  const jsonLd = jsonLdMatches.map(m => m[1]).join("\n").slice(0, 3000);
+
+  // Extract body text — prefer article/main tags
+  let bodyText = "";
+  const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
+  const mainMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+
+  const rawContent = articleMatch?.[1] || mainMatch?.[1] || bodyMatch?.[1] || html;
+  bodyText = rawContent
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, " ")
+    .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, " ")
+    .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, " ")
+    .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 8000);
 
   return {
     html,
@@ -148,20 +135,11 @@ async function fetchPageData(url: string): Promise<PageData> {
     ogTitle: getMeta("og:title"),
     ogDescription: getMeta("og:description"),
     ogImage: getMeta("og:image"),
-    publishedTime: getMeta("article:published_time") || getMeta("og:article:published_time") || getMeta("datePublished") || extracted.publishedTime,
-    author: getMeta("author") || getMeta("article:author") || extracted.author,
+    publishedTime: getMeta("article:published_time") || getMeta("og:article:published_time") || getMeta("datePublished"),
+    author: getMeta("author") || getMeta("article:author"),
     jsonLd,
-    bodyText: extracted.bodyText.slice(0, ARTICLE_BODY_MAX_CHARS),
+    bodyText,
   };
-}
-
-async function fetchPageDataWithHardTimeout(url: string): Promise<PageData> {
-  return await Promise.race([
-    fetchPageData(url),
-    new Promise<PageData>((resolve) => {
-      setTimeout(() => resolve(emptyPageData()), PAGE_FETCH_HARD_TIMEOUT_MS);
-    }),
-  ]);
 }
 
 interface SnippetData {
@@ -169,33 +147,6 @@ interface SnippetData {
   caption: string;
   explanation: string;
   imagePrompt: string;
-}
-
-function normalizeWhitespace(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
-}
-
-function buildClipVisualPrompt(
-  snippet: Pick<SnippetData, "headline" | "caption" | "explanation" | "imagePrompt">,
-  articleTitle: string,
-  snippetOrder: number,
-  totalSnippets: number,
-): string {
-  const basePrompt = normalizeWhitespace(snippet.imagePrompt || "");
-  const headline = normalizeWhitespace(snippet.headline || "Travel Highlight");
-  const caption = normalizeWhitespace(snippet.caption || "");
-  const explanation = normalizeWhitespace(snippet.explanation || "").slice(0, 220);
-  const clipLabel = `Clip ${snippetOrder + 1} of ${totalSnippets}`;
-
-  if (basePrompt.length > 0) {
-    return normalizeWhitespace(
-      `${basePrompt}. ${clipLabel}. Focus specifically on: ${headline}${caption ? ` - ${caption}` : ""}. Keep composition distinct from other clips in this article.`,
-    );
-  }
-
-  return normalizeWhitespace(
-    `Photorealistic travel editorial image for ${articleTitle}. ${clipLabel}. Scene must depict ${headline}${caption ? `, ${caption}` : ""}${explanation ? `. Context: ${explanation}` : ""}. Unique camera angle and subject focus compared with other clips.`,
-  );
 }
 
 interface ArticleData {
@@ -206,390 +157,7 @@ interface ArticleData {
   snippets: SnippetData[];
 }
 
-type GenerationMode = "ai" | "fallback";
-
-interface GenerationMeta {
-  mode: GenerationMode;
-  message: string;
-  reason?: string;
-}
-
-interface GeneratedArticleResult {
-  content: ArticleData;
-  generation: GenerationMeta;
-}
-
-function parseJsonFromModelOutput(raw: string): any {
-  const text = (raw || "").trim();
-  if (!text) return {};
-
-  // 1) Strict JSON
-  try {
-    return JSON.parse(text);
-  } catch {
-    // continue
-  }
-
-  // 2) Markdown fenced JSON
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenced?.[1]) {
-    try {
-      return JSON.parse(fenced[1]);
-    } catch {
-      // continue
-    }
-  }
-
-  // 3) First balanced JSON object in mixed text
-  const firstBrace = text.indexOf("{");
-  if (firstBrace !== -1) {
-    let depth = 0;
-    for (let i = firstBrace; i < text.length; i++) {
-      const ch = text[i];
-      if (ch === "{") depth++;
-      if (ch === "}") {
-        depth--;
-        if (depth === 0) {
-          const candidate = text.slice(firstBrace, i + 1);
-          try {
-            return JSON.parse(candidate);
-          } catch {
-            break;
-          }
-        }
-      }
-    }
-  }
-
-  throw new Error("Model response did not contain parseable JSON");
-}
-
-function isLikelyErrorDocument(page: PageData): { isError: boolean; reason: string } {
-  const combined = [
-    page.metaTitle,
-    page.ogTitle,
-    page.metaDescription,
-    page.ogDescription,
-    page.bodyText.slice(0, 1600),
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  const errorPatterns: Array<[RegExp, string]> = [
-    [/\berror\s*404\b/, "404 page"],
-    [/\bpage not found\b/, "page not found"],
-    [/\bcan't find the page\b|\bcannot find the page\b/, "missing page"],
-    [/\brequested page could not be found\b/, "missing page"],
-    [/\bthis page is no longer here\b/, "missing page"],
-  ];
-
-  for (const [pattern, reason] of errorPatterns) {
-    if (pattern.test(combined)) {
-      return { isError: true, reason };
-    }
-  }
-
-  return { isError: false, reason: "" };
-}
-
-function resolvePublishedDate(input: string | undefined): Date {
-  if (!input) return new Date();
-  const parsed = new Date(input);
-  if (Number.isNaN(parsed.getTime())) return new Date();
-  return parsed;
-}
-
-function envInt(name: string, fallback: number, min: number, max: number): number {
-  const raw = process.env[name];
-  const parsed = Number(raw);
-  if (!raw || Number.isNaN(parsed)) return fallback;
-  return Math.max(min, Math.min(max, Math.floor(parsed)));
-}
-
-const COST_SAVER_MODE = process.env.TRAVEL_TV_ENABLE_COST_SAVER !== "false";
-const ARTICLE_MODEL = COST_SAVER_MODE
-  ? (process.env.TRAVEL_TV_COST_SAVER_MODEL || "gpt-4.1-mini")
-  : (process.env.TRAVEL_TV_ARTICLE_MODEL || "gpt-4.1-mini");
-const ARTICLE_MAX_COMPLETION_TOKENS = envInt("TRAVEL_TV_ARTICLE_MAX_TOKENS", 1600, 600, 3000);
-const ARTICLE_TIMEOUT_MS = envInt("TRAVEL_TV_ARTICLE_TIMEOUT_MS", 12000, 5000, 120000);
-const ARTICLE_BODY_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_BODY_MAX_CHARS", 4500, 1000, 12000);
-const ARTICLE_JSONLD_MAX_CHARS = envInt("TRAVEL_TV_ARTICLE_JSONLD_MAX_CHARS", 1200, 200, 3000);
-const IMAGE_GENERATION_LIMIT = envInt("TRAVEL_TV_IMAGE_GENERATION_LIMIT", 7, 0, 9);
-const IMAGE_GENERATION_RETRIES = envInt("TRAVEL_TV_IMAGE_RETRIES", 1, 1, 6);
-const IMAGE_RETRY_BASE_DELAY_MS = envInt("TRAVEL_TV_IMAGE_RETRY_DELAY_MS", 1200, 300, 5000);
-const IMAGE_MODELS = (process.env.TRAVEL_TV_IMAGE_MODELS || "gpt-image-1")
-  .split(",")
-  .map((value) => value.trim())
-  .filter(Boolean);
-const IMAGE_PROVIDER = (process.env.TRAVEL_TV_IMAGE_PROVIDER || "stock").toLowerCase();
-const IMAGE_GENERATION_SIZE =
-  process.env.TRAVEL_TV_IMAGE_SIZE === "256x256"
-    ? "256x256"
-    : process.env.TRAVEL_TV_IMAGE_SIZE === "1024x1024"
-      ? "1024x1024"
-      : "512x512";
-
-function imageSizeForModel(model: string): "256x256" | "512x512" | "1024x1024" | "1792x1024" | "1024x1792" {
-  if (model === "dall-e-3") {
-    return "1024x1024";
-  }
-  return IMAGE_GENERATION_SIZE;
-}
-
-function createPlaceholderImageDataUrl(text: string): string {
-  const title = text.replace(/\s+/g, " ").trim().slice(0, 120) || "Travel scene";
-  const escaped = title
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0b1220"/><stop offset="100%" stop-color="#1d3557"/></linearGradient><radialGradient id="r" cx="22%" cy="18%" r="72%"><stop offset="0%" stop-color="rgba(255,255,255,0.2)"/><stop offset="100%" stop-color="rgba(255,255,255,0)"/></radialGradient></defs><rect width="1200" height="800" fill="url(#g)"/><rect width="1200" height="800" fill="url(#r)"/><rect x="64" y="64" width="1072" height="672" rx="28" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.14)"/><text x="96" y="710" fill="rgba(226,232,240,0.9)" font-family="Arial, sans-serif" font-size="32">${escaped}</text></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
-function isPlaceholderStoredImage(imageUrl: string | null | undefined): boolean {
-  if (!imageUrl) return false;
-  return imageUrl.startsWith("data:image/svg+xml");
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-const KEYWORD_STOPWORDS = new Set([
-  "about", "after", "along", "around", "because", "between", "close", "could", "every", "from",
-  "great", "guide", "high", "into", "just", "like", "near", "open", "over", "photo", "scene",
-  "show", "some", "that", "their", "there", "these", "this", "travel", "trip", "using", "with",
-  "without", "your", "city", "view", "views", "feature", "chapter", "story", "local", "best",
-]);
-
-function extractImageKeywords(input: string): string[] {
-  return input
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter((word) => word.length >= 4)
-    .filter((word) => !KEYWORD_STOPWORDS.has(word))
-    .slice(0, 6);
-}
-
-function buildStockImageUrl(seedSource: string, promptText: string): string {
-  const keywords = extractImageKeywords(promptText);
-  const terms = keywords.length > 0 ? keywords.join(",") : "nature,landscape,travel";
-  const seed = stringSeed(`${seedSource}:${terms}`);
-  return `https://loremflickr.com/1600/900/${encodeURIComponent(terms)}?lock=${seed}`;
-}
-
-function buildStockImageCandidates(seedSource: string, promptText: string): string[] {
-  const keywords = extractImageKeywords(promptText);
-  const terms = keywords.length > 0 ? keywords.join(",") : "nature,landscape,travel";
-  const seed = stringSeed(`${seedSource}:${terms}`);
-  return [
-    `https://loremflickr.com/1600/900/${encodeURIComponent(terms)}?lock=${seed}`,
-    `https://picsum.photos/seed/felix-${seed}/1600/900`,
-  ];
-}
-
-async function fetchImageAsDataUrl(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; FelixTravelTV/1.0)",
-        "Accept": "image/*,*/*",
-      },
-      redirect: "follow",
-    });
-    if (!response.ok) return null;
-
-    const contentType = response.headers.get("content-type") ?? "image/jpeg";
-    if (!contentType.startsWith("image/")) return null;
-
-    const buffer = Buffer.from(await response.arrayBuffer());
-    return `data:${contentType};base64,${buffer.toString("base64")}`;
-  } catch {
-    return null;
-  }
-}
-
-async function resolveStockImageDataUrl(seedSource: string, promptText: string): Promise<string | null> {
-  const candidates = buildStockImageCandidates(seedSource, promptText);
-  for (const candidate of candidates) {
-    const dataUrl = await fetchImageAsDataUrl(candidate);
-    if (dataUrl) return dataUrl;
-  }
-  return null;
-}
-
-function imageFingerprint(imageUrl: string): string {
-  if (imageUrl.startsWith("data:image/")) {
-    const payloadStart = imageUrl.indexOf(",");
-    const payload = payloadStart >= 0
-      ? imageUrl.slice(payloadStart + 1, payloadStart + 1 + 256)
-      : imageUrl.slice(0, 256);
-    return `data:${payload}`;
-  }
-
-  try {
-    const parsed = new URL(imageUrl);
-    return `${parsed.origin}${parsed.pathname}`;
-  } catch {
-    return imageUrl;
-  }
-}
-
-function promptVariant(basePrompt: string, attempt: number): string {
-  if (attempt <= 0) return basePrompt;
-  const variants = [
-    "Use a distinctly different camera angle and foreground subject.",
-    "Use a different time of day, scene depth, and composition.",
-    "Use a different location viewpoint with clear subject separation.",
-    "Use a unique framing style and alternate travel activity focus.",
-  ];
-  return normalizeWhitespace(`${basePrompt} ${variants[(attempt - 1) % variants.length]}`);
-}
-
-async function resolveUniqueStockImageDataUrl(
-  seedSource: string,
-  promptText: string,
-  usedFingerprints: Set<string>,
-  maxAttempts = 4,
-): Promise<string | null> {
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const variantPrompt = promptVariant(promptText, attempt);
-    const imageUrl = await resolveStockImageDataUrl(`${seedSource}:v${attempt}`, variantPrompt);
-    if (!imageUrl) continue;
-
-    const fingerprint = imageFingerprint(imageUrl);
-    if (usedFingerprints.has(fingerprint)) continue;
-
-    usedFingerprints.add(fingerprint);
-    return imageUrl;
-  }
-
-  return null;
-}
-
-async function initialClipImageUrl(
-  seedSource: string,
-  promptText: string,
-  placeholderText: string,
-): Promise<string> {
-  if (IMAGE_PROVIDER === "stock") {
-    const resolved = await resolveStockImageDataUrl(seedSource, promptText);
-    if (resolved) return resolved;
-  }
-  return createPlaceholderImageDataUrl(placeholderText);
-}
-
-function stringSeed(input: string): number {
-  let value = 0;
-  for (let index = 0; index < input.length; index++) {
-    value = (value * 31 + input.charCodeAt(index)) >>> 0;
-  }
-  return value;
-}
-
-function shortChapterLabel(text: string): string {
-  const cleaned = text.replace(/\s+/g, " ").trim();
-  if (!cleaned) return "Felix Travel TV";
-  return cleaned.length <= 56 ? cleaned : `${cleaned.slice(0, 53).trim()}...`;
-}
-
-function escapeXml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function createChapterVariantImageDataUrl(baseImageUrl: string, chapterText: string, seedSource: string): string {
-  const seed = stringSeed(seedSource);
-  const hueA = seed % 360;
-  const hueB = (seed * 7) % 360;
-  const offsetX = -120 - (seed % 180);
-  const offsetY = -60 - (seed % 120);
-  const scale = 1.12 + ((seed % 9) * 0.02);
-  const label = escapeXml(shortChapterLabel(chapterText));
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><defs><clipPath id="card"><rect x="56" y="56" width="1088" height="688" rx="30" ry="30"/></clipPath><linearGradient id="wash" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="hsla(${hueA},70%,50%,0.22)"/><stop offset="100%" stop-color="hsla(${hueB},70%,50%,0.14)"/></linearGradient><linearGradient id="fade" x1="0" y1="1" x2="0" y2="0"><stop offset="0%" stop-color="rgba(2,6,23,0.88)"/><stop offset="55%" stop-color="rgba(2,6,23,0.28)"/><stop offset="100%" stop-color="rgba(2,6,23,0.12)"/></linearGradient></defs><rect width="1200" height="800" fill="#020617"/><g clip-path="url(#card)"><image href="${baseImageUrl}" x="${offsetX}" y="${offsetY}" width="${Math.round(1200 * scale)}" height="${Math.round(800 * scale)}" preserveAspectRatio="xMidYMid slice"/><rect x="56" y="56" width="1088" height="688" fill="url(#wash)"/><rect x="56" y="56" width="1088" height="688" fill="url(#fade)"/></g><rect x="56" y="56" width="1088" height="688" rx="30" ry="30" fill="none" stroke="rgba(255,255,255,0.18)"/><text x="96" y="118" fill="rgba(255,255,255,0.72)" font-family="Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="2">FELIX TRAVEL TV</text><foreignObject x="92" y="580" width="1016" height="120"><div xmlns="http://www.w3.org/1999/xhtml" style="color:#f8fafc;font-family:Arial,sans-serif;font-size:42px;font-weight:700;line-height:1.12;">${label}</div></foreignObject></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
-function sentenceChunks(text: string, maxChunks = 6): string[] {
-  const cleaned = text.replace(/\s+/g, " ").trim();
-  if (!cleaned) return [];
-
-  const sentences = cleaned
-    .split(/(?<=[.!?])\s+/)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean);
-
-  if (sentences.length === 0) return [cleaned.slice(0, 600)];
-
-  const targetSize = Math.max(2, Math.ceil(sentences.length / Math.min(maxChunks, sentences.length)));
-  const chunks: string[] = [];
-
-  for (let index = 0; index < sentences.length; index += targetSize) {
-    const chunk = sentences.slice(index, index + targetSize).join(" ").trim();
-    if (chunk) chunks.push(chunk.slice(0, 700));
-  }
-
-  return chunks.slice(0, maxChunks);
-}
-
-function compactTitle(input: string, fallback: string): string {
-  const title = input.replace(/\s+/g, " ").trim();
-  if (!title) return fallback;
-  return title.length <= 70 ? title : `${title.slice(0, 67).trim()}...`;
-}
-
-function buildFallbackArticleContent(url: string, page: PageData): ArticleData {
-  const source = new URL(url).hostname.replace(/^www\./, "");
-  const baseTitle = page.ogTitle || page.metaTitle || source;
-  const bodyChunks = sentenceChunks(page.bodyText || page.ogDescription || page.metaDescription, 6);
-  const chunks = bodyChunks.length > 0 ? bodyChunks : [
-    `This story comes from ${source} and could not be fully extracted automatically, but the source article is still available for review.`,
-    `Use the published source, timing, and location details from the original article to confirm the latest travel information before planning.`,
-    `Felix Travel TV can still turn this topic into a usable briefing once the full article text is pasted into the admin panel.`,
-  ];
-
-  const snippets = chunks.slice(0, 7).map((chunk, index) => {
-    const firstSentence = chunk.split(/(?<=[.!?])\s+/)[0]?.trim() || chunk;
-    return {
-      headline: compactTitle(index === 0 ? baseTitle : `Travel Brief ${index + 1}`, `Travel Brief ${index + 1}`),
-      caption: compactTitle(firstSentence, "Travel update and planning insight."),
-      explanation: chunk,
-      imagePrompt: `Photorealistic travel editorial photography for ${baseTitle}, focused on ${firstSentence.toLowerCase()}, natural light, authentic destination details, high-end magazine composition`,
-    };
-  });
-
-  while (snippets.length < 4) {
-    const sequence = snippets.length + 1;
-    snippets.push({
-      headline: `Travel Brief ${sequence}`,
-      caption: "Additional context from the source article.",
-      explanation: `Felix Travel TV needs more source detail for this section. Paste the full article text to generate richer destination chapters and planning advice.`,
-      imagePrompt: `Photorealistic travel newsroom visual for ${baseTitle}, editorial travel coverage, cinematic lighting, no text`,
-    });
-  }
-
-  return {
-    title: compactTitle(baseTitle, "Felix Travel TV Feature"),
-    summary: compactTitle(page.ogDescription || page.metaDescription || chunks[0], "Travel story briefing from Felix Travel TV."),
-    source,
-    publishedAt: page.publishedTime || new Date().toISOString(),
-    snippets,
-  };
-}
-
-async function generateArticleContent(
-  url: string,
-  page: PageData,
-  log?: { warn: (...args: any[]) => void; info?: (...args: any[]) => void },
-): Promise<GeneratedArticleResult> {
+async function generateArticleContent(url: string, page: PageData): Promise<ArticleData> {
   const hasRichContent = page.bodyText.length > 200 || page.ogDescription.length > 50 || page.jsonLd.length > 100;
 
   const context = [
@@ -602,171 +170,231 @@ async function generateArticleContent(
     page.bodyText && `Article body:\n${page.bodyText}`,
   ].filter(Boolean).join("\n\n");
 
-  const prompt = `Create Felix Travel TV chapter content from this article.
+  const prompt = `You are a travel content producer for Felix Travel TV — a professional travel channel presented by Felix Abayomi, trusted travel advisor.
+
+Your job is to transform the article below into a structured Felix Travel TV episode. Follow every step precisely.
 
 URL: ${url}
 
-SOURCE DATA:
-${hasRichContent ? context : context || `URL clues: ${url}`}
+${hasRichContent ? `ARTICLE CONTENT:\n${context}` : `NOTE: This article's full text could not be extracted. Use the partial data below plus your own knowledge of this specific topic to create substantive content. Do NOT write generic placeholder text.
 
-REQUIREMENTS:
-- Return valid JSON only.
-- 6 or 7 snippets.
-- Content must be specific and practical for travelers.
-- Last snippet must be a Felix travel advisor call-to-action.
-- Keep each explanation to 2 short sentences.
-- Keep headlines <= 12 words.
+${context || `URL clues: ${url}`}`}
 
-JSON SCHEMA:
+---
+
+STEP 1 — DETECT CONTENT TYPE
+
+Read the article and classify it as ONE of:
+
+- CITY_GUIDE — content about a specific city or town and its experiences
+- DESTINATION_FEATURE — a broader destination, country, or region feature
+- TRAVEL_DEAL — a deal, trip package, pricing offer, or booking promotion
+- TRAVEL_TOOL — an app, website, service, or travel product
+- ROAD_TRIP — a route, multi-stop journey, or driving feature
+- TRAVEL_TIPS — advice, how-to, or planning guidance
+- HOTEL_FEATURE — a hotel, resort, or accommodation review
+- CRUISE_FEATURE — a cruise line, ship, or sailing experience
+- GENERAL_TRAVEL — any other travel content
+
+---
+
+STEP 2 — SELECT THE MATCHING TEMPLATE
+
+Based on the content type, use the correct template below. The template defines what each chapter must cover. Map the article's information into each section. If a section's data is missing from the article, draw on your own knowledge of the subject.
+
+TEMPLATE A — CITY_GUIDE (7 chapters):
+1. Overview — What makes this city unique and worth visiting
+2. Main Areas & Highlights — The key neighbourhoods, districts, and must-see spots
+3. Food & Culture — Local cuisine, markets, cultural traditions, and dining scenes
+4. Experiences & Activities — What to do, see, and explore
+5. Where to Stay — Accommodation options, neighbourhoods to base yourself, price ranges
+6. Travel Tips — Practical advice: transport, costs, timing, what to know before going
+7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, helps you plan and book this city trip; call to action
+
+TEMPLATE B — DESTINATION_FEATURE (7 chapters):
+1. Introduction — Why this destination matters and what the story is about
+2. Why Visit — The compelling reasons and unique appeal of this destination
+3. Top Experiences — The standout things to do, see, and feel here
+4. Food & Culture — Cuisine, local life, cultural highlights
+5. Best Time to Visit — Seasons, weather, events, and practical timing advice
+6. Travel Planning Tips — Flights, logistics, costs, how to prepare
+7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, makes planning this trip effortless; call to action
+
+TEMPLATE C — TRAVEL_DEAL (7 chapters):
+1. Trip Overview — What this deal or trip package is, where it goes, who offers it
+2. What's Included — Everything covered: hotels, flights, activities, meals, transfers
+3. Dates & Pricing — The available dates, price points, and how to secure the rate
+4. Highlights — The most exciting moments and experiences on this trip
+5. Who This Trip Is For — The ideal traveller profile: families, couples, adventurers, etc.
+6. Booking Information — How to book, deadlines, contact details, what to do next
+7. Felix, Your Travel Advisor — Why Felix, as your personal travel agent and advisor, is the right partner for this deal; call to action
+
+TEMPLATE D — TRAVEL_TOOL (7 chapters):
+1. The Problem — The travel challenge or frustration this tool solves
+2. The Solution — What this app, service, or tool is and what it does
+3. How It Works — Step-by-step explanation of the product
+4. Key Features — The standout capabilities and what makes it different
+5. Who It's For — The traveller types who benefit most
+6. Pricing & Access — Cost, free tier, subscription details, where to get it
+7. Felix, Your Travel Advisor — Felix's personal recommendation and how to start using it with his guidance; call to action
+
+TEMPLATE E — ROAD_TRIP (7 chapters):
+1. Route Overview — Where the journey starts, ends, and what it covers
+2. Major Stops — The key destinations and places along the route
+3. Scenic Highlights — The most beautiful or dramatic moments on the road
+4. Food Stops — Where to eat, drink, and experience local flavour along the way
+5. Travel Tips — Driving advice, logistics, costs, best season, what to book ahead
+6. Recommended Schedule — A practical day-by-day or leg-by-leg breakdown
+7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, helps you plan and book this road trip; call to action
+
+TEMPLATE F — TRAVEL_TIPS (6 chapters):
+1. The Problem — The common travel mistake, challenge, or gap this addresses
+2. The Tips — The specific, actionable advice every traveller needs to know
+3. Real Examples — Concrete scenarios, case studies, or practical illustrations
+4. What to Avoid — The mistakes, traps, and wrong assumptions to steer clear of
+5. Recommendations — Felix's personal recommendations and trusted options
+6. Felix, Your Travel Advisor — How to put these tips into action with Felix as your personal travel agent and advisor; call to action
+
+TEMPLATE G — HOTEL_FEATURE (7 chapters):
+1. Hotel Overview — First impressions: what this property is, its positioning, its personality
+2. Location — Neighbourhood, accessibility, what's on the doorstep
+3. Rooms & Design — Room categories, interiors, views, quality, standout features
+4. Dining — Restaurants, bars, breakfast, room service, signature dishes
+5. Amenities — Pool, spa, gym, concierge, services, what sets it apart
+6. Who It's For — The ideal guest: couples, families, business, luxury seekers
+7. Felix, Your Travel Advisor — Booking tips, best rates, and how Felix, as your personal travel agent and advisor, secures this hotel for you; call to action
+
+TEMPLATE H — CRUISE_FEATURE (7 chapters):
+1. Cruise Overview — The line, ship, itinerary, and what kind of experience this is
+2. Ship Experience — Size, atmosphere, onboard highlights, what life is like at sea
+3. Destinations & Ports — Where the cruise goes and what to do at each stop
+4. Dining & Entertainment — Food quality, restaurants, shows, and onboard activities
+5. Cabins — Cabin categories, sizes, views, pricing tiers
+6. Who It's For — Families, couples, first-timers, luxury cruisers — who belongs on this ship
+7. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, books cruises and why travellers trust him; call to action
+
+TEMPLATE I — GENERAL_TRAVEL (6 chapters):
+1. The Story — What this piece of travel content is about and why it matters
+2. Key Insights — The most important facts, findings, or revelations
+3. What It Means for Travellers — How this affects travel plans, decisions, or experiences
+4. Practical Takeaways — What travellers should actually do with this information
+5. Felix's Perspective — Felix Abayomi's expert take and personal recommendation
+6. Felix, Your Travel Advisor — How Felix, as your personal travel agent and advisor, helps travellers act on this; call to action
+
+---
+
+STEP 3 — WRITE EACH CHAPTER
+
+For every chapter in the selected template, produce:
+
+HEADLINE: A vivid, broadcast-quality title written specifically for this article's content.
+- Must reflect exactly what THIS chapter covers — not a generic label
+- Must sound like something Felix would say on air — specific, punchy, engaging
+- NEVER use the template section names literally as headlines
+- Forbidden words as standalone headlines: "Overview", "Introduction", "Tips", "Summary", "Conclusion", "Highlights", "Features", "Amenities", "Dining", "Location"
+
+GOOD headline examples by chapter purpose:
+- City overview: "The Pocket-Sized Capital That Punches Way Above Its Weight"
+- Food: "Tagines, Rooftops, and the Street Food Trail That Changes Everything"
+- Deal pricing: "Seven Nights in Ireland — $4,045 All In, and Worth Every Cent"
+- Hotel: "From the Moment You Walk Through the Door, This Hotel Gets It Right"
+- Who it's for: "Built for Families Who Want the Magic Without the Stress"
+- Felix CTA: "Felix, Your Travel Agent and Advisor — You Just Show Up and Enjoy"
+
+EXPLANATION: 2–3 crisp sentences in Felix Abayomi's voice — warm, direct, authoritative, specific. No filler. No Wikipedia language. Speak like a trusted advisor giving real, useful information. Must be readable aloud in under 20 seconds.
+
+IMAGE PROMPT: A photorealistic travel photography description specific to this chapter's exact subject. Describe the precise scene, location, atmosphere, people, lighting, and photographic style. Never generic — always specific to the chapter content.
+
+---
+
+CRITICAL RULES:
+- Produce ALL chapters required by the selected template — never skip one
+- Every chapter must be grounded in THIS article's actual content
+- If the article lacks detail for a section, use your knowledge of the specific subject
+- The final chapter of every template is always Felix as your personal travel agent and advisor + call to action
+- Headlines must be vivid broadcast titles, never template section labels
+- Explanations must never repeat the headline word for word
+- Always include real names, real prices, and real specifics wherever possible
+
+---
+
+Respond with a JSON object ONLY (no markdown, no code block):
 {
-  "title": "string",
-  "summary": "string",
-  "source": "string",
-  "publishedAt": "ISO 8601 string",
+  "title": "Concise, engaging headline for the full episode",
+  "summary": "2-3 sentence summary of what this episode covers",
+  "source": "The source outlet name (e.g. 'BBC Travel', 'Reuters', 'Felix Travel TV')",
+  "publishedAt": "ISO 8601 date (use article date if found, otherwise: ${new Date().toISOString()})",
+  "contentType": "CITY_GUIDE | DESTINATION_FEATURE | TRAVEL_DEAL | TRAVEL_TOOL | ROAD_TRIP | TRAVEL_TIPS | HOTEL_FEATURE | CRUISE_FEATURE | GENERAL_TRAVEL",
   "snippets": [
     {
-      "headline": "string",
-      "caption": "string",
-      "explanation": "string",
-      "imagePrompt": "string"
+      "headline": "Vivid broadcast chapter title (max 12 words)",
+      "caption": "One precise sentence capturing the key insight of this chapter",
+      "explanation": "2-3 sentences in Felix's voice — specific, warm, authoritative. Real places, real prices, real advice.",
+      "imagePrompt": "Detailed photorealistic photography prompt specific to this chapter's exact content and subject"
     }
   ]
 }`;
 
+  const response = await openai.chat.completions.create({
+    model: "gpt-5.2",
+    max_completion_tokens: 8192,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const content = response.choices[0]?.message?.content ?? "{}";
   try {
-    const response = await openai.chat.completions.create({
-      model: ARTICLE_MODEL,
-      max_completion_tokens: ARTICLE_MAX_COMPLETION_TOKENS,
-      messages: [{ role: "user", content: prompt }],
-    }, {
-      timeout: ARTICLE_TIMEOUT_MS,
-    });
-
-    log?.info?.(
-      {
-        url,
-        model: ARTICLE_MODEL,
-        promptTokens: response.usage?.prompt_tokens,
-        completionTokens: response.usage?.completion_tokens,
-        totalTokens: response.usage?.total_tokens,
-      },
-      "AI generation usage"
-    );
-
-    const content = response.choices[0]?.message?.content ?? "{}";
-    const parsed = parseJsonFromModelOutput(content);
+    const parsed = JSON.parse(content);
     const snippets: SnippetData[] = Array.isArray(parsed.snippets)
       ? parsed.snippets.slice(0, 9).map((s: any) => ({
-        headline: s.headline || "Travel Highlight",
-        caption: s.caption || "A key moment from this story.",
-        explanation: s.explanation || "More details are available about this travel story.",
-        imagePrompt: s.imagePrompt || "Cinematic travel photography, golden hour lighting, beautiful destination, high quality",
-      }))
+          headline: s.headline || "Travel Highlight",
+          caption: s.caption || "A key moment from this story.",
+          explanation: s.explanation || "More details are available about this travel story.",
+          imagePrompt: s.imagePrompt || "Cinematic travel photography, golden hour lighting, beautiful destination, high quality",
+        }))
       : [];
 
-    if (snippets.length < 4) {
+    if (snippets.length < 3) {
       throw new Error("Too few snippets generated");
     }
 
     return {
-      content: {
-        title: parsed.title || "Felix Travel TV Feature",
-        summary: parsed.summary || "An important story is developing.",
-        source: parsed.source || new URL(url).hostname.replace(/^www\./, ""),
-        publishedAt: parsed.publishedAt || new Date().toISOString(),
-        snippets,
-      },
-      generation: {
-        mode: "ai",
-        message: `AI generation completed with model ${ARTICLE_MODEL}.`,
-      },
+      title: parsed.title || "Felix Travel TV Feature",
+      summary: parsed.summary || "An important story is developing.",
+      source: parsed.source || new URL(url).hostname.replace(/^www\./, ""),
+      publishedAt: parsed.publishedAt || new Date().toISOString(),
+      snippets,
     };
-  } catch (err: any) {
-    const reason = err instanceof Error ? err.message : "Unknown AI generation error";
-    log?.warn({ err, url, model: ARTICLE_MODEL }, "AI article generation failed, using fallback content");
+  } catch {
     return {
-      content: buildFallbackArticleContent(url, page),
-      generation: {
-        mode: "fallback",
-        message: "Fallback content was used because AI generation failed. Paste full article text for richer chapters.",
-        reason,
-      },
+      title: "Breaking News",
+      summary: "An important story is developing.",
+      source: new URL(url).hostname.replace(/^www\./, ""),
+      publishedAt: new Date().toISOString(),
+      snippets: [
+        {
+          headline: "Story Loading",
+          caption: "Content is being processed.",
+          explanation: "The article content could not be fully parsed. Please try adding the URL again.",
+          imagePrompt: "Newspaper press room, dramatic lighting, ink and paper",
+        },
+      ],
     };
   }
 }
 
-async function generateArticleContentWithHardTimeout(
-  url: string,
-  page: PageData,
-  log?: { warn: (...args: any[]) => void; info?: (...args: any[]) => void },
-): Promise<GeneratedArticleResult> {
-  const timeoutFallback: GeneratedArticleResult = {
-    content: buildFallbackArticleContent(url, page),
-    generation: {
-      mode: "fallback",
-      message: "Fallback content was used because generation timed out.",
-      reason: `generation hard-timeout after ${CHAPTER_GENERATION_HARD_TIMEOUT_MS}ms`,
-    },
-  };
-
-  const result = await Promise.race([
-    generateArticleContent(url, page, log),
-    new Promise<GeneratedArticleResult>((resolve) => {
-      setTimeout(() => resolve(timeoutFallback), CHAPTER_GENERATION_HARD_TIMEOUT_MS);
-    }),
-  ]);
-
-  if (result.generation.mode === "fallback" && result.generation.reason?.includes("hard-timeout")) {
-    log?.warn?.(
-      { url, timeoutMs: CHAPTER_GENERATION_HARD_TIMEOUT_MS },
-      "Article generation hit hard-timeout; returned fallback to avoid request timeout"
-    );
+async function generateImage(prompt: string): Promise<string | null> {
+  try {
+    const response = await openai.images.generate({
+      model: "gpt-image-1",
+      prompt: `High quality, photorealistic travel photography. No text, no logos, no watermarks. ${prompt}`,
+      size: "1024x1024",
+    });
+    const b64 = response.data?.[0]?.b64_json;
+    if (!b64) return null;
+    return `data:image/png;base64,${b64}`;
+  } catch (err: any) {
+    return null;
   }
-
-  return result;
-}
-
-async function generateAiImage(prompt: string): Promise<string | null> {
-  const finalPrompt = `High quality, photorealistic travel photography. No text, no logos, no watermarks. ${prompt}`;
-
-  for (const model of IMAGE_MODELS) {
-    try {
-      const response = await openai.images.generate({
-        model,
-        prompt: finalPrompt,
-        size: imageSizeForModel(model),
-      });
-
-      const first = response.data?.[0];
-      const b64 = first?.b64_json;
-      if (b64) {
-        return `data:image/png;base64,${b64}`;
-      }
-
-      const url = first?.url;
-      if (url && /^https?:\/\//i.test(url)) {
-        return url;
-      }
-    } catch {
-      // Try the next configured model.
-      continue;
-    }
-  }
-
-  return null;
-}
-
-async function generateAiImageWithRetries(prompt: string): Promise<string | null> {
-  for (let attempt = 1; attempt <= IMAGE_GENERATION_RETRIES; attempt++) {
-    const imageUrl = await generateAiImage(prompt);
-    if (imageUrl) return imageUrl;
-
-    if (attempt < IMAGE_GENERATION_RETRIES) {
-      await sleep(IMAGE_RETRY_BASE_DELAY_MS * attempt);
-    }
-  }
-
-  return null;
 }
 
 /**
@@ -781,100 +409,47 @@ async function generateAiImageWithRetries(prompt: string): Promise<string | null
  * contributes to request timeouts.
  */
 async function generateAndSaveImages(
-  snippets: Array<{ id: number; imagePrompt: string | null; headline?: string | null; caption?: string | null; explanation?: string | null; snippetOrder?: number | null; articleId?: number | null }>,
+  snippets: Array<{ id: number; imagePrompt: string | null }>,
   log: { info: (...a: any[]) => void; error: (...a: any[]) => void }
 ) {
-  const targetSnippets = snippets.slice(0, IMAGE_GENERATION_LIMIT);
-  if (targetSnippets.length === 0) {
-    log.info({ total: snippets.length }, "Image generation skipped by config");
-    return;
-  }
+  // ── Pass 1: parallel ──────────────────────────────────────────────────────
+  const results = await Promise.allSettled(
+    snippets.map(async (snippet) => {
+      if (!snippet.imagePrompt) return { id: snippet.id, ok: false };
+      const imageUrl = await generateImage(snippet.imagePrompt);
+      if (imageUrl) {
+        await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
+        return { id: snippet.id, ok: true };
+      }
+      return { id: snippet.id, ok: false };
+    })
+  );
 
-  let generated = 0;
-  const failed: Array<{ id: number; imagePrompt: string | null }> = [];
-  const usedFingerprints = new Set<string>();
-
-  if (IMAGE_PROVIDER === "stock") {
-    for (const snippet of targetSnippets) {
-      const promptText = normalizeWhitespace(
-        snippet.imagePrompt
-        || [snippet.headline, snippet.caption, snippet.explanation].filter(Boolean).join(". ")
-        || "travel destination"
-      );
-      const imageUrl = await resolveUniqueStockImageDataUrl(`${snippet.id}`, promptText, usedFingerprints)
-        || createPlaceholderImageDataUrl(promptText);
-      await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
-      generated++;
-    }
-
-    log.info(
-      { total: snippets.length, generated, provider: IMAGE_PROVIDER },
-      "Assigned stock-photo URLs from clip keywords"
-    );
-    return;
-  }
-
-  // Use sequential generation to reduce rate-limit bursts and preserve per-clip uniqueness.
-  for (const snippet of targetSnippets) {
-    if (!snippet.imagePrompt) {
-      failed.push(snippet);
-      continue;
-    }
-
-    let imageUrl: string | null = null;
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const variantPrompt = promptVariant(snippet.imagePrompt, attempt);
-      const candidate = await generateAiImageWithRetries(variantPrompt);
-      if (!candidate) continue;
-
-      const fingerprint = imageFingerprint(candidate);
-      if (usedFingerprints.has(fingerprint)) continue;
-
-      usedFingerprints.add(fingerprint);
-      imageUrl = candidate;
-      break;
-    }
-
-    if (!imageUrl) {
-      failed.push(snippet);
-      continue;
-    }
-
-    await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
-    generated++;
-  }
+  const failed = snippets.filter((_, i) => {
+    const r = results[i];
+    return r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok);
+  });
 
   if (failed.length === 0) {
-    log.info({ total: snippets.length, generated }, "Generated themed image for each slide");
+    log.info({ total: snippets.length }, "Image generation complete (all parallel)");
     return;
   }
 
-  let recovered = 0;
+  log.info({ failed: failed.length }, "Retrying failed images sequentially");
+
+  // ── Pass 2: sequential retry for failures ─────────────────────────────────
+  let retried = 0;
   for (const snippet of failed) {
-    const promptText = normalizeWhitespace(
-      snippet.imagePrompt
-      || [snippet.headline, snippet.caption, snippet.explanation].filter(Boolean).join(". ")
-      || "travel destination"
-    );
-    const stockFallback = await resolveUniqueStockImageDataUrl(`${snippet.id}`, promptText, usedFingerprints);
-    if (!stockFallback) continue;
-
-    await db.update(snippetsTable).set({ imageUrl: stockFallback }).where(eq(snippetsTable.id, snippet.id));
-    recovered++;
+    if (!snippet.imagePrompt) continue;
+    await new Promise(r => setTimeout(r, 1200));
+    const imageUrl = await generateImage(snippet.imagePrompt);
+    if (imageUrl) {
+      await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
+      retried++;
+    }
   }
 
-  if (recovered === failed.length) {
-    log.info(
-      { total: snippets.length, generated, recovered },
-      "Recovered all failed AI images with stock-photo fallbacks"
-    );
-    return;
-  }
-
-  log.info(
-    { total: snippets.length, generated, failed: failed.length, recovered, unresolved: failed.length - recovered },
-    "OpenAI image generation incomplete; unresolved snippets remain on placeholder images"
-  );
+  log.info({ total: snippets.length, retried }, "Image generation complete (with retries)");
 }
 
 // GET /api/articles
@@ -926,61 +501,30 @@ router.post("/", async (req, res) => {
     }
 
     let page: PageData;
-    const hasUserText = text && typeof text === "string" && text.trim().length > 20;
 
-    if (hasUserText) {
-      // User pasted article text — fetch URL metadata in parallel for og/date
-      // enrichment, but always use the pasted text as the body.
-      let metaPage: PageData | null = null;
-      try {
-        metaPage = await Promise.race([
-          fetchPageData(url),
-          new Promise<PageData>((resolve) => {
-            setTimeout(() => resolve(emptyPageData()), PASTED_TEXT_META_TIMEOUT_MS);
-          }),
-        ]);
-      } catch {
-        // Metadata fetch failure is non-fatal when text is provided
-      }
+    if (text && typeof text === "string" && text.trim().length > 100) {
+      // User pasted the article text directly — use it as the body
+      const domain = new URL(url).hostname.replace(/^www\./, "");
       page = {
-        html: metaPage?.html ?? "",
-        metaTitle: titleOverride || metaPage?.metaTitle || "",
-        metaDescription: metaPage?.metaDescription || "",
-        ogTitle: titleOverride || metaPage?.ogTitle || "",
-        ogDescription: metaPage?.ogDescription || "",
-        ogImage: metaPage?.ogImage || "",
-        publishedTime: metaPage?.publishedTime || "",
-        author: metaPage?.author || "",
-        jsonLd: metaPage?.jsonLd || "",
-        bodyText: text.trim().slice(0, ARTICLE_BODY_MAX_CHARS),
+        html: "",
+        metaTitle: titleOverride || "",
+        metaDescription: "",
+        ogTitle: titleOverride || "",
+        ogDescription: "",
+        ogImage: "",
+        publishedTime: "",
+        author: "",
+        jsonLd: "",
+        bodyText: text.trim().slice(0, 12000),
       };
-      req.log.info({ url, textLen: text.trim().length, hasMeta: !!metaPage?.ogTitle }, "Using pasted text with URL metadata");
+      req.log.info({ url, textLen: text.trim().length, source: sourceOverride || domain }, "Using pasted text");
     } else {
       // No text provided — try to fetch the URL
-      page = await fetchPageDataWithHardTimeout(url);
+      page = await fetchPageData(url);
       req.log.info({ url, bodyLen: page.bodyText.length, hasOg: !!page.ogTitle }, "Fetched page data");
-
-      const pageError = isLikelyErrorDocument(page);
-      if (pageError.isError) {
-        req.log.warn({ url, reason: pageError.reason }, "URL resolved to an error document");
-        res.status(400).json({
-          error: "Invalid or unavailable article URL",
-          detail: `This URL appears to return an error page (${pageError.reason}) instead of a full article. Open the article in your browser and copy the final working URL, or paste the article text directly.`,
-        });
-        return;
-      }
-
-      const extractedText = page.bodyText || page.ogDescription || page.metaDescription || "";
-      if (extractedText.trim().length < 200) {
-        req.log.warn(
-          { url, extractedLen: extractedText.length, hasBodyText: !!page.bodyText, hasOg: !!page.ogDescription },
-          "URL extraction is sparse; continuing with fallback-aware generation"
-        );
-      }
     }
 
-    const generated = await generateArticleContentWithHardTimeout(url, page, req.log);
-    const { content, generation } = generated;
+    const content = await generateArticleContent(url, page);
     if (sourceOverride && typeof sourceOverride === "string") {
       content.source = sourceOverride;
     }
@@ -990,10 +534,7 @@ router.post("/", async (req, res) => {
     if (publishedDate && typeof publishedDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(publishedDate)) {
       resolvedDate = new Date(publishedDate + "T12:00:00Z");
     } else {
-      resolvedDate = resolvePublishedDate(content.publishedAt);
-      if (!content.publishedAt || Number.isNaN(new Date(content.publishedAt).getTime())) {
-        req.log.warn({ publishedAt: content.publishedAt, url }, "Invalid generated publishedAt, defaulting to now");
-      }
+      resolvedDate = new Date(content.publishedAt);
     }
 
     const [article] = await db.insert(articlesTable).values({
@@ -1005,37 +546,18 @@ router.post("/", async (req, res) => {
       bodyText: page.bodyText || null,
     }).returning();
 
-    // Insert snippets immediately with image URLs when stock provider is enabled,
-    // otherwise placeholders are used and OpenAI generation runs in background.
-    const usedInitialImages = new Set<string>();
-    const snippetRows: Array<{
-      articleId: number;
-      snippetOrder: number;
-      headline: string;
-      caption: string;
-      explanation: string;
-      imageUrl: string;
-      imagePrompt: string;
-    }> = [];
-
-    for (let index = 0; index < content.snippets.length; index++) {
-      const s = content.snippets[index];
-      const clipPrompt = buildClipVisualPrompt(s, content.title, index, content.snippets.length);
-      const imageUrl = IMAGE_PROVIDER === "stock"
-        ? (await resolveUniqueStockImageDataUrl(`${article.id}:${index}`, clipPrompt, usedInitialImages)
-          || createPlaceholderImageDataUrl(s.headline || s.caption || content.title))
-        : createPlaceholderImageDataUrl(s.headline || s.caption || content.title);
-
-      snippetRows.push({
-        articleId: article.id,
-        snippetOrder: index,
-        headline: s.headline,
-        caption: s.caption,
-        explanation: s.explanation,
-        imageUrl,
-        imagePrompt: clipPrompt,
-      });
-    }
+    // Insert snippets immediately with imageUrl = null so the article is
+    // available right away. Images are generated in the background after the
+    // response is sent, so the HTTP request never times out.
+    const snippetRows = content.snippets.map((s, index) => ({
+      articleId: article.id,
+      snippetOrder: index,
+      headline: s.headline,
+      caption: s.caption,
+      explanation: s.explanation,
+      imageUrl: null as string | null,
+      imagePrompt: s.imagePrompt,
+    }));
 
     const insertedSnippets = await db
       .insert(snippetsTable)
@@ -1043,26 +565,16 @@ router.post("/", async (req, res) => {
       .returning();
 
     // Respond immediately — the article is saved, chapters are ready.
-    req.log.info({ articleId: article.id, generationMode: generation.mode, reason: generation.reason }, "Article created");
+    res.status(201).json(formatArticle(article, insertedSnippets.length));
 
-    res.status(201).json({
-      ...formatArticle(article, insertedSnippets.length),
-      generation: {
-        mode: generation.mode,
-        message: generation.message,
-      },
-    });
-
-    // Fire-and-forget for OpenAI provider. Stock provider already sets image URLs at insert.
-    if (IMAGE_PROVIDER !== "stock") {
-      generateAndSaveImages(insertedSnippets, req.log).catch(err =>
-        req.log.error({ err, articleId: article.id }, "Background image generation failed")
-      );
-    }
+    // Fire-and-forget: generate images in the background (parallel-first, then
+    // sequential retry for any that failed). Never blocks the HTTP response.
+    generateAndSaveImages(insertedSnippets, req.log).catch(err =>
+      req.log.error({ err, articleId: article.id }, "Background image generation failed")
+    );
   } catch (err) {
     req.log.error({ err }, "Failed to create article");
-    const detail = err instanceof Error ? err.message : "Unknown article processing error";
-    res.status(422).json({ error: "Failed to process URL", detail });
+    res.status(422).json({ error: "Failed to process URL" });
   }
 });
 
@@ -1103,12 +615,11 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
       };
       req.log.info({ articleId: id, bodyLen: article.bodyText.length }, "Regenerating chapters from stored body text");
     } else {
-      page = await fetchPageDataWithHardTimeout(article.url);
+      page = await fetchPageData(article.url);
       req.log.info({ articleId: id, url: article.url, bodyLen: page.bodyText.length }, "Regenerating chapters by re-fetching URL");
     }
 
-    const generated = await generateArticleContentWithHardTimeout(article.url, page, req.log);
-    const content = generated.content;
+    const content = await generateArticleContent(article.url, page);
 
     // Keep the user-supplied source if they set one, otherwise use the AI source
     const resolvedSource = article.source ?? content.source;
@@ -1116,35 +627,15 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
     // Replace snippets atomically: delete old → insert new
     await db.delete(snippetsTable).where(eq(snippetsTable.articleId, id));
 
-    const usedInitialImages = new Set<string>();
-    const snippetRows: Array<{
-      articleId: number;
-      snippetOrder: number;
-      headline: string;
-      caption: string;
-      explanation: string;
-      imageUrl: string;
-      imagePrompt: string;
-    }> = [];
-
-    for (let index = 0; index < content.snippets.length; index++) {
-      const s = content.snippets[index];
-      const clipPrompt = buildClipVisualPrompt(s, content.title, index, content.snippets.length);
-      const imageUrl = IMAGE_PROVIDER === "stock"
-        ? (await resolveUniqueStockImageDataUrl(`${id}:${index}`, clipPrompt, usedInitialImages)
-          || createPlaceholderImageDataUrl(s.headline || s.caption || content.title))
-        : createPlaceholderImageDataUrl(s.headline || s.caption || content.title);
-
-      snippetRows.push({
-        articleId: id,
-        snippetOrder: index,
-        headline: s.headline,
-        caption: s.caption,
-        explanation: s.explanation,
-        imageUrl,
-        imagePrompt: clipPrompt,
-      });
-    }
+    const snippetRows = content.snippets.map((s, index) => ({
+      articleId: id,
+      snippetOrder: index,
+      headline: s.headline,
+      caption: s.caption,
+      explanation: s.explanation,
+      imageUrl: null as string | null,
+      imagePrompt: s.imagePrompt,
+    }));
 
     const insertedSnippets = await db.insert(snippetsTable).values(snippetRows).returning();
 
@@ -1156,11 +647,9 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
     // Respond right away — chapters are ready, images generate in background
     res.json({ id, chapters: insertedSnippets.length, title: content.title });
 
-    if (IMAGE_PROVIDER !== "stock") {
-      generateAndSaveImages(insertedSnippets, req.log).catch(err =>
-        req.log.error({ err, articleId: id }, "Background image generation failed after chapter regen")
-      );
-    }
+    generateAndSaveImages(insertedSnippets, req.log).catch(err =>
+      req.log.error({ err, articleId: id }, "Background image generation failed after chapter regen")
+    );
   } catch (err) {
     req.log.error({ err }, "Failed to regenerate chapters");
     res.status(500).json({ error: "Failed to regenerate chapters" });
@@ -1190,22 +679,14 @@ router.post("/:id/regenerate-images", async (req, res) => {
       .where(eq(snippetsTable.articleId, id))
       .orderBy(asc(snippetsTable.snippetOrder));
 
-    const force =
-      req.body?.force === true
-      || req.query.force === "1"
-      || req.query.force === "true";
-
-    const missing = snippets.filter(s => (!s.imageUrl || isPlaceholderStoredImage(s.imageUrl)) && s.imagePrompt);
-    const target = force
-      ? snippets.filter(s => !!s.imagePrompt)
-      : missing;
+    const missing = snippets.filter(s => !s.imageUrl && s.imagePrompt);
 
     // Respond immediately so the request never times out.
-    res.json({ total: snippets.length, missing: missing.length, target: target.length, force, started: true });
+    res.json({ total: snippets.length, missing: missing.length, started: true });
 
     // Generate in the background using the same parallel-first strategy.
-    if (target.length > 0) {
-      generateAndSaveImages(target, req.log).catch(err =>
+    if (missing.length > 0) {
+      generateAndSaveImages(missing, req.log).catch(err =>
         req.log.error({ err, articleId: id }, "Regenerate images failed")
       );
     }
@@ -1264,8 +745,6 @@ router.get("/:id/snippets", async (req, res) => {
         caption: snippetsTable.caption,
         explanation: snippetsTable.explanation,
         hasImage: sql<boolean>`(${snippetsTable.imageUrl} IS NOT NULL)`,
-        hasRealImage: sql<boolean>`(${snippetsTable.imageUrl} IS NOT NULL AND ${snippetsTable.imageUrl} NOT LIKE 'data:image/svg+xml%')`,
-        imageVersion: sql<string>`md5(coalesce(${snippetsTable.imageUrl}, ''))`,
         imagePrompt: snippetsTable.imagePrompt,
         createdAt: snippetsTable.createdAt,
       })
@@ -1281,8 +760,7 @@ router.get("/:id/snippets", async (req, res) => {
       headline: s.headline,
       caption: s.caption,
       explanation: s.explanation,
-      imageUrl: s.hasImage ? snippetImageUrlWithVersion(s.id, s.imageVersion) : null,
-      imageReady: s.hasRealImage,
+      imageUrl: s.hasImage ? snippetImageUrl(s.id) : null,
       imagePrompt: s.imagePrompt,
       createdAt: s.createdAt,
     })));
