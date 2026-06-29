@@ -11,9 +11,8 @@
 //   2. stop() must clear el.onended AND el.ontimeupdate before pausing. If not
 //      cleared, the ended callback fires on the stale element after stop() and
 //      triggers an unwanted advance to the next chapter.
-//   3. On TTS fetch error, do NOT call onEnded. If playback is blocked/fails, the
-//      slideshow should NOT advance to prevent skipping clips while another display
-//      is still reading the current one. Server-side fallback handles timeout.
+//   3. On TTS fetch error, onEnded is still called after 2 s. This ensures the
+//      slideshow never freezes if audio is unavailable.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import { useEffect, useCallback, useRef, useState } from 'react';
@@ -99,17 +98,15 @@ export function useVoiceReader(enabled: boolean) {
       if (genRef.current !== myGen) return; // stale, ignore
       console.warn('[voice] TTS playback error:', err);
       setIsLoading(false);
-      // Do not call onEnded here. If playback is blocked, advancing would skip
-      // the current clip while another display may still be reading it.
-      // Server-side fallback (ADMIN_PRESENCE_TIMEOUT_MS + SNIPPET_ADVANCE_ABSENT_MS)
-      // will handle advancement if the slideshow stalls.
+      // If audio fails, still advance after a short delay so slideshow doesn't freeze
+      if (onEnded) setTimeout(onEnded, 2000);
     }
   }, [enabled, stop]);
 
   // Prefetch audio for a snippet in the background (no playback)
   const prefetch = useCallback((snippetId: number) => {
     if (!enabled) return;
-    fetchAudioBlobUrl(snippetId).catch(() => { });
+    fetchAudioBlobUrl(snippetId).catch(() => {});
   }, [enabled]);
 
   useEffect(() => {

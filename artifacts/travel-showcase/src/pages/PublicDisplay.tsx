@@ -228,10 +228,10 @@ function GlobalTicker({ speed = 3, channelName = 'Felix Travel TV' }: { speed?: 
 
   const tickerText = items.length > 0
     ? items.map(item =>
-      item.isCustom || !item.caption
-        ? item.headline.toUpperCase()
-        : `${item.headline.toUpperCase()}  ·  ${item.caption}`
-    ).join('     ◆     ')
+        item.isCustom || !item.caption
+          ? item.headline.toUpperCase()
+          : `${item.headline.toUpperCase()}  ·  ${item.caption}`
+      ).join('     ◆     ')
     : 'STANDING BY FOR BROADCAST  ·  TUNE IN FOR LIVE COVERAGE';
 
   const textStyle: React.CSSProperties = {
@@ -494,21 +494,10 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
   const [video, setVideo] = useState<Video | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const startedAtRef = useRef<number>(Date.now());
-  const directVideoRef = useRef<HTMLVideoElement | null>(null);
-  const lastVideoProgressAtRef = useRef<number>(Date.now());
-  const [videoRecoveryCount, setVideoRecoveryCount] = useState(0);
-  const [showVideoRecoveryNotice, setShowVideoRecoveryNotice] = useState(false);
-
-  const triggerVideoRecovery = () => {
-    setShowVideoRecoveryNotice(true);
-    setVideoRecoveryCount((count) => count + 1);
-  };
 
   useEffect(() => {
     startedAtRef.current = Date.now();
     setVideo(null);
-    setVideoRecoveryCount(0);
-    setShowVideoRecoveryNotice(false);
     fetch(`/api/videos/${videoId}`, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then(v => {
@@ -517,7 +506,7 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
           if (v.maxDurationSecs) setRemaining(v.maxDurationSecs);
         }
       })
-      .catch(() => { });
+      .catch(() => {});
   }, [videoId]);
 
   useEffect(() => {
@@ -528,33 +517,11 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
       setRemaining(rem);
       if (rem <= 0) {
         clearInterval(tick);
-        fetch('/api/playback/queue/advance', { method: 'POST' }).catch(() => { });
+        fetch('/api/playback/queue/advance', { method: 'POST' }).catch(() => {});
       }
     }, 1000);
     return () => clearInterval(tick);
   }, [video]);
-
-  useEffect(() => {
-    if (!showVideoRecoveryNotice) return;
-    const id = setTimeout(() => setShowVideoRecoveryNotice(false), 2200);
-    return () => clearTimeout(id);
-  }, [showVideoRecoveryNotice]);
-
-  useEffect(() => {
-    if (!video || getVideoEmbed(video.url, video.loop).type !== 'direct') return;
-
-    lastVideoProgressAtRef.current = Date.now();
-    const id = setInterval(() => {
-      const el = directVideoRef.current;
-      if (!el) return;
-      if (el.paused || el.ended) return;
-      if (Date.now() - lastVideoProgressAtRef.current > 8000) {
-        triggerVideoRecovery();
-      }
-    }, 3000);
-
-    return () => clearInterval(id);
-  }, [video, videoRecoveryCount]);
 
   if (!video) {
     return (
@@ -570,23 +537,13 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
     <main className="relative w-screen h-screen overflow-hidden" style={{ background: '#000' }}>
       {embed.type === 'direct' ? (
         <video
-          key={`${videoId}-${videoRecoveryCount}`}
-          ref={directVideoRef}
+          key={videoId}
           src={embed.src}
           autoPlay
           loop={video.loop}
           playsInline
           className="absolute inset-0 w-full h-full object-contain"
           style={{ background: '#000' }}
-          onLoadedMetadata={() => { lastVideoProgressAtRef.current = Date.now(); }}
-          onTimeUpdate={() => { lastVideoProgressAtRef.current = Date.now(); }}
-          onPlaying={() => {
-            lastVideoProgressAtRef.current = Date.now();
-            setShowVideoRecoveryNotice(false);
-          }}
-          onWaiting={triggerVideoRecovery}
-          onStalled={triggerVideoRecovery}
-          onError={triggerVideoRecovery}
         />
       ) : (
         <iframe
@@ -647,12 +604,6 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
 
       <GlobalTicker speed={config?.tickerSpeed ?? 3} channelName={config?.channelName} />
       <SecondaryTicker items={config?.ticker2Items ?? []} speed={config?.tickerSpeed ?? 3} />
-
-      {showVideoRecoveryNotice && (
-        <div className="absolute bottom-[132px] right-4 z-50 rounded-md border border-amber-500/40 bg-black/80 px-3 py-2 text-xs text-amber-200">
-          Reconnecting video stream...
-        </div>
-      )}
     </main>
   );
 }
@@ -708,7 +659,7 @@ export function PublicDisplay() {
   // we let the user click the volume button (which IS user interaction) to start
   // audio. When they unmute, the effect re-fires and speaks the current snippet.
   const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const { speak, stop, isLoading: isVoiceLoading, playProgress } = useVoiceReader(voiceEnabled);
+  const { speak, stop } = useVoiceReader(voiceEnabled);
   const speakRef = useRef(speak);
   useEffect(() => { speakRef.current = speak; }, [speak]);
   const stopRef = useRef(stop);
@@ -731,26 +682,11 @@ export function PublicDisplay() {
       lastSpokenRef.current.articleId === articleId
     ) return;
     lastSpokenRef.current = { snippetId: currentSnippet.id, articleId: articleId ?? null };
-
-    // No onEnded — public display only plays voice, does not drive queue advances.
-    // The admin page (or server fallback) handles all snippet/queue progression.
+    // No onEnded — public display never drives queue advances
     speakRef.current(currentSnippet.id);
-    // voiceEnabled is in deps: toggling it on re-runs this effect and speaks the current snippet.
-    // The click that toggles it satisfies the browser's autoplay policy.
+  // voiceEnabled is in deps: toggling it on re-runs this effect and speaks the current snippet.
+  // The click that toggles it satisfies the browser's autoplay policy.
   }, [currentSnippet, itemType, articleId, voiceEnabled]);
-
-  // Keep server-side fallback timers from advancing slides while public narration is active.
-  // CRITICAL: Do NOT include currentSnippet?.id in dependencies — this causes the interval to
-  // reset every time the snippet changes, breaking consistent 20-second heartbeat timing.
-  // Server needs the heartbeat to arrive every 20s to know the admin is present.
-  useEffect(() => {
-    if (!onAir || itemType !== 'article' || !voiceEnabled) return;
-
-    const ping = () => fetch('/api/playback/presence', { method: 'PATCH' }).catch(() => { });
-    ping();
-    const id = setInterval(ping, 20000);
-    return () => clearInterval(id);
-  }, [onAir, itemType, voiceEnabled]);
 
   if (onAir && itemType === 'interlude') {
     return <InterludeScreen imageUrl={interludeImageUrl ?? ''} config={config} />;
@@ -1043,8 +979,6 @@ export function PublicDisplay() {
           duration={20000}
           slideKey={`public-${currentSnippet.id}-${tick}`}
           isPaused={false}
-          voiceProgress={voiceEnabled ? playProgress : undefined}
-          isVoiceLoading={voiceEnabled ? isVoiceLoading : false}
         />
       )}
 
@@ -1068,11 +1002,11 @@ export function PublicDisplay() {
         {voiceEnabled
           ? <Volume2 className="w-5 h-5" />
           : <>
-            <VolumeX className="w-5 h-5 text-white/70" />
-            <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '12px', letterSpacing: '0.12em', fontWeight: 600 }}>
-              TAP FOR SOUND
-            </span>
-          </>
+              <VolumeX className="w-5 h-5 text-white/70" />
+              <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '12px', letterSpacing: '0.12em', fontWeight: 600 }}>
+                TAP FOR SOUND
+              </span>
+            </>
         }
       </button>
 
