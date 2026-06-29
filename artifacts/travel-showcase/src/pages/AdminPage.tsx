@@ -2057,6 +2057,7 @@ function AdminDashboard() {
   useEffect(() => { queueRef.current = queue; }, [queue]);
   const serverItemTypeRef = useRef(serverItemType);
   useEffect(() => { serverItemTypeRef.current = serverItemType; }, [serverItemType]);
+  const voiceRunTokenRef = useRef(0);
 
   // When the admin tab becomes visible again, immediately resync from the server
   // and reset the "already spoken" guard so voice restarts for the current chapter.
@@ -2202,12 +2203,15 @@ function AdminDashboard() {
       prevIndexRef.current.articleId === playingArticleId
     ) return;
     prevIndexRef.current = { index: currentSnippetIndex, articleId: playingArticleId };
+    voiceRunTokenRef.current += 1;
+    const voiceRunToken = voiceRunTokenRef.current;
     // Always attach onEnded; it checks queueAutoplayRef at the moment it fires
     // so autoplay can be toggled on/off between the speak() call and when it ends.
     const spokenSnippetId = snippets[currentSnippetIndex].id;
     const spokenSnippetIndex = currentSnippetIndex;
     const spokenArticleId = playingArticleId;
     speakRef.current(spokenSnippetId, () => {
+      if (voiceRunToken !== voiceRunTokenRef.current) return;
       const currentIdx = currentSnippetIndexRef.current;
       const currentArticleId = playingArticleIdRef.current;
       const currentSnippetId = snippetsRef.current[currentIdx]?.id;
@@ -2262,6 +2266,9 @@ function AdminDashboard() {
 
   // Reset snippet index when the playing article changes
   useEffect(() => {
+    if (playingArticleId === null) return;
+    // Invalidate any previously attached onEnded callback when queue item changes.
+    voiceRunTokenRef.current += 1;
     setCurrentSnippetIndex(0);
     prevIndexRef.current = { index: -1, articleId: null };
   }, [playingArticleId]);
