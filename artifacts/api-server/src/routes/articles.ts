@@ -171,6 +171,33 @@ interface SnippetData {
   imagePrompt: string;
 }
 
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function buildClipVisualPrompt(
+  snippet: Pick<SnippetData, "headline" | "caption" | "explanation" | "imagePrompt">,
+  articleTitle: string,
+  snippetOrder: number,
+  totalSnippets: number,
+): string {
+  const basePrompt = normalizeWhitespace(snippet.imagePrompt || "");
+  const headline = normalizeWhitespace(snippet.headline || "Travel Highlight");
+  const caption = normalizeWhitespace(snippet.caption || "");
+  const explanation = normalizeWhitespace(snippet.explanation || "").slice(0, 220);
+  const clipLabel = `Clip ${snippetOrder + 1} of ${totalSnippets}`;
+
+  if (basePrompt.length > 0) {
+    return normalizeWhitespace(
+      `${basePrompt}. ${clipLabel}. Focus specifically on: ${headline}${caption ? ` - ${caption}` : ""}. Keep composition distinct from other clips in this article.`,
+    );
+  }
+
+  return normalizeWhitespace(
+    `Photorealistic travel editorial image for ${articleTitle}. ${clipLabel}. Scene must depict ${headline}${caption ? `, ${caption}` : ""}${explanation ? `. Context: ${explanation}` : ""}. Unique camera angle and subject focus compared with other clips.`,
+  );
+}
+
 interface ArticleData {
   title: string;
   summary: string;
@@ -705,7 +732,7 @@ async function generateAiImageWithRetries(prompt: string): Promise<string | null
  * contributes to request timeouts.
  */
 async function generateAndSaveImages(
-  snippets: Array<{ id: number; imagePrompt: string | null; headline?: string | null; caption?: string | null; explanation?: string | null }>,
+  snippets: Array<{ id: number; imagePrompt: string | null; headline?: string | null; caption?: string | null; explanation?: string | null; snippetOrder?: number | null; articleId?: number | null }>,
   log: { info: (...a: any[]) => void; error: (...a: any[]) => void }
 ) {
   const targetSnippets = snippets.slice(0, IMAGE_GENERATION_LIMIT);
@@ -719,7 +746,11 @@ async function generateAndSaveImages(
 
   if (IMAGE_PROVIDER === "stock") {
     for (const snippet of targetSnippets) {
-      const promptText = snippet.imagePrompt || snippet.headline || snippet.caption || snippet.explanation || "travel destination";
+      const promptText = normalizeWhitespace(
+        snippet.imagePrompt
+        || [snippet.headline, snippet.caption, snippet.explanation].filter(Boolean).join(". ")
+        || "travel destination"
+      );
       const imageUrl = await resolveStockImageDataUrl(`${snippet.id}`, promptText)
         || createPlaceholderImageDataUrl(promptText);
       await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
@@ -757,7 +788,11 @@ async function generateAndSaveImages(
 
   let recovered = 0;
   for (const snippet of failed) {
-    const promptText = snippet.imagePrompt || snippet.headline || snippet.caption || snippet.explanation || "travel destination";
+    const promptText = normalizeWhitespace(
+      snippet.imagePrompt
+      || [snippet.headline, snippet.caption, snippet.explanation].filter(Boolean).join(". ")
+      || "travel destination"
+    );
     const stockFallback = await resolveStockImageDataUrl(`${snippet.id}`, promptText);
     if (!stockFallback) continue;
 
@@ -909,19 +944,22 @@ router.post("/", async (req, res) => {
 
     // Insert snippets immediately with image URLs when stock provider is enabled,
     // otherwise placeholders are used and OpenAI generation runs in background.
-    const snippetRows = await Promise.all(content.snippets.map(async (s, index) => ({
-      articleId: article.id,
-      snippetOrder: index,
-      headline: s.headline,
-      caption: s.caption,
-      explanation: s.explanation,
-      imageUrl: await initialClipImageUrl(
-        `${article.id}:${index}`,
-        s.imagePrompt || s.headline || s.caption || s.explanation || content.title,
-        s.headline || s.caption || s.imagePrompt || content.title,
-      ),
-      imagePrompt: s.imagePrompt,
-    })));
+    const snippetRows = await Promise.all(content.snippets.map(async (s, index) => {
+      const clipPrompt = buildClipVisualPrompt(s, content.title, index, content.snippets.length);
+      return {
+        articleId: article.id,
+        snippetOrder: index,
+        headline: s.headline,
+        caption: s.caption,
+        explanation: s.explanation,
+        imageUrl: await initialClipImageUrl(
+          `${article.id}:${index}`,
+          clipPrompt,
+          s.headline || s.caption || s.imagePrompt || content.title,
+        ),
+        imagePrompt: clipPrompt,
+      };
+    }));
 
     const insertedSnippets = await db
       .insert(snippetsTable)
@@ -1002,19 +1040,22 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
     // Replace snippets atomically: delete old → insert new
     await db.delete(snippetsTable).where(eq(snippetsTable.articleId, id));
 
-    const snippetRows = await Promise.all(content.snippets.map(async (s, index) => ({
-      articleId: id,
-      snippetOrder: index,
-      headline: s.headline,
-      caption: s.caption,
-      explanation: s.explanation,
-      imageUrl: await initialClipImageUrl(
-        `${id}:${index}`,
-        s.imagePrompt || s.headline || s.caption || s.explanation || content.title,
-        s.headline || s.caption || s.imagePrompt || content.title,
-      ),
-      imagePrompt: s.imagePrompt,
-    })));
+    const snippetRows = await Promise.all(content.snippets.map(async (s, index) => {
+      const clipPrompt = buildClipVisualPrompt(s, content.title, index, content.snippets.length);
+      return {
+        articleId: id,
+        snippetOrder: index,
+        headline: s.headline,
+        caption: s.caption,
+        explanation: s.explanation,
+        imageUrl: await initialClipImageUrl(
+          `${id}:${index}`,
+          clipPrompt,
+          s.headline || s.caption || s.imagePrompt || content.title,
+        ),
+        imagePrompt: clipPrompt,
+      };
+    }));
 
     const insertedSnippets = await db.insert(snippetsTable).values(snippetRows).returning();
 
