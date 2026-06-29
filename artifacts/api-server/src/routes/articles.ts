@@ -422,6 +422,55 @@ async function resolveStockImageDataUrl(seedSource: string, promptText: string):
   return null;
 }
 
+function imageFingerprint(imageUrl: string): string {
+  if (imageUrl.startsWith("data:image/")) {
+    const payloadStart = imageUrl.indexOf(",");
+    const payload = payloadStart >= 0
+      ? imageUrl.slice(payloadStart + 1, payloadStart + 1 + 256)
+      : imageUrl.slice(0, 256);
+    return `data:${payload}`;
+  }
+
+  try {
+    const parsed = new URL(imageUrl);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return imageUrl;
+  }
+}
+
+function promptVariant(basePrompt: string, attempt: number): string {
+  if (attempt <= 0) return basePrompt;
+  const variants = [
+    "Use a distinctly different camera angle and foreground subject.",
+    "Use a different time of day, scene depth, and composition.",
+    "Use a different location viewpoint with clear subject separation.",
+    "Use a unique framing style and alternate travel activity focus.",
+  ];
+  return normalizeWhitespace(`${basePrompt} ${variants[(attempt - 1) % variants.length]}`);
+}
+
+async function resolveUniqueStockImageDataUrl(
+  seedSource: string,
+  promptText: string,
+  usedFingerprints: Set<string>,
+  maxAttempts = 4,
+): Promise<string | null> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const variantPrompt = promptVariant(promptText, attempt);
+    const imageUrl = await resolveStockImageDataUrl(`${seedSource}:v${attempt}`, variantPrompt);
+    if (!imageUrl) continue;
+
+    const fingerprint = imageFingerprint(imageUrl);
+    if (usedFingerprints.has(fingerprint)) continue;
+
+    usedFingerprints.add(fingerprint);
+    return imageUrl;
+  }
+
+  return null;
+}
+
 async function initialClipImageUrl(
   seedSource: string,
   promptText: string,
@@ -743,6 +792,7 @@ async function generateAndSaveImages(
 
   let generated = 0;
   const failed: Array<{ id: number; imagePrompt: string | null }> = [];
+  const usedFingerprints = new Set<string>();
 
   if (IMAGE_PROVIDER === "stock") {
     for (const snippet of targetSnippets) {
@@ -751,7 +801,7 @@ async function generateAndSaveImages(
         || [snippet.headline, snippet.caption, snippet.explanation].filter(Boolean).join(". ")
         || "travel destination"
       );
-      const imageUrl = await resolveStockImageDataUrl(`${snippet.id}`, promptText)
+      const imageUrl = await resolveUniqueStockImageDataUrl(`${snippet.id}`, promptText, usedFingerprints)
         || createPlaceholderImageDataUrl(promptText);
       await db.update(snippetsTable).set({ imageUrl }).where(eq(snippetsTable.id, snippet.id));
       generated++;
@@ -771,7 +821,20 @@ async function generateAndSaveImages(
       continue;
     }
 
-    const imageUrl = await generateAiImageWithRetries(snippet.imagePrompt);
+    let imageUrl: string | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const variantPrompt = promptVariant(snippet.imagePrompt, attempt);
+      const candidate = await generateAiImageWithRetries(variantPrompt);
+      if (!candidate) continue;
+
+      const fingerprint = imageFingerprint(candidate);
+      if (usedFingerprints.has(fingerprint)) continue;
+
+      usedFingerprints.add(fingerprint);
+      imageUrl = candidate;
+      break;
+    }
+
     if (!imageUrl) {
       failed.push(snippet);
       continue;
@@ -793,7 +856,7 @@ async function generateAndSaveImages(
       || [snippet.headline, snippet.caption, snippet.explanation].filter(Boolean).join(". ")
       || "travel destination"
     );
-    const stockFallback = await resolveStockImageDataUrl(`${snippet.id}`, promptText);
+    const stockFallback = await resolveUniqueStockImageDataUrl(`${snippet.id}`, promptText, usedFingerprints);
     if (!stockFallback) continue;
 
     await db.update(snippetsTable).set({ imageUrl: stockFallback }).where(eq(snippetsTable.id, snippet.id));
@@ -944,22 +1007,35 @@ router.post("/", async (req, res) => {
 
     // Insert snippets immediately with image URLs when stock provider is enabled,
     // otherwise placeholders are used and OpenAI generation runs in background.
-    const snippetRows = await Promise.all(content.snippets.map(async (s, index) => {
+    const usedInitialImages = new Set<string>();
+    const snippetRows: Array<{
+      articleId: number;
+      snippetOrder: number;
+      headline: string;
+      caption: string;
+      explanation: string;
+      imageUrl: string;
+      imagePrompt: string;
+    }> = [];
+
+    for (let index = 0; index < content.snippets.length; index++) {
+      const s = content.snippets[index];
       const clipPrompt = buildClipVisualPrompt(s, content.title, index, content.snippets.length);
-      return {
+      const imageUrl = IMAGE_PROVIDER === "stock"
+        ? (await resolveUniqueStockImageDataUrl(`${article.id}:${index}`, clipPrompt, usedInitialImages)
+          || createPlaceholderImageDataUrl(s.headline || s.caption || content.title))
+        : createPlaceholderImageDataUrl(s.headline || s.caption || content.title);
+
+      snippetRows.push({
         articleId: article.id,
         snippetOrder: index,
         headline: s.headline,
         caption: s.caption,
         explanation: s.explanation,
-        imageUrl: await initialClipImageUrl(
-          `${article.id}:${index}`,
-          clipPrompt,
-          s.headline || s.caption || s.imagePrompt || content.title,
-        ),
+        imageUrl,
         imagePrompt: clipPrompt,
-      };
-    }));
+      });
+    }
 
     const insertedSnippets = await db
       .insert(snippetsTable)
@@ -1040,22 +1116,35 @@ router.post("/:id/regenerate-chapters", async (req, res) => {
     // Replace snippets atomically: delete old → insert new
     await db.delete(snippetsTable).where(eq(snippetsTable.articleId, id));
 
-    const snippetRows = await Promise.all(content.snippets.map(async (s, index) => {
+    const usedInitialImages = new Set<string>();
+    const snippetRows: Array<{
+      articleId: number;
+      snippetOrder: number;
+      headline: string;
+      caption: string;
+      explanation: string;
+      imageUrl: string;
+      imagePrompt: string;
+    }> = [];
+
+    for (let index = 0; index < content.snippets.length; index++) {
+      const s = content.snippets[index];
       const clipPrompt = buildClipVisualPrompt(s, content.title, index, content.snippets.length);
-      return {
+      const imageUrl = IMAGE_PROVIDER === "stock"
+        ? (await resolveUniqueStockImageDataUrl(`${id}:${index}`, clipPrompt, usedInitialImages)
+          || createPlaceholderImageDataUrl(s.headline || s.caption || content.title))
+        : createPlaceholderImageDataUrl(s.headline || s.caption || content.title);
+
+      snippetRows.push({
         articleId: id,
         snippetOrder: index,
         headline: s.headline,
         caption: s.caption,
         explanation: s.explanation,
-        imageUrl: await initialClipImageUrl(
-          `${id}:${index}`,
-          clipPrompt,
-          s.headline || s.caption || s.imagePrompt || content.title,
-        ),
+        imageUrl,
         imagePrompt: clipPrompt,
-      };
-    }));
+      });
+    }
 
     const insertedSnippets = await db.insert(snippetsTable).values(snippetRows).returning();
 
