@@ -2316,26 +2316,27 @@ function AdminDashboard() {
       const currentArticleId = playingArticleIdRef.current;
       const currentSnippets = snippetsRef.current;
       const currentSnippetId = currentSnippets[currentIdx]?.id;
-      
+
       // Strict guards: only advance if this is the *current* snippet being read
+      // Article/snippet/ID guards catch stale callbacks. We do NOT check otherPresenceActive
+      // because Admin should always advance when its own voice finishes, regardless of other displays.
       const isCurrentArticle = currentArticleId === articleId;
       const isCurrentSnippet = currentIdx === currentSnippetIndex;
       const isSameSnippetId = currentSnippetId === snippetId;
-      const noOtherDisplayActive = !otherPresenceActive; // Prevent advancing while another display has voice
-      
+
       console.log(`[voice.onEnded] clip ${currentIdx} (id=${currentSnippetId}) finished after ${duration}ms`);
-      console.log(`  Guards: sameArticle=${isCurrentArticle} sameIdx=${isCurrentSnippet} sameId=${isSameSnippetId} noOther=${noOtherDisplayActive}`);
-      
+      console.log(`  Guards: sameArticle=${isCurrentArticle} sameIdx=${isCurrentSnippet} sameId=${isSameSnippetId}`);
+
       if (duration < 1000) {
         console.warn(`  WARNING: onEnded fired quickly (${duration}ms). May be stale callback.`);
       }
-      
+
       // Only advance if ALL guards pass
-      if (queueAutoplayRef.current && isCurrentArticle && isCurrentSnippet && isSameSnippetId && noOtherDisplayActive) {
+      if (queueAutoplayRef.current && isCurrentArticle && isCurrentSnippet && isSameSnippetId) {
         console.log(`  ✓ All guards passed. Calling advance()`);
         advanceRef.current();
       } else if (queueAutoplayRef.current) {
-        console.warn(`  ✗ Guards blocked advance. autoplay=${queueAutoplayRef.current} article=${isCurrentArticle} idx=${isCurrentSnippet} id=${isSameSnippetId} noOther=${noOtherDisplayActive}`);
+        console.warn(`  ✗ Guards blocked advance. article=${isCurrentArticle} idx=${isCurrentSnippet} id=${isSameSnippetId}`);
       }
     });
     // queueAutoplay is intentionally NOT in deps — accessed via ref so toggling it
