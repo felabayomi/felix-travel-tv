@@ -2211,6 +2211,7 @@ function AdminDashboard() {
   // Advances within the current article; when the last snippet is done, advances
   // the queue if EITHER chapter-autoplay OR queue-autoplay is on.
   const advancingRef = useRef(false);
+  const voiceStartTimeRef = useRef<{ idx: number; startMs: number }>({ idx: -1, startMs: 0 });
   const advance = useCallback(async () => {
     if (advancingRef.current) {
       console.warn('[advance] Already advancing, skipping duplicate call');
@@ -2225,7 +2226,8 @@ function AdminDashboard() {
     advancingRef.current = true;
     const fromIdx = currentSnippetIndexRef.current;
     const toIdx = fromIdx + 1;
-    console.log(`[advance] Starting: clip ${fromIdx} → ${toIdx}, autoplay=${queueAutoplayRef.current}, otherPresenceActive=${otherPresenceActive}`);
+    const stack = new Error().stack?.split('\n').slice(1, 3).join(' | ') || '';
+    console.log(`[advance] START clip ${fromIdx}→${toIdx} autoplay=${queueAutoplayRef.current} ${stack.substring(0, 60)}`);
     try {
       const articleId = playingArticleIdRef.current;
       const idx = currentSnippetIndexRef.current;
@@ -2260,7 +2262,7 @@ function AdminDashboard() {
       }
       await loadQueue();
     } finally {
-      console.log(`[advance] Complete: clip ${fromIdx} → ${toIdx}`);
+      console.log(`[advance] END clip ${fromIdx}→${toIdx}`);
       advancingRef.current = false;
     }
   }, [updatePlayback, loadQueue]);
@@ -2302,11 +2304,19 @@ function AdminDashboard() {
     prevIndexRef.current = { index: currentSnippetIndex, articleId: playingArticleId };
     // Always attach onEnded; it checks queueAutoplayRef at the moment it fires
     // so autoplay can be toggled on/off between the speak() call and when it ends.
-    console.log(`[voice] Starting speech for clip ${currentSnippetIndex} (id=${snippets[currentSnippetIndex].id})`);
+    const startMs = Date.now();
+    voiceStartTimeRef.current = { idx: currentSnippetIndex, startMs };
+    console.log(`[voice] START clip ${currentSnippetIndex} (id=${snippets[currentSnippetIndex].id}) at ${startMs}`);
     speakRef.current(snippets[currentSnippetIndex].id, () => {
-      console.log(`[voice.onEnded] Clip ${currentSnippetIndexRef.current} finished, autoplay=${queueAutoplayRef.current}`);
+      const endMs = Date.now();
+      const duration = endMs - voiceStartTimeRef.current.startMs;
+      const isSameClip = voiceStartTimeRef.current.idx === currentSnippetIndexRef.current;
+      console.log(`[voice.onEnded] clip ${currentSnippetIndexRef.current} finished after ${duration}ms (same=${isSameClip}) autoplay=${queueAutoplayRef.current}`);
+      if (isSameClip && duration < 1000) {
+        console.warn(`[voice.onEnded] WARNING: onEnded fired too quickly (${duration}ms)! May have been called multiple times. Call advance() anyway.`);
+      }
       if (queueAutoplayRef.current) {
-        console.log(`[voice.onEnded] Calling advance()`);
+        console.log(`[voice.onEnded] → calling advance()`);
         advanceRef.current();
       }
     });
