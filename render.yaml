@@ -2,7 +2,7 @@ services:
   - type: web
     name: felix-travel-tv-api
     runtime: node
-    buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm -r --filter @workspace/db --filter @workspace/api-zod --filter @workspace/integrations-openai-ai-server --filter @workspace/api-server build
+    buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile --config.strict-dep-builds=false --config.only-built-dependencies=esbuild && pnpm rebuild esbuild && pnpm -r --filter @workspace/db --filter @workspace/api-zod --filter @workspace/integrations-openai-ai-server --filter @workspace/api-server build
     startCommand: node --enable-source-maps ./artifacts/api-server/dist/index.mjs
     envVars:
       - key: NODE_ENV
