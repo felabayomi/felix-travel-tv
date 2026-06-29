@@ -2,7 +2,6 @@ import { Router, type IRouter } from "express";
 import { db, articlesTable, snippetsTable } from "@workspace/db";
 import { eq, asc, desc, sql, inArray } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import OpenAI from "openai";
 
 const router: IRouter = Router();
 
@@ -159,15 +158,6 @@ interface ArticleData {
 }
 
 type CompletionResponse = Awaited<ReturnType<typeof openai.chat.completions.create>>;
-
-const directApiKey =
-  process.env.AI_INTEGRATIONS_OPENAI_API_KEY ||
-  process.env.TRAVEL_TV_OPEN_AI_KEY ||
-  process.env.OPENAI_API_KEY;
-
-const directOpenAi = directApiKey
-  ? new OpenAI({ apiKey: directApiKey })
-  : null;
 
 function toIsoDateOrNow(value: string): string {
   const parsed = Date.parse(value);
@@ -439,17 +429,7 @@ Respond with a JSON object ONLY (no markdown, no code block):
     response = await requestArticleCompletion(prompt, openai);
   } catch (err: any) {
     const message = typeof err?.message === "string" ? err.message : "AI generation failed";
-    // If a proxy/baseURL rejects the source host, retry once against direct OpenAI.
-    if (/insights whitelist/i.test(message) && directOpenAi) {
-      try {
-        response = await requestArticleCompletion(prompt, directOpenAi);
-      } catch (directErr: any) {
-        const directMessage = typeof directErr?.message === "string" ? directErr.message : message;
-        return buildFallbackArticleContent(url, page, directMessage);
-      }
-    } else {
-      return buildFallbackArticleContent(url, page, message);
-    }
+    return buildFallbackArticleContent(url, page, message);
   }
 
   const rawContent = response.choices[0]?.message?.content ?? "{}";
