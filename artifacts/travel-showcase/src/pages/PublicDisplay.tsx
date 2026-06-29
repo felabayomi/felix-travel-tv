@@ -228,10 +228,10 @@ function GlobalTicker({ speed = 3, channelName = 'Felix Travel TV' }: { speed?: 
 
   const tickerText = items.length > 0
     ? items.map(item =>
-        item.isCustom || !item.caption
-          ? item.headline.toUpperCase()
-          : `${item.headline.toUpperCase()}  ·  ${item.caption}`
-      ).join('     ◆     ')
+      item.isCustom || !item.caption
+        ? item.headline.toUpperCase()
+        : `${item.headline.toUpperCase()}  ·  ${item.caption}`
+    ).join('     ◆     ')
     : 'STANDING BY FOR BROADCAST  ·  TUNE IN FOR LIVE COVERAGE';
 
   const textStyle: React.CSSProperties = {
@@ -517,7 +517,7 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
           if (v.maxDurationSecs) setRemaining(v.maxDurationSecs);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [videoId]);
 
   useEffect(() => {
@@ -528,7 +528,7 @@ function VideoScreen({ videoId, config }: { videoId: number; config: WaitingConf
       setRemaining(rem);
       if (rem <= 0) {
         clearInterval(tick);
-        fetch('/api/playback/queue/advance', { method: 'POST' }).catch(() => {});
+        fetch('/api/playback/queue/advance', { method: 'POST' }).catch(() => { });
       }
     }, 1000);
     return () => clearInterval(tick);
@@ -716,6 +716,7 @@ export function PublicDisplay() {
 
   // Track which snippet was last spoken
   const lastSpokenRef = useRef<{ snippetId: number; articleId: number | null }>({ snippetId: -1, articleId: null });
+  const isAudioAdvancingRef = useRef(false);
 
   useEffect(() => {
     // Not playing an article, or voice is off — stop and reset the guard so
@@ -731,17 +732,41 @@ export function PublicDisplay() {
       lastSpokenRef.current.articleId === articleId
     ) return;
     lastSpokenRef.current = { snippetId: currentSnippet.id, articleId: articleId ?? null };
-    // No onEnded — public display never drives queue advances
-    speakRef.current(currentSnippet.id);
-  // voiceEnabled is in deps: toggling it on re-runs this effect and speaks the current snippet.
-  // The click that toggles it satisfies the browser's autoplay policy.
-  }, [currentSnippet, itemType, articleId, voiceEnabled]);
+    const spokenIndex = safeIndex;
+    const spokenTotal = snippets.length;
+
+    // In voice mode, narration completion is the timing authority for slide advance.
+    speakRef.current(currentSnippet.id, async () => {
+      if (!voiceEnabled || itemType !== 'article' || articleId == null) return;
+      if (isAudioAdvancingRef.current) return;
+
+      isAudioAdvancingRef.current = true;
+      try {
+        if (spokenIndex < spokenTotal - 1) {
+          await fetch('/api/playback/queue/snippet', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ snippetIndex: spokenIndex + 1 }),
+          });
+          return;
+        }
+
+        await fetch('/api/playback/queue/advance', { method: 'POST' });
+      } catch {
+        // Keep playback running on server fallback path if this update fails.
+      } finally {
+        isAudioAdvancingRef.current = false;
+      }
+    });
+    // voiceEnabled is in deps: toggling it on re-runs this effect and speaks the current snippet.
+    // The click that toggles it satisfies the browser's autoplay policy.
+  }, [currentSnippet, itemType, articleId, voiceEnabled, safeIndex, snippets.length]);
 
   // Keep server-side fallback timers from advancing slides while public narration is active.
   useEffect(() => {
     if (!onAir || itemType !== 'article' || !voiceEnabled || !currentSnippet) return;
 
-    const ping = () => fetch('/api/playback/presence', { method: 'PATCH' }).catch(() => {});
+    const ping = () => fetch('/api/playback/presence', { method: 'PATCH' }).catch(() => { });
     ping();
     const id = setInterval(ping, 20000);
     return () => clearInterval(id);
@@ -1063,11 +1088,11 @@ export function PublicDisplay() {
         {voiceEnabled
           ? <Volume2 className="w-5 h-5" />
           : <>
-              <VolumeX className="w-5 h-5 text-white/70" />
-              <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '12px', letterSpacing: '0.12em', fontWeight: 600 }}>
-                TAP FOR SOUND
-              </span>
-            </>
+            <VolumeX className="w-5 h-5 text-white/70" />
+            <span style={{ fontFamily: 'Oswald, sans-serif', fontSize: '12px', letterSpacing: '0.12em', fontWeight: 600 }}>
+              TAP FOR SOUND
+            </span>
+          </>
         }
       </button>
 
