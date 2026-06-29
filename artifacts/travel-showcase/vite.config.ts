@@ -19,6 +19,7 @@ if (!isBuild) {
 }
 
 const basePath = process.env.BASE_PATH ?? "/";
+const configuredAdminPin = String(process.env.VITE_ADMIN_PIN ?? process.env.ADMIN_PIN ?? "1234").trim();
 
 if (!isBuild && !process.env.BASE_PATH) {
   throw new Error("BASE_PATH environment variable is required but was not provided.");
@@ -57,7 +58,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   define: {
-    'import.meta.env.VITE_ADMIN_PIN': JSON.stringify(process.env.VITE_ADMIN_PIN ?? '1234'),
+    'import.meta.env.VITE_ADMIN_PIN': JSON.stringify(configuredAdminPin),
   },
   server: {
     port,

@@ -21,7 +21,7 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
   const [addError, setAddError] = useState('');
   const [addStatus, setAddStatus] = useState<{ tone: 'ai' | 'fallback'; message: string } | null>(null);
 
-  const CORRECT_PIN = import.meta.env.VITE_ADMIN_PIN ?? '1234';
+  const CORRECT_PIN = String(import.meta.env.VITE_ADMIN_PIN ?? '1234').trim();
   const STORAGE_KEY = 'newsreader_admin_auth';
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() =>
@@ -56,7 +56,7 @@ export function NewsAdminPanel({ onArticleAdded }: NewsAdminPanelProps) {
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin === CORRECT_PIN) {
+    if (pin.trim() === CORRECT_PIN) {
       if (keepSignedIn) localStorage.setItem(STORAGE_KEY, 'true');
       else sessionStorage.setItem(STORAGE_KEY, 'true');
       setIsAuthenticated(true);

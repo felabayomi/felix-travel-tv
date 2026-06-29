@@ -17,7 +17,7 @@ import { useVoiceReader } from '@/hooks/use-voice-reader';
 import { cn } from '@/lib/utils';
 import { exportArticleToMp4 } from '@/lib/exportArticleMp4';
 
-const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN ?? '1234';
+const ADMIN_PIN = String(import.meta.env.VITE_ADMIN_PIN ?? '1234').trim();
 const AUTH_KEY = 'newsreader_admin_auth';
 const SOURCE_KEY = 'newsreader_last_source';
 const SOURCES_HISTORY_KEY = 'newsreader_sources_history';
@@ -1163,7 +1163,7 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin === ADMIN_PIN) {
+    if (pin.trim() === ADMIN_PIN) {
       if (remember) {
         localStorage.setItem(AUTH_KEY, 'true');
       } else {
