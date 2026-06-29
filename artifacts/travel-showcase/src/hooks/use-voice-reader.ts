@@ -98,8 +98,8 @@ export function useVoiceReader(enabled: boolean) {
       if (genRef.current !== myGen) return; // stale, ignore
       console.warn('[voice] TTS playback error:', err);
       setIsLoading(false);
-      // Do not auto-advance on TTS failure. The long safety-net timer in AdminPage
-      // and server-side fallback logic will handle recovery without rapid skipping.
+      // If audio fails, still advance after a short delay so slideshow doesn't freeze
+      if (onEnded) setTimeout(onEnded, 2000);
     }
   }, [enabled, stop]);
 
